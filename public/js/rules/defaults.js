@@ -37,6 +37,36 @@ export const DEFAULT_STATS = [
   { key: 'dig', label: 'DIG', name: 'Digs' },
 ];
 
+// JVO playoffs: top 4, semis best of 3, grand final best of 5, every set to 10.
+// `seeds` stays null until an admin creates the bracket.
+export const DEFAULT_PLAYOFFS = {
+  size: 4,
+  rounds: [
+    { id: 'sf', name: 'Semi-finals', short: 'SF', bestOf: 3 },
+    { id: 'final', name: 'Grand final', short: 'GF', bestOf: 5 },
+  ],
+  seeds: null,
+};
+
+// Career milestones, per stat. Reaching one shows on the Awards & Records page.
+export const MILESTONES = {
+  default: [50, 100, 250, 500, 1000, 2500, 5000],
+  matches: [10, 25, 50, 100, 200],
+};
+
+// Prize names for the live stat awards (whoever leads the stat holds the prize).
+export const AWARD_NAMES = {
+  pts: 'Top Scorer',
+  spk: 'Spike King',
+  blk: 'The Wall',
+  ace: 'Ace Server',
+  dig: 'Dig Machine',
+  set: 'Top Setter',
+  ast: 'Playmaker',
+  rec: 'Safe Hands',
+  mvps: 'MVP Magnet',
+};
+
 // Table points for a best-of-N format using the 3/2/1/0 pattern
 // (clean win 3, close win 2, close loss 1, clean loss 0).
 export function fivbMatchPoints(bestOf) {

@@ -2,6 +2,8 @@
 
 import { loadSeasonFromUrl } from '../../data.js';
 import { reviewResult } from '../../rules/results.js';
+import { formatFor } from '../../rules/season.js';
+import { bracketProblems } from '../../rules/playoffs.js';
 import { esc, skeleton, urls } from '../../ui.js';
 import { matchRow, seasonPicker, sortByTime } from '../parts.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
@@ -39,18 +41,20 @@ export async function render() {
   const upcoming = fixtures.filter((f) => !data.results[f.id] && (f.scheduledAt ?? Infinity) > now).slice(0, 6);
   const done = fixtures.filter((f) => data.results[f.id]);
 
+  const bracketIssues = bracketProblems(data.season, data.fixtures, data.results);
   const flagged = done
-    .map((f) => ({
-      f,
-      review: reviewResult(data.results[f.id], {
+    .map((f) => {
+      const review = reviewResult(data.results[f.id], {
         homeTeamId: f.homeTeamId,
         awayTeamId: f.awayTeamId,
-        format: data.season.format,
+        format: formatFor(data.season, f),
         teamSize: data.season.format?.teamSize ?? 4,
         rosters: data.rosters,
         teamNames,
-      }),
-    }))
+      });
+      for (const p of bracketIssues.filter((b) => b.fixtureId === f.id)) review.errors.push(p.message);
+      return { f, review };
+    })
     .filter(({ review }) => review.errors.length || review.warnings.length);
 
   const flaggedRows = flagged.map(({ f, review }) => `
@@ -72,6 +76,9 @@ export async function render() {
         </div>
         ${seasonPicker(data, '/admin')}
       </section>
+      <nav class="admin-tools" aria-label="Admin tools">
+        <a class="btn btn-ghost btn-sm" href="/admin/playoffs?season=${encodeURIComponent(data.season.id)}" data-link>Playoffs</a>
+      </nav>
       <div class="grid">
         ${section('Needs a result', overdue.length ? `${overdue.length} waiting` : '', overdue.map((f) => matchRow(f, data, { href: edit(f), showRound: true })), 'All caught up. Every played match has a result.')}
         ${section('Something to check', flagged.length ? `${flagged.length} result${flagged.length === 1 ? '' : 's'}` : '', flaggedRows, 'Nothing to check.')}

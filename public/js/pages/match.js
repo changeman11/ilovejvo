@@ -4,6 +4,7 @@
 import { loadSeason, NotFoundError } from '../data.js';
 import { checkResult } from '../rules/match.js';
 import { computeStandings } from '../rules/standings.js';
+import { formatFor, roundLabel } from '../rules/season.js';
 import {
   esc, skeleton, notice, safeUrl, fmtLongDay, fmtTime, teamChip, playerLink, formPills, urls,
 } from '../ui.js';
@@ -131,7 +132,8 @@ export async function render({ seasonId, fixtureId }) {
   const home = data.teamsById[fixture.homeTeamId];
   const away = data.teamsById[fixture.awayTeamId];
   const result = data.results[fixture.id];
-  const check = result ? checkResult(result.sets, data.season.format) : null;
+  const check = result ? checkResult(result.sets, formatFor(data.season, fixture)) : null;
+  const label = roundLabel(data.season, fixture);
   const played = check?.ok;
 
   const teamBlock = (team, side, won) => `
@@ -169,9 +171,9 @@ export async function render({ seasonId, fixtureId }) {
   return {
     title: `${home?.shortName ?? 'TBC'} vs ${away?.shortName ?? 'TBC'}`,
     html: `
-      <a class="back" href="${esc(backHref)}" data-link>← Round ${esc(fixture.round)}</a>
+      <a class="back" href="${esc(backHref)}" data-link>← ${esc(label)}</a>
       <section class="match-hero" style="--home:${esc(home?.colors?.primary ?? 'transparent')};--away:${esc(away?.colors?.primary ?? 'transparent')}">
-        <span class="eyebrow">${esc(data.season.name)} · Round ${esc(fixture.round)} · ${status}</span>
+        <span class="eyebrow">${esc(data.season.name)} · ${esc(label)} · ${status}</span>
         <div class="mh-teams">
           ${teamBlock(home, 'home', check?.winner === 'home')}
           ${middle}

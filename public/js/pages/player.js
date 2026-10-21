@@ -2,7 +2,7 @@
 // URL option: ?season=s0 to look at an earlier season.
 
 import { loadAllSeasons, homeSeasonId, NotFoundError } from '../data.js';
-import { computeStandings } from '../rules/standings.js';
+import { seasonMatches, roundLabel } from '../rules/season.js';
 import { seasonPlayerStats, rates } from '../rules/stats.js';
 import { esc, skeleton, notice, fmtNum, pct, teamChip, teamLink, urls } from '../ui.js';
 import { statHeads, statCells, seasonPicker } from './parts.js';
@@ -20,7 +20,7 @@ export async function render({ playerId }) {
 
   // Each season: their stats (if they played) and the team they're listed on (if any).
   const seasons = all.map((d) => {
-    const { matches } = computeStandings(d);
+    const { matches } = seasonMatches(d); // regular season + playoffs
     const statKeys = (d.season.stats ?? []).map((s) => s.key);
     const stats = seasonPlayerStats({ matches, results: d.results, statKeys }).get(playerId) ?? null;
     const rosterTeamId = Object.entries(d.rosters).find(([, r]) => r.playerIds?.includes(playerId))?.[0] ?? null;
@@ -70,9 +70,10 @@ export async function render({ playerId }) {
       .reverse()
       .map((l) => {
         const opp = d.teamsById[l.opponentId];
+        const fixture = d.fixtures.find((f) => f.id === l.fixtureId);
         const res = `<span class="res ${l.won ? 'W' : 'L'}">${l.won ? 'W' : 'L'}</span> ${l.setsFor}–${l.setsAgainst}`;
         return `<tr>
-          <td class="team-col"><a class="plink" href="${urls.match(d.season.id, l.fixtureId)}" data-link>R${esc(l.round)} vs ${teamChip(opp)}${esc(opp?.shortName ?? l.opponentId)}</a>${l.mvp ? ' <span class="badge">MVP</span>' : ''}</td>
+          <td class="team-col"><a class="plink" href="${urls.match(d.season.id, l.fixtureId)}" data-link>${esc(roundLabel(d.season, fixture ?? { round: l.round }, { short: true }))} vs${teamChip(opp)}${esc(opp?.shortName ?? l.opponentId)}</a>${l.mvp ? ' <span class="badge">MVP</span>' : ''}</td>
           <td class="num">${res}</td>${statCells(l.line, statDefs)}</tr>`;
       })
       .join('');

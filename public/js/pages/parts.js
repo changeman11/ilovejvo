@@ -2,6 +2,7 @@
 
 import { esc, fmtDay, fmtTime, fmtRatio, teamChip, teamLink, formPills, urls } from '../ui.js';
 import { checkResult } from '../rules/match.js';
+import { formatFor, roundLabel } from '../rules/season.js';
 
 // One match line, linking to the match page: finished (score + sets) or upcoming (date/time).
 // timeOnly: drop the date (for lists already grouped under a day heading).
@@ -10,10 +11,11 @@ export function matchRow(fixture, data, { showRound = false, timeOnly = false, h
   const home = data.teamsById[fixture.homeTeamId];
   const away = data.teamsById[fixture.awayTeamId];
   const result = data.results[fixture.id];
-  const check = result ? checkResult(result.sets, data.season.format) : null;
+  const check = result ? checkResult(result.sets, formatFor(data.season, fixture)) : null;
   href ??= urls.match(data.season.id, fixture.id);
   const name = (t) => esc(t?.name ?? 'TBC');
-  const round = showRound ? `<div class="sets">Round ${esc(fixture.round)} · ${fmtDay(fixture.scheduledAt)}</div>` : '';
+  const label = esc(roundLabel(data.season, fixture));
+  const round = showRound ? `<div class="sets">${label} · ${fmtDay(fixture.scheduledAt)}</div>` : '';
 
   if (check?.ok) {
     const homeWon = check.winner === 'home';
@@ -39,7 +41,7 @@ export function matchRow(fixture, data, { showRound = false, timeOnly = false, h
       <div class="side home">${teamChip(home)}<span>${name(home)}</span></div>
       ${middle}
       <div class="side away"><span>${name(away)}</span>${teamChip(away)}</div>
-      ${showRound ? `<div class="sets">Round ${esc(fixture.round)}</div>` : ''}
+      ${showRound ? `<div class="sets">${label}</div>` : ''}
     </a>`;
 }
 
@@ -119,4 +121,4 @@ export function byDay(fixtures) {
   return groups;
 }
 
-export const sortByTime = (a, b) => (a.scheduledAt ?? 0) - (b.scheduledAt ?? 0) || (a.round ?? 0) - (b.round ?? 0);
+export { byTime as sortByTime } from '../rules/standings.js';

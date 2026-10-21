@@ -99,7 +99,7 @@ if (process.env.FUNCTIONS_EMULATOR === 'true') {
 // The website stamps `updatedBy` on every admin save (the security rules insist on it),
 // so the log knows who did it. Deletes are stamped just before they happen.
 // Changes made in the Firebase console or by scripts show as by: null.
-exports.auditSeasonWrites = onDocumentWritten('seasons/{seasonId}/{collection}/{docId}', async (event) => {
+async function writeAudit(event, collection, docId) {
   const before = event.data?.before?.exists ? event.data.before.data() : null;
   const after = event.data?.after?.exists ? event.data.after.data() : null;
   if (!before && !after) return;
@@ -110,9 +110,16 @@ exports.auditSeasonWrites = onDocumentWritten('seasons/{seasonId}/{collection}/{
     by: (after ?? before).updatedBy ?? null,
     path: event.document,
     seasonId: event.params.seasonId,
-    collection: event.params.collection,
-    docId: event.params.docId,
+    collection,
+    docId,
     before,
     after,
   });
-});
+}
+
+exports.auditSeasonWrites = onDocumentWritten('seasons/{seasonId}/{collection}/{docId}', (event) =>
+  writeAudit(event, event.params.collection, event.params.docId));
+
+// The season document itself (settings, playoff seeds...).
+exports.auditSeasonDocs = onDocumentWritten('seasons/{seasonId}', (event) =>
+  writeAudit(event, 'seasons', event.params.seasonId));

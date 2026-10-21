@@ -4,6 +4,7 @@
 import { loadSeasonFromUrl } from '../data.js';
 import { esc, skeleton, notice } from '../ui.js';
 import { matchRow, seasonPicker, byDay, sortByTime } from './parts.js';
+import { roundLabel } from '../rules/season.js';
 
 export const title = 'Fixtures';
 
@@ -64,17 +65,20 @@ export async function render() {
       .map((r) => {
         const done = fixtures.filter((f) => f.round === r).every((f) => data.results[f.id]);
         const current = r === round ? ' aria-current="true"' : '';
-        return `<a class="chip-link${done ? ' done' : ''}" href="${esc(url({ round: r }))}" data-link data-keep-scroll${current}>R${r}</a>`;
+        const first = fixtures.find((f) => f.round === r);
+        const playoff = first?.stage === 'playoffs' ? ' playoff' : '';
+        return `<a class="chip-link${done ? ' done' : ''}${playoff}" href="${esc(url({ round: r }))}" data-link data-keep-scroll${current}>${esc(roundLabel(data.season, first, { short: true }))}</a>`;
       })
       .join('');
     const inRound = fixtures.filter((f) => f.round === round);
+    const heading = roundLabel(data.season, inRound[0]);
     const days = byDay(inRound)
       .map((g) => `<h3 class="day">${esc(g.label)}</h3><div class="matches">${g.fixtures.map((f) => matchRow(f, data, { timeOnly: true })).join('')}</div>`)
       .join('');
     body = `
       <nav class="chips" aria-label="Rounds">${chips}</nav>
       <section class="card">
-        <div class="section-head"><h2>Round ${esc(round)}</h2><span class="muted small">${inRound.filter((f) => data.results[f.id]).length}/${inRound.length} played</span></div>
+        <div class="section-head"><h2>${esc(heading)}</h2><span class="muted small">${inRound.filter((f) => data.results[f.id]).length}/${inRound.length} played</span></div>
         ${days}
       </section>`;
   }

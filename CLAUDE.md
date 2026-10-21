@@ -16,7 +16,10 @@ The reference is **ORC Hub** (https://orc-hub.web.app), the hub for the Oceanic 
 - **Table points**: 2–0 win = 3, 2–1 win = 2, 1–2 loss = 1, 0–2 loss = 0.
 - **Positions**: none fixed. Players do everything. Keep the `position` field (empty) for later.
 - **Player stats** (from the game's end-of-match screen, per player per match): `pts`, `spk`, `blk`, `rec`, `set`, `ast`, `ace`, `dig`. Exact meanings of SET vs AST are _TBC_.
-- **Forfeits**: no player stats; the other team gets the win and 3 table points, recorded as a 2–0 with every set 10–0, so sets and points count. (The user's wording was "3x set wins"; 2–0 is the current reading, to be confirmed.) Stored as `forfeit: {teamId}` on the result.
+- **Forfeits**: no player stats; the other team gets the win and 3 table points, recorded as a 2–0 with both sets 10–0, so sets and points count (confirmed 2026-10-21). Stored as `forfeit: {teamId}` on the result.
+- **Playoffs** (confirmed 2026-10-21): top 4 after the regular season. Semi-finals 1v4 and 2v3 (best of 3), grand final best of 5; every set to 10, win by 2. Higher seed is home. No 3rd-place match. Seeds are locked when an admin creates the bracket; winners advance automatically.
+- **Playoff stats count together** with regular-season stats (leaders, awards, records, careers). The league table uses regular-season matches only.
+- **Awards are dynamic** (decided 2026-10-21, replaces the "suggest + one-click accept" admin step below): one prize per stat leaderboard; whoever is #1 right now holds it (ties = joint holders). When a season is finished, the final holder is the winner. Champions (final winner) and minor premiers (1st on the table) are automatic too.
 - **Admin sign-in**: Discord via a Cloud Function custom token (uid `discord:<id>`); admins listed in `/admins`. Functions region `australia-southeast1`.
 - **Still to fill in**: game name, brand colours and logo (placeholders: yellow `#ffc533` on navy `#0a0e17`), Discord invite, YouTube/Twitch links, playoff format.
 
@@ -75,7 +78,7 @@ Everything is scoped by season, while teams and players carry across seasons by 
 - **Schedule generator** — single or double round-robin over the season's confirmed teams, byes for odd counts, divisions sharing round numbers, and "top up" to add fixtures for late-joining teams without wiping the schedule.
 - **League** — teams, players, positions, player ↔ Discord links, rosters per season (with copy-from-season), mid-season transfers.
 - **Season** — current season, show a finished season on the home page while the next is prepared, divisions, season launch wizard (step by step), lock/rename seasons.
-- **Playoffs, Awards** (stat-based awards auto-suggest a winner: e.g. top scorer, best setter by assists, best server by aces, best blocker, best libero by digs/reception; one-click accept), **Transfers and team requests**.
+- **Playoffs** (create bracket from final standings, set dates), **Transfers and team requests**. Awards need no admin step for JVO: they're live stat leaderboards (see "JVO's format").
 - **Rules** — edit the rulebook in Markdown, save it to the hub, and publish to a Discord channel by editing existing messages in place (split under Discord's 2000-character limit).
 - **Integrations** — Discord server and role sync, match-report threads (one per match, released per matchweek, pinging both teams, renamed COMPLETED with the score once the result is in), result auto-posts via webhook, stream schedule board with a streamer claim button, stream channel list.
 - **Insights** — visitor analytics (unique visitors per day), client error log, audit log (server-recorded: who changed what, uneditable).

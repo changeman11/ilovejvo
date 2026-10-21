@@ -34,7 +34,8 @@ service cloud.firestore {
     // League data: public read, admin write
     match /seasons/{seasonId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isAdmin() && stampedByMe();
+      allow delete: if isAdmin();
 
       match /results/{fixtureId} {
         allow read: if true;

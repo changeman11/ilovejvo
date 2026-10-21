@@ -2,6 +2,8 @@
 
 import { loadAllSeasons, homeSeasonId, NotFoundError } from '../data.js';
 import { computeStandings } from '../rules/standings.js';
+import { seasonMatches } from '../rules/season.js';
+import { resolveBracket } from '../rules/playoffs.js';
 import { seasonPlayerStats, seasonTeamStats, rates } from '../rules/stats.js';
 import { esc, skeleton, notice, fmtRatio, fmtNum, ordinal, teamChip, playerLink, formPills } from '../ui.js';
 import { matchRow, statHeads, statCells, sortByTime } from './parts.js';
@@ -12,6 +14,18 @@ export function loading() {
   return `<div class="grid">${skeleton([150, 80, 300, 240])}</div>`;
 }
 
+// How far the team got in that season's playoffs, or '' if they weren't in them.
+function playoffFinish(d, teamId) {
+  const bracket = resolveBracket(d.season, d.fixtures, d.results);
+  if (!bracket || !d.season.playoffs.seeds.includes(teamId)) return '';
+  if (bracket.championId === teamId) return 'Champions';
+  const final = bracket.bySlot.final;
+  if (final?.played && [final.homeTeamId, final.awayTeamId].includes(teamId)) return 'Runners-up';
+  const out = bracket.slots.find((s) => s.played && s.winnerTeamId !== teamId && [s.homeTeamId, s.awayTeamId].includes(teamId));
+  if (out) return `Lost ${out.roundInfo.short ?? out.roundInfo.name}`;
+  return 'In playoffs';
+}
+
 export async function render({ teamId }) {
   const [all, homeId] = await Promise.all([loadAllSeasons(), homeSeasonId()]);
   const team = all[0]?.teamsById[teamId];
@@ -20,7 +34,13 @@ export async function render({ teamId }) {
   const seasonsIn = all.filter((d) => d.teams.some((t) => t.id === teamId));
   const history = seasonsIn.map((d) => {
     const standing = computeStandings(d);
-    return { d, ...standing, row: standing.rows.find((r) => r.teamId === teamId) };
+    return {
+      d,
+      rows: standing.rows,
+      matches: seasonMatches(d).matches, // stats include playoff games
+      row: standing.rows.find((r) => r.teamId === teamId),
+      playoff: playoffFinish(d, teamId),
+    };
   });
   const focus = history.find((h) => h.d.season.id === homeId) ?? history[history.length - 1];
   const colour = team.colors?.primary ?? 'var(--accent)';
@@ -71,7 +91,8 @@ export async function render({ teamId }) {
     .reverse()
     .map((h) => `<tr><td class="team-col"><a class="plink" href="/table?season=${encodeURIComponent(h.d.season.id)}" data-link>${esc(h.d.season.name)}</a></td>
       <td class="num">${h.row ? ordinal(h.row.rank) : '–'}</td><td class="num">${h.row?.played ?? 0}</td><td class="num">${h.row?.wins ?? 0}</td>
-      <td class="num">${h.row?.losses ?? 0}</td><td class="num pts">${h.row?.points ?? 0}</td><td class="num">${h.row ? `${h.row.setsWon}–${h.row.setsLost}` : '–'}</td></tr>`)
+      <td class="num">${h.row?.losses ?? 0}</td><td class="num pts">${h.row?.points ?? 0}</td><td class="num">${h.row ? `${h.row.setsWon}–${h.row.setsLost}` : '–'}</td>
+      <td class="${h.playoff === 'Champions' ? 'champ' : ''}">${esc(h.playoff || '–')}</td></tr>`)
     .join('');
 
   const html = `
@@ -120,7 +141,7 @@ export async function render({ teamId }) {
       <section class="card">
         <div class="section-head"><h2>History</h2></div>
         <div class="table-wrap"><table class="data">
-          <thead><tr><th class="team-col">Season</th><th>Pos</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th>Sets</th></tr></thead>
+          <thead><tr><th class="team-col">Season</th><th>Pos</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th>Sets</th><th>Playoffs</th></tr></thead>
           <tbody>${historyRows}</tbody>
         </table></div>
       </section>

@@ -4,7 +4,7 @@ import { DEFAULT_FORMAT } from './defaults.js';
 import { checkSet, checkResult, setsToWin } from './match.js';
 
 // Set scores recorded for a forfeit: the minimum sets to win, each won `target`–0.
-// JVO: 2–0 with both sets 10–0. Confirm with the league before changing.
+// JVO: 2–0 with both sets 10–0 (confirmed by the league).
 // winner: 'home' | 'away'
 export function forfeitSets(format = DEFAULT_FORMAT, winner) {
   const sets = [];

@@ -1,5 +1,6 @@
 import { loadHomeSeason } from '../data.js';
 import { computeStandings } from '../rules/standings.js';
+import { seasonMatches } from '../rules/season.js';
 import { seasonPlayerStats, leaders } from '../rules/stats.js';
 import { esc, skeleton, teamChip, playerLink } from '../ui.js';
 import { matchRow, standingsTable, sortByTime } from './parts.js';
@@ -41,11 +42,13 @@ function leadersCard(data, matches) {
 
 export async function render() {
   const data = await loadHomeSeason();
-  const { rows, matches } = computeStandings(data);
+  const { rows } = computeStandings(data);
+  const { matches } = seasonMatches(data); // regular season + playoffs
+  const played = matches.filter((m) => !m.forfeit);
 
-  const setsPlayed = matches.reduce((n, m) => n + m.homeSets + m.awaySets, 0);
-  const pointsScored = matches.reduce((n, m) => n + m.homePoints + m.awayPoints, 0);
-  const deuceSets = matches
+  const setsPlayed = played.reduce((n, m) => n + m.homeSets + m.awaySets, 0);
+  const pointsScored = played.reduce((n, m) => n + m.homePoints + m.awayPoints, 0);
+  const deuceSets = played
     .flatMap((m) => data.results[m.fixtureId].sets)
     .filter((s) => Math.max(s.home, s.away) > data.season.format.pointsPerSet).length;
 

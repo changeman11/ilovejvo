@@ -6,7 +6,9 @@ import { checkResult } from '../../rules/match.js';
 import { forfeitSets, visibleSetCount, cleanStatLine, suggestMvp, reviewResult } from '../../rules/results.js';
 import { saveResult, deleteResult } from '../../admin-data.js';
 import { navigate } from '../../nav.js';
-import { esc, skeleton, safeUrl, fmtLongDay, fmtTime, teamChip, urls } from '../../ui.js';
+import { esc, skeleton, notice, safeUrl, fmtLongDay, fmtTime, teamChip, urls } from '../../ui.js';
+import { formatFor, roundLabel } from '../../rules/season.js';
+import { advanceUpdates } from '../../rules/playoffs.js';
 import { statHeads } from '../parts.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
@@ -24,7 +26,7 @@ const statKeysOf = (data) => statDefsOf(data).map((s) => s.key);
 
 function initialState(fixture, existing, data) {
   const statKeys = statKeysOf(data);
-  const sets = Array.from({ length: data.season.format.bestOf }, (_, i) => {
+  const sets = Array.from({ length: formatFor(data.season, fixture).bestOf }, (_, i) => {
     const s = !existing?.forfeit && existing?.sets?.[i];
     return { home: s ? String(s.home) : '', away: s ? String(s.away) : '' };
   });
@@ -64,7 +66,7 @@ const numericSets = (sets) => sets.map((s) => ({
 // Builds the result that would be saved, plus anything that blocks saving.
 function draftResult() {
   const { state: s, data } = page;
-  const format = data.season.format;
+  const format = page.format;
   const problems = [];
   let result;
 
@@ -108,7 +110,7 @@ function draftResult() {
 // ---------- Drawing ----------
 
 function setsBlock(s, home, away) {
-  const visible = visibleSetCount(numericSets(s.sets), page.data.season.format);
+  const visible = visibleSetCount(numericSets(s.sets), page.format);
   const rows = s.sets.map((set, i) => `
     <div class="set-row" data-set="${i}" ${i >= visible ? 'hidden' : ''}>
       <span>Set ${i + 1}</span>
@@ -183,11 +185,11 @@ function formHtml() {
       ${[s.homeId, s.awayId].map((id) => `
         <label><input type="radio" name="forfeitTeam" value="${esc(id)}" ${s.forfeitTeamId === id ? 'checked' : ''}> ${teamChip(data.teamsById[id])} ${esc(data.teamsById[id]?.name ?? id)}</label>`).join('')}
     </fieldset>
-    <p class="muted small">Recorded as a win for the other team with every set ${data.season.format.pointsPerSet}–0, and no player stats.</p>`;
+    <p class="muted small">Recorded as a win for the other team with every set ${page.format.pointsPerSet}–0, and no player stats.</p>`;
 
   return `
     <section class="card entry-head">
-      <span class="eyebrow">${esc(data.season.name)} · Round ${esc(fixture.round)} · ${fmtLongDay(fixture.scheduledAt)} ${fmtTime(fixture.scheduledAt)}</span>
+      <span class="eyebrow">${esc(data.season.name)} · ${esc(roundLabel(data.season, fixture))} · ${fmtLongDay(fixture.scheduledAt)} ${fmtTime(fixture.scheduledAt)}</span>
       <h1 class="entry-teams">${teamChip(home, 'lg')}${esc(home?.name ?? 'TBC')} <span class="muted">vs</span> ${esc(away?.name ?? 'TBC')}${teamChip(away, 'lg')}</h1>
       <div class="entry-actions">
         <button type="button" class="btn btn-ghost btn-sm" data-act="swap">⇄ Swap home/away</button>
@@ -261,7 +263,7 @@ function readForm(root) {
 
 function updateLive(root) {
   const { data, state: s } = page;
-  const format = data.season.format;
+  const format = page.format;
   const teamSize = format.teamSize ?? 4;
 
   if (s.mode === 'played') {
@@ -340,7 +342,16 @@ export async function render({ seasonId, fixtureId }) {
   if (!fixture) throw new NotFoundError('That fixture doesn’t exist');
   const existing = data.results[fixtureId] ?? null;
 
-  page = { seasonId, fixtureId, data, fixture, existing, user: gate.user };
+  if (!fixture.homeTeamId || !fixture.awayTeamId) {
+    return {
+      title: 'Enter result',
+      html: `<div class="admin-root">${adminBar(gate.user, gate.admin)}
+        <a class="back" href="/admin?season=${encodeURIComponent(seasonId)}" data-link>← Match day</a>
+        ${notice('Teams not decided yet', ` The ${roundLabel(data.season, fixture)} teams fill in automatically once the earlier rounds have results.`)}</div>`,
+    };
+  }
+
+  page = { seasonId, fixtureId, data, fixture, existing, user: gate.user, format: formatFor(data.season, fixture) };
   page.state = initialState(fixture, existing, data);
 
   const home = data.teamsById[fixture.homeTeamId]?.shortName ?? 'TBC';
@@ -404,7 +415,7 @@ export function mount(el) {
 
     if (button.dataset.act === 'suggest-mvp') {
       const { result } = draftResult();
-      const check = checkResult(result.sets, page.data.season.format);
+      const check = checkResult(result.sets, page.format);
       if (!check.ok) return showError(root, 'Enter valid set scores first, so we know who won.');
       s.mvp = suggestMvp(result.playerStats, check.winner === 'home' ? s.homeId : s.awayId) ?? '';
       updateLive(root);
@@ -416,14 +427,19 @@ export function mount(el) {
       button.disabled = true;
       button.textContent = 'Saving…';
       try {
-        const { fixture } = page;
+        const { fixture, data } = page;
+        const swapTeams = s.homeId !== fixture.homeTeamId ? { homeTeamId: s.homeId, awayTeamId: s.awayId } : null;
+        // Playoffs: fill in the next round's teams in the same save.
+        const fixturesAfter = data.fixtures.map((f) => (f.id === fixture.id ? { ...f, ...(swapTeams ?? {}) } : f));
+        const advance = advanceUpdates(data.season, fixturesAfter, { ...data.results, [fixture.id]: result });
         await saveResult({
           seasonId: page.seasonId,
           fixtureId: page.fixtureId,
           uid: page.user.uid,
           result,
           existing: page.existing,
-          swapTeams: s.homeId !== fixture.homeTeamId ? { homeTeamId: s.homeId, awayTeamId: s.awayId } : null,
+          swapTeams,
+          advance,
         });
         navigate(urls.match(page.seasonId, page.fixtureId));
       } catch (err) {
@@ -440,7 +456,9 @@ export function mount(el) {
       if (!window.confirm('Delete this result? The match goes back to “not played” and the table updates straight away.')) return;
       button.disabled = true;
       try {
-        await deleteResult({ seasonId: page.seasonId, fixtureId: page.fixtureId, uid: page.user.uid });
+        const { [page.fixtureId]: _removed, ...resultsAfter } = page.data.results;
+        const advance = advanceUpdates(page.data.season, page.data.fixtures, resultsAfter);
+        await deleteResult({ seasonId: page.seasonId, fixtureId: page.fixtureId, uid: page.user.uid, advance });
         navigate(`/admin?season=${encodeURIComponent(page.seasonId)}`);
       } catch (err) {
         console.error(err);

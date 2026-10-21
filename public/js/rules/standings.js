@@ -34,18 +34,27 @@ function emptyRow(team) {
   };
 }
 
+// Oldest first. Undated fixtures go last (then by round), e.g. playoffs not yet scheduled.
+export function byTime(a, b) {
+  const ta = a.scheduledAt ?? Infinity;
+  const tb = b.scheduledAt ?? Infinity;
+  if (ta !== tb) return ta < tb ? -1 : 1;
+  return (a.round ?? 0) - (b.round ?? 0);
+}
+
 // Turns fixtures + results into the list of finished matches, oldest first.
 // Results that don't pass the rules are returned in `problems` instead.
+// `format` is one format for every match, or a function (fixture) => format
+// (playoff matches can be longer than regular-season ones).
 export function finishedMatches(fixtures, resultsById, format = DEFAULT_FORMAT) {
+  const formatOf = typeof format === 'function' ? format : () => format;
   const matches = [];
   const problems = [];
-  const ordered = [...fixtures].sort(
-    (a, b) => (a.scheduledAt ?? 0) - (b.scheduledAt ?? 0) || (a.round ?? 0) - (b.round ?? 0)
-  );
+  const ordered = [...fixtures].sort(byTime);
   for (const fx of ordered) {
     const result = resultsById[fx.id];
     if (!result) continue;
-    const check = checkResult(result.sets, format);
+    const check = checkResult(result.sets, formatOf(fx));
     if (!check.ok) {
       problems.push({ fixtureId: fx.id, errors: check.errors });
       continue;
@@ -53,6 +62,8 @@ export function finishedMatches(fixtures, resultsById, format = DEFAULT_FORMAT) 
     matches.push({
       fixtureId: fx.id,
       round: fx.round,
+      stage: fx.stage ?? 'regular',
+      forfeit: Boolean(result.forfeit),
       scheduledAt: fx.scheduledAt,
       homeTeamId: fx.homeTeamId,
       awayTeamId: fx.awayTeamId,
@@ -142,7 +153,10 @@ export function computeStandings({ teams, fixtures, results, season = {} }) {
   const format = season.format ?? DEFAULT_FORMAT;
   const rules = season.standings ?? DEFAULT_STANDINGS;
   const teamIds = new Set(teams.map((t) => t.id));
-  const relevant = fixtures.filter((f) => teamIds.has(f.homeTeamId) && teamIds.has(f.awayTeamId));
+  // The table is regular season only; playoff matches never change it.
+  const relevant = fixtures.filter(
+    (f) => f.stage !== 'playoffs' && teamIds.has(f.homeTeamId) && teamIds.has(f.awayTeamId)
+  );
 
   const { matches, problems } = finishedMatches(relevant, results, format);
   const rows = [...tally(teams, matches, rules).values()];

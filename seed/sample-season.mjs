@@ -2,8 +2,11 @@
 // Two seasons: a finished "Season 0" and a live "Season 1", with a few players changing clubs.
 // The same random seed always produces the same league, so results are repeatable.
 
-import { DEFAULT_FORMAT, DEFAULT_STANDINGS, DEFAULT_STATS } from '../public/js/rules/defaults.js';
+import { DEFAULT_FORMAT, DEFAULT_STANDINGS, DEFAULT_STATS, DEFAULT_PLAYOFFS } from '../public/js/rules/defaults.js';
 import { roundRobin } from '../public/js/rules/schedule.js';
+import { computeStandings } from '../public/js/rules/standings.js';
+import { bracketFixtures, advanceUpdates, projectedSeeds } from '../public/js/rules/playoffs.js';
+import { formatFor } from '../public/js/rules/season.js';
 
 function rng(seed) {
   // mulberry32
@@ -52,11 +55,11 @@ function playSet(rand, homeStrength, awayStrength) {
   return homeWins ? { home: win, away: lose } : { home: lose, away: win };
 }
 
-function playMatch(rand, home, away) {
+function playMatch(rand, home, away, toWin = 2) {
   const sets = [];
   let h = 0;
   let a = 0;
-  while (h < 2 && a < 2) {
+  while (h < toWin && a < toWin) {
     const s = playSet(rand, home.strength, away.strength);
     sets.push(s);
     if (s.home > s.away) h++;
@@ -86,12 +89,12 @@ function buildSeason(rand, { id, name, status, kickoff, teamIds, rosters, double
     format: { ...DEFAULT_FORMAT },
     standings: structuredClone(DEFAULT_STANDINGS),
     stats: structuredClone(DEFAULT_STATS),
-    // Table colour bands. Placeholder until JVO decides its playoff format.
+    // Table colour bands: 1st = minor premiers, top 4 = playoffs.
     bands: [
       { from: 1, to: 1, label: 'Minor premiers', tone: 'gold' },
       { from: 1, to: 4, label: 'Playoffs', tone: 'accent' },
     ],
-    playoffs: null,
+    playoffs: structuredClone(DEFAULT_PLAYOFFS),
   };
 
   const fixtures = [];
@@ -113,32 +116,66 @@ function buildSeason(rand, { id, name, status, kickoff, teamIds, rosters, double
       stream: null,
     });
     if (!played) return;
-
-    const sets = playMatch(rand, strength[f.homeTeamId], strength[f.awayTeamId]);
-    const homeWon = sets.filter((s) => s.home > s.away).length === 2;
-    const playerStats = {};
-    for (const [teamId, won] of [[f.homeTeamId, homeWon], [f.awayTeamId, !homeWon]]) {
-      // 4 of the roster take the court
-      const ids = [...rosters[teamId].playerIds].sort(() => rand() - 0.5).slice(0, 4);
-      for (const pid of ids) playerStats[pid] = { teamId, ...statLine(rand, sets.length, won) };
-    }
-    const winnerTeam = homeWon ? f.homeTeamId : f.awayTeamId;
-    const mvp = Object.entries(playerStats)
-      .filter(([, s]) => s.teamId === winnerTeam)
-      .sort((a, b) => b[1].pts - a[1].pts)[0][0];
-
-    results[fixtureId] = {
-      sets,
-      playerStats,
-      mvpPlayerId: mvp,
-      vodUrl: null,
-      screenshots: [],
-      enteredBy: 'seed',
-      enteredAt: new Date(scheduledAt.getTime() + 60 * 60 * 1000),
-    };
+    results[fixtureId] = playResult(rand, f.homeTeamId, f.awayTeamId, rosters, 2, scheduledAt);
   });
 
   return { id, season, rosters, fixtures, results };
+}
+
+// One made-up result: set scores, 4 players a side with stat lines, MVP from the winners.
+function playResult(rand, homeTeamId, awayTeamId, rosters, toWin, scheduledAt) {
+  const strength = Object.fromEntries(TEAMS.map((t) => [t.id, t]));
+  const sets = playMatch(rand, strength[homeTeamId], strength[awayTeamId], toWin);
+  const homeWon = sets.filter((s) => s.home > s.away).length === toWin;
+  const playerStats = {};
+  for (const [teamId, won] of [[homeTeamId, homeWon], [awayTeamId, !homeWon]]) {
+    const ids = [...rosters[teamId].playerIds].sort(() => rand() - 0.5).slice(0, 4);
+    for (const pid of ids) playerStats[pid] = { teamId, ...statLine(rand, sets.length, won) };
+  }
+  const winnerTeam = homeWon ? homeTeamId : awayTeamId;
+  const mvp = Object.entries(playerStats)
+    .filter(([, s]) => s.teamId === winnerTeam)
+    .sort((a, b) => b[1].pts - a[1].pts)[0][0];
+  return {
+    sets,
+    playerStats,
+    mvpPlayerId: mvp,
+    vodUrl: null,
+    screenshots: [],
+    enteredBy: 'seed',
+    enteredAt: new Date(scheduledAt.getTime() + 60 * 60 * 1000),
+  };
+}
+
+// Plays a full top-4 playoff after the regular season: seeds from the table, semis, then final.
+function addPlayoffs(rand, built, teams) {
+  const { season, fixtures, results, rosters } = built;
+  const asMs = () => fixtures.map((f) => ({ ...f, scheduledAt: f.scheduledAt?.getTime?.() ?? null }));
+  const seasonTeams = teams.filter((t) => season.divisions[0].teamIds.includes(t.id));
+  const { rows } = computeStandings({ teams: seasonTeams, fixtures: asMs(), results, season });
+  const seeds = projectedSeeds(rows, season.playoffs.size);
+  season.playoffs.seeds = seeds;
+
+  const lastRound = Math.max(...fixtures.map((f) => f.round));
+  const lastTime = Math.max(...fixtures.map((f) => f.scheduledAt.getTime()));
+  const po = bracketFixtures(season, seeds, lastRound);
+  for (const f of po) {
+    const week = f.playoffRound === 'final' ? 2 : 1; // semis a week after the season, final a week later
+    f.scheduledAt = new Date(lastTime + week * WEEK + (f.slot === 'sf2' ? 45 * 60 * 1000 : 0));
+  }
+  fixtures.push(...po);
+
+  for (const slot of ['sf1', 'sf2', 'final']) {
+    for (const u of advanceUpdates(season, asMs(), results)) {
+      const fx = fixtures.find((f) => f.id === u.fixtureId);
+      fx.homeTeamId = u.homeTeamId;
+      fx.awayTeamId = u.awayTeamId;
+    }
+    const fx = fixtures.find((f) => f.slot === slot);
+    const toWin = Math.ceil(formatFor(season, fx).bestOf / 2);
+    results[fx.id] = playResult(rand, fx.homeTeamId, fx.awayTeamId, rosters, toWin, fx.scheduledAt);
+    fx.status = 'completed';
+  }
 }
 
 export function buildSampleData() {
@@ -175,6 +212,7 @@ export function buildSampleData() {
     double: false,
     roundsPlayed: Infinity,
   });
+  addPlayoffs(rand, s0, teams);
 
   const s1 = buildSeason(rand, {
     id: 's1',
