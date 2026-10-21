@@ -1,11 +1,15 @@
-// I<3JVO Discord sign-in (Cloudflare Worker, free plan).
+// I<3JVO Worker (Cloudflare, free plan): Discord sign-in and profile images.
 //
-// The website sends the one-time code Discord gives after a player approves sign-in.
+// Discord sign-in: the website sends the one-time code Discord gives after a player approves sign-in.
 // This Worker swaps it for the player's Discord identity (using the Discord client secret,
 // which only lives here) and returns a Firebase sign-in token for uid "discord:<id>".
 //
+// Profile images: /media/... (see media.js), stored in Workers KV (binding MEDIA).
+//
 // Settings (wrangler.toml [vars]):  DISCORD_CLIENT_ID, ALLOWED_ORIGINS, FIREBASE_PROJECT_ID
 // Secrets (`wrangler secret put`):   DISCORD_CLIENT_SECRET, FIREBASE_SERVICE_ACCOUNT (the key JSON)
+
+import { handleMedia } from './media.js';
 
 const FIREBASE_AUDIENCE = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
 
@@ -53,13 +57,17 @@ export async function handle(request, env, fetchImpl = fetch) {
       status: origin ? 204 : 403,
       headers: origin ? {
         'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Access-Control-Max-Age': '86400',
         Vary: 'Origin',
       } : {},
     });
   }
+
+  // Profile images (see media.js).
+  const media = await handleMedia(request, env, { origin, json, fetchImpl });
+  if (media) return media;
   if (request.method !== 'POST' || new URL(request.url).pathname !== '/discord') return json({ error: 'Not found' }, 404, origin);
   if (!origin) return json({ error: 'This site isn’t allowed to use sign-in.' }, 403, null);
 
@@ -112,6 +120,9 @@ export async function handle(request, env, fetchImpl = fetch) {
 
 export default {
   fetch(request, env) {
-    return handle(request, env).catch(() => json({ error: 'Something went wrong. Please try again.' }, 500, null));
+    return handle(request, env).catch((err) => {
+      console.error(err);
+      return json({ error: 'Something went wrong. Please try again.' }, 500, allowedOrigin(request.headers.get('Origin') ?? '', env));
+    });
   },
 };

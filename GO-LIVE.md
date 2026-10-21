@@ -54,14 +54,14 @@ Forgotten password? Delete the user, add them again with a new password, and upd
 
 ## Part 6: Image uploads (team logos, profile pictures, GIF banners and backgrounds)
 
-Firebase only gives new projects image storage on the pay-as-you-go **Blaze** plan. It has the same free allowance as before, so a site this size should still cost nothing. A budget alert emails you if that ever changes.
+Free and no card. The Cloudflare Worker that does Discord sign-in also stores the images, in **Workers KV** (free plan: 1 GB, 100,000 image views and 1,000 uploads a day).
 
-- [ ] Firebase console → your project → **Upgrade** (bottom left) → **Blaze** → add a card. *(You: billing.)*
-- [ ] Set a budget alert: [console.cloud.google.com/billing](https://console.cloud.google.com/billing) → your billing account → **Budgets & alerts** → **Create budget** → $5 → alerts at 50 %, 90 %, 100 %. It only emails you; it doesn't stop anything.
-- [ ] Firebase console → **Build → Storage → Get started** → **Start in production mode** → location **US-CENTRAL1** (or US-EAST1 / US-WEST1). Only these US locations include the free allowance. Pictures load a fraction of a second slower from the US, which nobody will notice.
-- [ ] Tell Claude. Claude deploys `storage.rules`, which only let a team's manager or the player themselves upload. The deploy asks to let Storage check the database for that; say yes. Claude then sets `liveUploadsReady = true` in `public/js/config.js`.
+- [x] Storage created: `wrangler kv namespace create MEDIA` (its id is in `worker/wrangler.toml`).
+- [x] `npx wrangler@4.146.0 deploy` from `worker/`, then `liveUploadsReady = true` in `public/js/config.js` and deploy the site.
 
-Until then, everything else on the profiles works live; the upload buttons just say they're coming soon.
+The Worker checks every upload: the person's Firebase sign-in (checked against Google's keys), that the team or player is theirs (read from the database), that it really is a PNG/JPG/WebP/GIF, and the size (2 MB pictures, 4 MB banners, 6 MB backgrounds). Admins can remove anything from **Teams & players**.
+
+To test on this computer: `npm run dev` (Firebase emulators) and `npm run worker` (the Worker, port 8787) side by side.
 
 ---
 

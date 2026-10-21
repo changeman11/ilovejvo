@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "firebase emulators:start",
     "seed": "node seed/seed.mjs",
+    "worker": "cd worker && npx --yes wrangler@4.146.0 dev --port 8787 --var DEV_MODE:1 --var FIREBASE_PROJECT_ID:demo-jvo-hub",
     "test": "node --test \"tests/*.test.mjs\"",
     "icons": "node tools/make-icons.mjs",
     "check-live": "node tools/check-live.mjs",

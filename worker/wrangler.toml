@@ -1,5 +1,6 @@
-# Cloudflare Worker for I<3JVO Discord sign-in (free plan).
+# Cloudflare Worker for I<3JVO (free plan): Discord sign-in and profile images.
 # Deploy from this folder:  npx wrangler@4.146.0 deploy
+# Run on this computer (with the Firebase emulators):  npm run worker  (from the project folder)
 # Secrets (never in this file):
 #   npx wrangler@4.146.0 secret put DISCORD_CLIENT_SECRET
 #   Get-Content path\to\key.json -Raw | npx wrangler@4.146.0 secret put FIREBASE_SERVICE_ACCOUNT
@@ -13,3 +14,9 @@ workers_dev = true
 DISCORD_CLIENT_ID = "1562397361878343743"
 FIREBASE_PROJECT_ID = "i-love-jvo"
 ALLOWED_ORIGINS = "https://i-love-jvo.web.app,https://i-love-jvo.firebaseapp.com,https://ilovejvo.com,https://www.ilovejvo.com,http://127.0.0.1:5000,http://localhost:5000"
+
+# Profile images (team logos, player pictures, banners, backgrounds). Workers KV: free, 1 GB.
+# The id is not a secret; it just names the storage on the Cloudflare account.
+[[kv_namespaces]]
+binding = "MEDIA"
+id = "11a1f5feb07c4e5ab3256415854d3827"

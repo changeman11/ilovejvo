@@ -3,20 +3,20 @@
 
 // Use the local emulators when the site is opened from this computer.
 export const useEmulators = ['localhost', '127.0.0.1'].includes(location.hostname);
-export const emulatorPorts = { firestore: 8080, auth: 9099, storage: 9199 };
+// worker: the Cloudflare Worker run locally with `npm run worker` (Discord test logins don't need it).
+export const emulatorPorts = { firestore: 8080, auth: 9099, worker: 8787 };
 
 // Local testing: a "demo-" project that only exists in the emulator.
 const emulatorConfig = {
   apiKey: 'demo-key',
   authDomain: 'demo-jvo-hub.firebaseapp.com',
   projectId: 'demo-jvo-hub',
-  storageBucket: 'demo-jvo-hub.appspot.com',
   appId: 'demo-app',
 };
 
-// Image uploads need Firebase Storage, which needs the pay-as-you-go (Blaze) plan.
-// Set to true once the live bucket exists (see GO-LIVE.md, "Image uploads").
-const liveUploadsReady = false;
+// Image uploads go through the Cloudflare Worker (images stored in Workers KV).
+// Set to true once the Worker with its MEDIA storage is deployed (GO-LIVE.md Part 6).
+const liveUploadsReady = true;
 
 // The live site. Firebase console -> Project settings -> Your apps -> Web app -> SDK config.
 const liveConfig = {

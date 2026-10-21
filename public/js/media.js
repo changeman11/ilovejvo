@@ -1,16 +1,16 @@
 // Profile images: team logos, player pictures, banners and page backgrounds (GIFs allowed).
-// Files live in Firebase Storage; the database only keeps each file's path (e.g. "teams/x/logo/abc.gif").
-// The Storage library is loaded only when someone actually uploads or removes a file.
+// Files are stored by our Cloudflare Worker (free, no card; see worker/src/media.js).
+// The database only keeps each file's path, e.g. "teams/x/logo/abc.gif".
 
-import { app, adminApp } from './firebase.js';
-import { firebaseConfig, useEmulators, emulatorPorts } from './config.js';
+import { auth, adminAuth } from './auth.js';
+import { authWorkerUrl, useEmulators, emulatorPorts } from './config.js';
 
 const MB = 1024 * 1024;
 
 // An error whose message is safe and useful to show to the person.
 export class FriendlyError extends Error {}
 
-// What each kind of image is for, its size limit (matches storage.rules) and how big
+// What each kind of image is for, its size limit (the Worker checks the same) and how big
 // still pictures are resized to. GIFs are uploaded as they are, so they keep moving.
 export const MEDIA = {
   logo: { label: 'Logo', maxMb: 2, maxSide: 512, hint: 'Square works best.' },
@@ -19,24 +19,20 @@ export const MEDIA = {
   background: { label: 'Page background', maxMb: 6, maxSide: 1920, hint: 'Fills the page behind your profile.' },
 };
 
+// On this computer the Worker runs locally (wrangler dev).
+const base = useEmulators ? `http://${location.hostname}:${emulatorPorts.worker}` : authWorkerUrl.replace(/\/$/, '');
+
 // Public address of a stored file (or null).
 export function mediaUrl(path) {
   if (!path) return null;
-  const host = useEmulators ? `http://${location.hostname}:${emulatorPorts.storage}` : 'https://firebasestorage.googleapis.com';
-  return `${host}/v0/b/${firebaseConfig.storageBucket}/o/${encodeURIComponent(path)}?alt=media`;
+  return `${base}/media/${String(path).split('/').map(encodeURIComponent).join('/')}`;
 }
 
-let sdk = null;
-const storages = {};
-async function storageFor(admin) {
-  sdk ??= await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js');
-  const key = admin ? 'admin' : 'player';
-  if (!storages[key]) {
-    const s = sdk.getStorage(admin ? adminApp : app);
-    if (useEmulators) sdk.connectStorageEmulator(s, location.hostname, emulatorPorts.storage);
-    storages[key] = s;
-  }
-  return storages[key];
+// The signed-in person's token, so the Worker knows who is uploading.
+async function tokenFor(admin) {
+  const user = (admin ? adminAuth : auth).currentUser;
+  if (!user) throw new FriendlyError('Please sign in again, then try once more.');
+  return user.getIdToken();
 }
 
 // Checks a chosen file and gets it ready: GIFs as they are; still pictures shrunk and saved as WebP.
@@ -67,18 +63,23 @@ export async function prepareImage(file, kind) {
 
 // Uploads a prepared image. owner: 'teams' | 'players'. Returns the new file's path.
 export async function uploadImage({ owner, id, kind, image, admin = false }) {
-  const storage = await storageFor(admin);
   const name = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   const path = `${owner}/${id}/${kind}/${name}.${image.ext}`;
+  const token = await tokenFor(admin);
+  let res;
   try {
-    await sdk.uploadBytes(sdk.ref(storage, path), image.blob, {
-      contentType: image.type,
-      cacheControl: 'public, max-age=31536000, immutable', // each upload has its own name
+    res = await fetch(mediaUrl(path), {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': image.type },
+      body: image.blob,
     });
   } catch (err) {
     console.error(err);
-    if (err.code === 'storage/unauthorized') throw new FriendlyError(`${MEDIA[kind].label}: you can’t upload that here (too big, or not your profile).`);
     throw new FriendlyError(`${MEDIA[kind].label}: upload failed. Check your connection and try again.`);
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new FriendlyError(`${MEDIA[kind].label}: ${body.error ?? 'upload failed. Please try again.'}`);
   }
   return path;
 }
@@ -87,9 +88,9 @@ export async function uploadImage({ owner, id, kind, image, admin = false }) {
 export async function deleteImage(path, { admin = false } = {}) {
   if (!path) return;
   try {
-    const storage = await storageFor(admin);
-    await sdk.deleteObject(sdk.ref(storage, path));
+    const res = await fetch(mediaUrl(path), { method: 'DELETE', headers: { Authorization: `Bearer ${await tokenFor(admin)}` } });
+    if (!res.ok && res.status !== 404) console.warn('Couldn’t remove old image', path, res.status);
   } catch (err) {
-    if (err?.code !== 'storage/object-not-found') console.warn('Couldn’t remove old image', path, err);
+    console.warn('Couldn’t remove old image', path, err);
   }
 }
