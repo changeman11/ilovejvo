@@ -51,9 +51,11 @@ export async function discordOf(user) {
 }
 
 // { user, admin } where admin is the /admins doc or null.
+// Admin powers only count for password sign-ins (the security rules insist on the same).
 export async function currentAdmin() {
   const user = await currentUser();
   if (!user) return { user: null, admin: null };
+  if (!user.providerData.some((p) => p.providerId === 'password')) return { user, admin: null };
   const snap = await getDoc(doc(db, 'admins', user.uid));
   return { user, admin: snap.exists() ? snap.data() : null };
 }

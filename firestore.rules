@@ -25,7 +25,13 @@ service cloud.firestore {
     // ---------- helpers ----------
     function signedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
-    function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    // Admin powers need a password sign-in. Discord sign-ins use tokens from our Worker
+    // ("custom" provider); if its signing key ever leaked, it still couldn't act as an admin.
+    function isAdmin() {
+      return signedIn()
+          && request.auth.token.firebase.sign_in_provider == 'password'
+          && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
     function discordId() { return signedIn() ? request.auth.token.get('discordId', '') : ''; }
     function stampedByMe() {
       return request.resource.data.updatedBy == request.auth.uid

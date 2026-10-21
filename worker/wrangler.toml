@@ -10,6 +10,6 @@ compatibility_date = "2026-09-01"
 workers_dev = true
 
 [vars]
-DISCORD_CLIENT_ID = ""
+DISCORD_CLIENT_ID = "1562397361878343743"
 FIREBASE_PROJECT_ID = "i-love-jvo"
 ALLOWED_ORIGINS = "https://i-love-jvo.web.app,https://i-love-jvo.firebaseapp.com,https://ilovejvo.com,https://www.ilovejvo.com,http://127.0.0.1:5000,http://localhost:5000"
