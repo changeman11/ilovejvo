@@ -15,12 +15,12 @@ const emulatorConfig = {
 
 // The live site. Firebase console -> Project settings -> Your apps -> Web app -> SDK config.
 const liveConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: 'AIzaSyDLQRbRGct6B2LxAjjv6FXznPOzx8f7aHU',
+  authDomain: 'i-love-jvo.firebaseapp.com',
+  projectId: 'i-love-jvo',
+  storageBucket: 'i-love-jvo.firebasestorage.app',
+  messagingSenderId: '785799744687',
+  appId: '1:785799744687:web:d84f4d3dac39354ccc585a',
 };
 
 export const firebaseConfig = useEmulators ? emulatorConfig : liveConfig;

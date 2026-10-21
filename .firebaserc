@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "demo-jvo-hub"
+    "default": "demo-jvo-hub",
+    "prod": "i-love-jvo"
   }
 }
