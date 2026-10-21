@@ -8,7 +8,9 @@
     "dev": "firebase emulators:start",
     "seed": "node seed/seed.mjs",
     "test": "node --test \"tests/*.test.mjs\"",
-    "icons": "node tools/make-icons.mjs"
+    "icons": "node tools/make-icons.mjs",
+    "check-live": "node tools/check-live.mjs",
+    "deploy": "node tools/check-live.mjs && npm test && firebase deploy --project prod"
   },
   "engines": {
     "node": ">=20"
