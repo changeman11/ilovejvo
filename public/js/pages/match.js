@@ -66,7 +66,6 @@ export async function render({ eventId, fixtureId }) {
   return {
     title: `${home?.shortName ?? 'TBC'} v ${away?.shortName ?? 'TBC'}`,
     html: `
-      <a class="back" href="${urls.event(b.event.id)}" data-link>← ${esc(b.event.title)}</a>
       <div class="stack">
         <section class="panel match-head">
           <p class="muted small">${sub}</p>

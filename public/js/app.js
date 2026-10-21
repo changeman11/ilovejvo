@@ -21,29 +21,69 @@ import { onAdminChange, onUserChange, currentAdmin, startDiscordSignIn } from '.
 import { renderShell } from './shell.js';
 import * as teamsList from './pages/teams.js';
 import { setNav } from './nav.js';
-import { notice } from './ui.js';
+import { notice, esc, urls } from './ui.js';
 
 // Path patterns. ":name" parts are passed to the page's render() as params.
 // `section` is the menu item to highlight.
+// `up` is where "back" goes when there's no previous page on this site (e.g. someone opened a shared link).
+const toMenu = () => ({ href: '/', label: 'main menu' });
+const toAdmin = () => ({ href: '/admin', label: 'admin' });
 const routes = [
   { path: '/', page: events.home, section: '/' },
-  { path: '/fixtures', page: fixtures, section: '/fixtures' },
-  { path: '/stats', page: stats, section: '/stats' },
-  { path: '/events', page: events.eventsList, section: '/events' },
-  { path: '/event/:eventId', page: events.eventPage, section: '/events' },
-  { path: '/match/:eventId/:fixtureId', page: match, section: '/fixtures' },
-  { path: '/player/:playerId', page: player, section: '/stats' },
-  { path: '/teams', page: teamsList, section: '/teams' },
-  { path: '/team/:teamId', page: team, section: '/teams' },
-  { path: '/me', page: me, section: '/me' },
-  { path: '/manage', page: manage, section: '/me' },
+  { path: '/fixtures', page: fixtures, section: '/fixtures', up: toMenu },
+  { path: '/stats', page: stats, section: '/stats', up: toMenu },
+  { path: '/events', page: events.eventsList, section: '/events', up: toMenu },
+  { path: '/event/:eventId', page: events.eventPage, section: '/events', up: () => ({ href: '/events', label: 'events' }) },
+  { path: '/match/:eventId/:fixtureId', page: match, section: '/fixtures', up: (p) => ({ href: urls.event(p.eventId), label: 'the event' }) },
+  { path: '/player/:playerId', page: player, section: '/stats', up: () => ({ href: '/stats', label: 'stats' }) },
+  { path: '/teams', page: teamsList, section: '/teams', up: toMenu },
+  { path: '/team/:teamId', page: team, section: '/teams', up: () => ({ href: '/teams', label: 'teams' }) },
+  { path: '/me', page: me, section: '/me', up: toMenu },
+  { path: '/manage', page: manage, section: '/me', up: () => ({ href: '/me', label: 'me' }) },
   { path: '/auth/discord', page: authCallback, section: '/me' },
-  { path: '/admin', page: adminHome, section: '/admin' },
-  { path: '/admin/requests', page: requests, section: '/admin' },
-  { path: '/admin/people', page: people, section: '/admin' },
-  { path: '/admin/event/:eventId', page: eventEdit, section: '/admin' },
-  { path: '/admin/result/:eventId/:fixtureId', page: resultEntry, section: '/admin' },
+  { path: '/admin', page: adminHome, section: '/admin', up: toMenu },
+  { path: '/admin/requests', page: requests, section: '/admin', up: toAdmin },
+  { path: '/admin/people', page: people, section: '/admin', up: toAdmin },
+  { path: '/admin/event/:eventId', page: eventEdit, section: '/admin', up: toAdmin },
+  { path: '/admin/result/:eventId/:fixtureId', page: resultEntry, section: '/admin', up: (p) => ({ href: urls.adminEvent(p.eventId, 'fixtures'), label: 'the event’s fixtures' }) },
 ];
+
+// ---------- Back button (and Esc), like backing out of a menu in the game ----------
+// Each page visit inside the site is numbered (history.state.depth) and remembers the page it came from,
+// so "back" can say where it goes. With nothing to go back to, it goes "up" instead.
+const shortTitle = () => (document.title === SITE_NAME ? 'main menu' : document.title.replace(` · ${SITE_NAME}`, ''));
+if (!history.state) history.replaceState({ depth: 0 }, '');
+
+function backBar(route, params) {
+  const up = route.up?.(params);
+  if (!up) return '';
+  const fromHere = (history.state?.depth ?? 0) > 0;
+  const label = fromHere ? history.state.from : up.label;
+  return `
+    <nav class="backbar" aria-label="Back">
+      <a class="back-btn" href="${esc(up.href)}" data-back><span class="back-arrow" aria-hidden="true">←</span><span>back${label ? ` to ${esc(label)}` : ''}</span></a>
+      <span class="esc-hint" aria-hidden="true"><kbd>esc</kbd></span>
+    </nav>`;
+}
+
+function goBack(fallbackHref) {
+  if ((history.state?.depth ?? 0) > 0) history.back();
+  else navigate(fallbackHref, { replace: true });
+}
+
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('a[data-back]');
+  if (!link || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  e.preventDefault();
+  goBack(link.getAttribute('href'));
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
+  const link = main.querySelector('a[data-back]');
+  if (link) goBack(link.getAttribute('href'));
+});
 
 // Old addresses from earlier versions of the site.
 const redirects = { '/exhibitions': '/events?type=exhibition', '/tournaments': '/events?type=tournament' };
@@ -79,10 +119,11 @@ let renderId = 0;
 async function show() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
   if (redirects[path]) {
-    history.replaceState(null, '', redirects[path]);
+    history.replaceState(history.state, '', redirects[path]);
     return show();
   }
-  const { page, params, section } = matchRoute(path);
+  const route = matchRoute(path);
+  const { page, params, section } = route;
   const id = ++renderId;
 
   document.querySelectorAll('.topnav a, .tabbar a').forEach((a) => {
@@ -91,30 +132,32 @@ async function show() {
   });
 
   document.title = page === events.home ? SITE_NAME : `${page.title} · ${SITE_NAME}`;
-  main.innerHTML = page.loading();
+  const back = backBar(route, params);
+  main.innerHTML = back + page.loading();
   try {
     const out = await page.render(params);
     if (id !== renderId) return; // the user already moved on
     const { html, title } = typeof out === 'string' ? { html: out } : out;
-    main.innerHTML = html;
+    main.innerHTML = back + html;
     if (title) document.title = `${title} · ${SITE_NAME}`;
     page.mount?.(main);
     renderShell(); // keeps the desktop bars (level, team, next match) up to date after saves
   } catch (err) {
     if (id !== renderId) return;
     if (err instanceof NotFoundError) {
-      main.innerHTML = notice('Not found', ` ${err.message}.`, 'x');
+      main.innerHTML = back + notice('Not found', ` ${err.message}.`, 'x');
     } else {
       console.error(err);
-      main.innerHTML = notice('Couldn’t load this page', ' Check your connection and refresh.', 'x');
+      main.innerHTML = back + notice('Couldn’t load this page', ' Check your connection and refresh.', 'x');
     }
   }
 }
 
 function navigate(href, { keepScroll = false, replace = false } = {}) {
   if (href !== location.pathname + location.search) {
-    if (replace) history.replaceState(null, '', href);
-    else history.pushState(null, '', href);
+    const state = history.state ?? { depth: 0 };
+    if (replace) history.replaceState(state, '', href);
+    else history.pushState({ depth: (state.depth ?? 0) + 1, from: shortTitle() }, '', href);
     if (!keepScroll) window.scrollTo(0, 0);
   }
   show();

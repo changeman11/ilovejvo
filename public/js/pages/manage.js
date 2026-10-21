@@ -47,7 +47,6 @@ export async function render() {
     title: `Manage ${team.name}`,
     html: `
       <div class="manage-root stack">
-        <a class="back" href="/me" data-link>← Me</a>
         <div class="page-head"><div><h1><span class="team">${teamDot(team, 'lg')}${esc(team.name)}</span></h1><p class="muted">You’re the manager.</p></div></div>
         <div class="cols">
           <div class="stack">

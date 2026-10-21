@@ -305,7 +305,7 @@ export async function render({ eventId, fixtureId }) {
   const b = await loadEventBundle(eventId, { fresh: true, admin: true });
   const fixture = b.fixtures.find((f) => f.id === fixtureId);
   if (!fixture) throw new NotFoundError('That fixture doesn’t exist');
-  const back = `<a class="back" href="${urls.adminEvent(eventId, 'fixtures')}" data-link>← ${esc(b.event.title)} fixtures</a>`;
+  const back = ''; // the site-wide back button (app.js) goes to this event's fixtures
 
   if (!fixture.homeTeamId || !fixture.awayTeamId) {
     return {

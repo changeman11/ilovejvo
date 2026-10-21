@@ -232,7 +232,6 @@ export async function render({ eventId }) {
     html: `
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin')}
-        <a class="back" href="/admin" data-link>← Events</a>
         <div class="page-head"><div><h1>${esc(heading)}</h1>${b ? `<p class="muted">${b.event.published ? `Published · <a href="${urls.event(eventId)}" data-link>view public page</a>` : 'Draft: only admins can see it'}</p>` : ''}</div></div>
         ${tabs}
         <div class="entry">${body}</div>

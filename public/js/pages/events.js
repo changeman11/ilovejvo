@@ -194,7 +194,6 @@ export const eventPage = {
     return {
       title: e.title,
       html: `
-        <a class="back" href="/events" data-link>← Events</a>
         <div class="stack">
           <section class="panel">
             ${tags(e)}
