@@ -17,7 +17,7 @@ import * as eventEdit from './pages/admin/event-edit.js';
 import * as people from './pages/admin/people.js';
 import * as resultEntry from './pages/admin/result.js';
 import { NotFoundError } from './data.js';
-import { onAdminChange, currentAdmin } from './auth.js';
+import { onAdminChange, currentAdmin, startDiscordSignIn } from './auth.js';
 import { setNav } from './nav.js';
 import { notice } from './ui.js';
 
@@ -117,6 +117,18 @@ function navigate(href, { keepScroll = false, replace = false } = {}) {
 }
 
 setNav({ navigate, refresh: show });
+
+// "Sign in with Discord" buttons anywhere on the site. Comes back to the Me page.
+document.addEventListener('click', (e) => {
+  const button = e.target.closest('[data-discord-signin]');
+  if (!button) return;
+  try {
+    startDiscordSignIn('/me');
+  } catch (err) {
+    const box = button.parentElement.querySelector('.form-error');
+    if (box) { box.textContent = err.message; box.hidden = false; } else window.alert(err.message);
+  }
+});
 
 document.addEventListener('click', (e) => {
   const link = e.target.closest('a[data-link]');

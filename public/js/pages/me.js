@@ -13,6 +13,7 @@ import { MEDIA, prepareImage, uploadImage, FriendlyError } from '../media.js';
 import { uploadsReady } from '../config.js';
 import { DEFAULT_STATS } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
+import { makeProfileCard } from './discord-cta.js';
 import { refresh, navigate } from '../nav.js';
 import { esc, skeleton, notice, teamDot, teamLink, avatarImg, urls } from '../ui.js';
 
@@ -32,16 +33,7 @@ function signInPanel() {
       <div class="event-links">${DEV_USERS.map((u) => `<button class="btn btn-sm" data-act="dev-signin" data-id="${u.discordId}">${esc(u.name)} <span class="muted">· ${esc(u.note)}</span></button>`).join('')}</div>
     </div>` : '';
   return `
-    <section class="panel auth-card signin-card" style="text-align:center">
-      <img class="signin-art" src="/images/art/player-teal.jpg" alt="" width="280" height="440" decoding="async">
-      <h1>Players</h1>
-      <p class="muted" style="margin-bottom:16px">Sign in with Discord to claim your profile, join a team, or register your own.</p>
-      ${discordReady
-        ? '<button class="btn btn-primary" data-act="discord-signin" style="width:100%">Sign in with Discord</button>'
-        : '<button class="btn" disabled style="width:100%">Discord sign-in is coming soon</button>'}
-      <p class="form-error" role="alert" hidden></p>
-      <p class="muted small" style="margin-top:14px">League admin? <a href="/admin" data-link>Admin sign-in</a></p>
-    </section>
+    ${makeProfileCard({ footer: '<p class="form-error" role="alert" hidden></p><p class="dc-note">League admin? <a href="/admin" data-link>Admin sign-in</a></p>' })}
     ${dev}`;
 }
 

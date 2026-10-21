@@ -1,7 +1,8 @@
 // Public pages: Home, the Events list and one event's page.
 // Only published events (and their fixtures/results) ever reach these.
 
-import { loadAllBundles, loadPublicEvents, loadEventBundle } from '../data.js';
+import { loadAllBundles, loadPublicEvents, loadEventBundle, loadPlayers } from '../data.js';
+import { homeProfilePrompt } from './discord-cta.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls } from '../ui.js';
@@ -54,7 +55,8 @@ export const home = {
   title: 'Home',
   loading: () => skeleton([220, 300]),
   async render() {
-    const bundles = await loadAllBundles();
+    const [bundles, players] = await Promise.all([loadAllBundles(), loadPlayers()]);
+    const prompt = await homeProfilePrompt({ hasProfile: (uid) => players.some((p) => p.uid === uid) });
     const items = allFixtures(bundles);
     const upcoming = items.filter(({ b, f }) => !b.results[f.id] && isUpcoming(b.event)).slice(0, 6);
     const latest = items.filter(({ b, f }) => resultOf(b, f).check?.ok)
@@ -66,6 +68,7 @@ export const home = {
 
     return `
       <div class="stack">
+        ${prompt}
         <section class="panel hero">
           <div>
             <h1>Just Volleyball Oceania</h1>
