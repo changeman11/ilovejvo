@@ -5,6 +5,7 @@
 
 import { readFileSync } from 'node:fs';
 import { buildSampleData } from './sample-season.mjs';
+import { buildSampleEvents } from './sample-events.mjs';
 
 const projectId = JSON.parse(readFileSync(new URL('../.firebaserc', import.meta.url))).projects.default;
 const host = `http://127.0.0.1:${JSON.parse(readFileSync(new URL('../firebase.json', import.meta.url))).emulators.firestore.port}`;
@@ -62,6 +63,7 @@ async function main() {
   put('settings/site', d.settings);
   // The emulator-only "Sign in as test admin" account. Real admins are added in the Firebase console.
   put('admins/discord:dev-admin', { name: 'Test Admin', addedAt: new Date() });
+  for (const { id, ...e } of buildSampleEvents()) put(`events/${id}`, { ...e, updatedAt: e.createdAt });
   for (const { id, ...t } of d.teams) put(`teams/${id}`, t);
   for (const { id, ...p } of d.players) put(`players/${id}`, p);
   for (const s of d.seasons) {
@@ -72,7 +74,7 @@ async function main() {
   }
 
   await commit(writes);
-  console.log(`Seeded ${d.teams.length} teams, ${d.players.length} players.`);
+  console.log(`Seeded ${buildSampleEvents().length} events (1 draft), ${d.teams.length} teams, ${d.players.length} players.`);
   for (const s of d.seasons) {
     console.log(`  ${s.season.name}: ${s.fixtures.length} fixtures, ${Object.keys(s.results).length} results`);
   }

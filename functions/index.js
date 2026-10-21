@@ -2,7 +2,7 @@
 //
 // - discordSignIn: swaps a Discord login code for a Firebase sign-in token.
 // - devSignIn:     LOCAL EMULATOR ONLY. Signs in a test admin without Discord. Never deployed.
-// - auditSeasonWrites: records every change to fixtures/results in /auditLog.
+// - auditSeasonWrites / auditSeasonDocs / auditEvents: record every change in /auditLog.
 //
 // Settings:
 //   functions/.env           DISCORD_CLIENT_ID (not secret, safe to commit)
@@ -109,7 +109,7 @@ async function writeAudit(event, collection, docId) {
     action: !before ? 'create' : !after ? 'delete' : 'update',
     by: (after ?? before).updatedBy ?? null,
     path: event.document,
-    seasonId: event.params.seasonId,
+    seasonId: event.params.seasonId ?? null,
     collection,
     docId,
     before,
@@ -123,3 +123,7 @@ exports.auditSeasonWrites = onDocumentWritten('seasons/{seasonId}/{collection}/{
 // The season document itself (settings, playoff seeds...).
 exports.auditSeasonDocs = onDocumentWritten('seasons/{seasonId}', (event) =>
   writeAudit(event, 'seasons', event.params.seasonId));
+
+// Exhibition nights and tournaments.
+exports.auditEvents = onDocumentWritten('events/{eventId}', (event) =>
+  writeAudit(event, 'events', event.params.eventId));

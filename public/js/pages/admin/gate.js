@@ -26,7 +26,7 @@ function signInPanel() {
     <section class="card auth-card">
       <span class="eyebrow">Admins</span>
       <h1>Sign in</h1>
-      <p class="muted">League admins sign in with their Discord account.</p>
+      <p class="muted">Admins sign in with their Discord account.</p>
       ${discord}
       ${dev}
       <p class="form-error" role="alert" hidden></p>

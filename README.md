@@ -1,6 +1,21 @@
 # I<3JVO
 
-League hub for Just Volleyball Oceania. The full spec is in [CLAUDE.md](CLAUDE.md).
+Website for Just Volleyball Oceania. The full spec is in [CLAUDE.md](CLAUDE.md).
+
+**Right now the public site is just Exhibition nights and Upcoming tournaments.** The league section (table, fixtures, stats…) is built but closed: only admins can see it, and the database refuses league data to everyone else.
+
+## Managing events (admins)
+
+1. Go to `/admin` and sign in.
+2. Under **Exhibition nights** or **Tournaments**, click **+ Add**, or click an event to edit it.
+3. Leave **Date** empty to show "Date TBD". Leave **Time** empty to show "Time TBD". "Set back to TBD" clears both.
+4. Tick **Published** to show it to everyone. Unticked = draft, admins only.
+5. Set **Status** to Finished or Cancelled after the event; it moves to the "Past" list.
+
+## Opening the league later
+
+1. `firestore.rules`: change `leagueIsPublic()` to `return true;`
+2. `public/js/app.js`: remove `league: true` from the league routes, and add the league links back to the menus in `public/index.html`.
 
 ## Run it on your computer
 
@@ -70,7 +85,8 @@ Admins are documents in the `admins` collection, added from the Firebase console
 
 ## Data layout (Firestore)
 
-- `settings/site`: league name, current season, season shown on the home page
+- `events/{id}`: exhibition nights and tournaments: `type` (`exhibition` | `tournament`), `title`, `summary`, `details`, `date` (timestamp or null = TBD), `timeTbd`, `status` (`upcoming` | `finished` | `cancelled`), `published`, `signupUrl`, `streamUrl`; tournaments also `format`, `teamSize`, `prize`. Plus `createdAt/By`, `updatedAt/By`. The public can only read `published == true`.
+- `settings/site`: site name, current season, season shown on the league home page
 - `teams/{teamId}`, `players/{playerId}`: carry across seasons
 - `seasons/{seasonId}`: name, status, kickoff, divisions (with team IDs), `format`, `standings`, `stats`, `bands`
   - `rosters/{teamId}`: `playerIds`, `captainId`

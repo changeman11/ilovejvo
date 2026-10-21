@@ -1,37 +1,16 @@
 // Service worker: lets the site open offline and install as an app.
 // Network first (always fresh when online), cached copy when offline.
-// League data itself is cached by Firestore's own offline cache, not here.
+// Data itself is cached by Firestore's own offline cache, not here.
+//
+// Only the bare shell is pre-cached (a missing file here would stop the worker installing);
+// every other script is cached the first time it loads.
 
-const CACHE = 'jvo-shell-v3';
+const CACHE = 'jvo-shell-v4';
 const SHELL = [
   '/',
   '/index.html',
   '/css/app.css',
   '/js/app.js',
-  '/js/config.js',
-  '/js/firebase.js',
-  '/js/data.js',
-  '/js/ui.js',
-  '/js/nav.js',
-  '/js/auth.js',
-  '/js/pages/auth-callback.js',
-  '/js/pages/admin/gate.js',
-  '/js/pages/admin/matchday.js',
-  '/js/pages/admin/result.js',
-  '/js/admin-data.js',
-  '/js/rules/results.js',
-  '/js/pages/parts.js',
-  '/js/pages/home.js',
-  '/js/pages/table.js',
-  '/js/pages/fixtures.js',
-  '/js/pages/match.js',
-  '/js/pages/teams.js',
-  '/js/pages/team.js',
-  '/js/pages/player.js',
-  '/js/rules/defaults.js',
-  '/js/rules/match.js',
-  '/js/rules/standings.js',
-  '/js/rules/stats.js',
   '/manifest.webmanifest',
   '/icons/icon.svg',
   '/icons/icon-192.png',

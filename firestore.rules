@@ -1,14 +1,20 @@
 rules_version = '2';
 
 // I<3JVO security rules
-// - The public can read league data.
-// - Only authorised admins can write it. An admin is a user whose uid has a
-//   document in /admins. Admin documents are added from the Firebase console
-//   or by a Cloud Function, never from the website.
+// - The public can read PUBLISHED events (exhibition nights and tournaments). Drafts are admin-only.
+// - League data (seasons, teams, players, cups) is ADMIN-ONLY for now. To open it to everyone
+//   when the league launches, change leagueIsPublic() to return true.
+// - Only authorised admins can write. An admin is a user whose uid has a document in /admins.
+//   Admin documents are added from the Firebase console, never from the website.
 // - The audit log and analytics are written by the server only.
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---- The switch for the league section ----
+    function leagueIsPublic() {
+      return false;
+    }
 
     function signedIn() {
       return request.auth != null;
@@ -18,8 +24,12 @@ service cloud.firestore {
       return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    // Every admin save of a result or fixture must say who made it and when,
-    // so the server-side audit log can record it. Deletes are stamped just before.
+    function canReadLeague() {
+      return leagueIsPublic() || isAdmin();
+    }
+
+    // Every admin save must say who made it and when, so the server-side audit log
+    // can record it. Deletes are stamped just before they happen.
     function stampedByMe() {
       return request.resource.data.updatedBy == request.auth.uid
           && request.resource.data.updatedAt == request.time;
@@ -31,20 +41,37 @@ service cloud.firestore {
           && d.playerStats is map;
     }
 
-    // League data: public read, admin write
+    function validEvent() {
+      let d = request.resource.data;
+      return d.type in ['exhibition', 'tournament']
+          && d.title is string && d.title.size() > 0 && d.title.size() <= 120
+          && d.status in ['upcoming', 'finished', 'cancelled']
+          && d.published is bool
+          && (d.date == null || d.date is timestamp);
+    }
+
+    // ---- Events: exhibition nights and tournaments ----
+    // The public only sees published ones (the site asks for published == true).
+    match /events/{eventId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow create, update: if isAdmin() && stampedByMe() && validEvent();
+      allow delete: if isAdmin();
+    }
+
+    // ---- League data (admin-only until leagueIsPublic() is true) ----
     match /seasons/{seasonId} {
-      allow read: if true;
+      allow read: if canReadLeague();
       allow create, update: if isAdmin() && stampedByMe();
       allow delete: if isAdmin();
 
       match /results/{fixtureId} {
-        allow read: if true;
+        allow read: if canReadLeague();
         allow create, update: if isAdmin() && stampedByMe() && validResult();
         allow delete: if isAdmin();
       }
 
       match /fixtures/{fixtureId} {
-        allow read: if true;
+        allow read: if canReadLeague();
         allow create, update: if isAdmin() && stampedByMe();
         allow delete: if isAdmin();
       }
@@ -52,26 +79,27 @@ service cloud.firestore {
       // rosters, transfers, awards, playoffs
       // (Firestore allows a write if ANY rule matches, so results/fixtures are excluded here.)
       match /{collection}/{docId} {
-        allow read: if true;
+        allow read: if canReadLeague();
         allow write: if isAdmin() && !(collection in ['results', 'fixtures']);
       }
     }
 
     match /teams/{teamId} {
-      allow read: if true;
+      allow read: if canReadLeague();
       allow write: if isAdmin();
     }
 
     match /players/{playerId} {
-      allow read: if true;
+      allow read: if canReadLeague();
       allow write: if isAdmin();
     }
 
     match /cups/{document=**} {
-      allow read: if true;
+      allow read: if canReadLeague();
       allow write: if isAdmin();
     }
 
+    // Site name and links. Public.
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();

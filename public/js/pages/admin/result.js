@@ -230,7 +230,7 @@ function formHtml() {
     <div class="save-bar">
       <button type="button" class="btn" data-act="save">${existing ? 'Save changes' : 'Save result'}</button>
       ${existing ? '<button type="button" class="btn btn-danger" data-act="delete">Delete result</button>' : ''}
-      <a class="link-btn" href="/admin?season=${encodeURIComponent(seasonId)}" data-link>Cancel</a>
+      <a class="link-btn" href="/admin/matchday?season=${encodeURIComponent(seasonId)}" data-link>Cancel</a>
       <p class="form-error" role="alert" hidden></p>
     </div>`;
 }
@@ -346,7 +346,7 @@ export async function render({ seasonId, fixtureId }) {
     return {
       title: 'Enter result',
       html: `<div class="admin-root">${adminBar(gate.user, gate.admin)}
-        <a class="back" href="/admin?season=${encodeURIComponent(seasonId)}" data-link>← Match day</a>
+        <a class="back" href="/admin/matchday?season=${encodeURIComponent(seasonId)}" data-link>← Match day</a>
         ${notice('Teams not decided yet', ` The ${roundLabel(data.season, fixture)} teams fill in automatically once the earlier rounds have results.`)}</div>`,
     };
   }
@@ -361,7 +361,7 @@ export async function render({ seasonId, fixtureId }) {
     html: `
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin)}
-        <a class="back" href="/admin?season=${encodeURIComponent(seasonId)}" data-link>← Match day</a>
+        <a class="back" href="/admin/matchday?season=${encodeURIComponent(seasonId)}" data-link>← Match day</a>
         <div class="entry grid">${formHtml()}</div>
       </div>`,
   };
@@ -459,7 +459,7 @@ export function mount(el) {
         const { [page.fixtureId]: _removed, ...resultsAfter } = page.data.results;
         const advance = advanceUpdates(page.data.season, page.data.fixtures, resultsAfter);
         await deleteResult({ seasonId: page.seasonId, fixtureId: page.fixtureId, uid: page.user.uid, advance });
-        navigate(`/admin?season=${encodeURIComponent(page.seasonId)}`);
+        navigate(`/admin/matchday?season=${encodeURIComponent(page.seasonId)}`);
       } catch (err) {
         console.error(err);
         button.disabled = false;

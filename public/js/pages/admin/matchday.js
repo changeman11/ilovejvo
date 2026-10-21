@@ -74,11 +74,13 @@ export async function render() {
           <span class="eyebrow">Admin · ${esc(data.season.name)}</span>
           <h1>Match day</h1>
         </div>
-        ${seasonPicker(data, '/admin')}
+        ${seasonPicker(data, '/admin/matchday')}
       </section>
       <nav class="admin-tools" aria-label="Admin tools">
-        <a class="btn btn-ghost btn-sm" href="/admin/playoffs?season=${encodeURIComponent(data.season.id)}" data-link>Playoffs</a>
+        <a class="btn btn-ghost btn-sm" href="/admin" data-link>← Admin home</a>
+        <a class="btn btn-ghost btn-sm" href="/league" data-link>League preview</a>
       </nav>
+      <p class="callout">The league is hidden from the public for now. Only admins can see these pages.</p>
       <div class="grid">
         ${section('Needs a result', overdue.length ? `${overdue.length} waiting` : '', overdue.map((f) => matchRow(f, data, { href: edit(f), showRound: true })), 'All caught up. Every played match has a result.')}
         ${section('Something to check', flagged.length ? `${flagged.length} result${flagged.length === 1 ? '' : 's'}` : '', flaggedRows, 'Nothing to check.')}

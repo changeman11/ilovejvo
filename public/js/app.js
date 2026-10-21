@@ -2,14 +2,19 @@
 // Links with data-link switch pages without a full reload.
 // <select data-nav> dropdowns navigate to the URL in their value.
 
-import * as home from './pages/home.js';
+import * as events from './pages/events.js';
+import * as leagueHome from './pages/league-home.js';
 import * as table from './pages/table.js';
 import * as fixtures from './pages/fixtures.js';
 import * as match from './pages/match.js';
 import * as teams from './pages/teams.js';
 import * as team from './pages/team.js';
 import * as player from './pages/player.js';
+import * as stats from './pages/stats.js';
+import * as playoffs from './pages/playoffs.js';
 import * as authCallback from './pages/auth-callback.js';
+import * as adminHome from './pages/admin/home.js';
+import * as eventEdit from './pages/admin/event-edit.js';
 import * as matchDay from './pages/admin/matchday.js';
 import * as resultEntry from './pages/admin/result.js';
 import { NotFoundError } from './data.js';
@@ -17,25 +22,30 @@ import { onUserChange, currentAdmin } from './auth.js';
 import { setNav } from './nav.js';
 import { notice } from './ui.js';
 
-const comingSoon = (name, phase) => ({
-  title: name,
-  loading: () => '',
-  render: async () => `<section class="hero"><h1>${name}</h1></section>${notice('Coming soon', ` This page arrives in phase ${phase}.`)}`,
-});
-
 // Path patterns. ":name" parts are passed to the page's render() as params.
-// `section` is the main nav item to highlight.
+// `section` is the nav item to highlight.
+// `league: true` pages are hidden from the public until the league launches
+// (the database rules block the data too; see leagueIsPublic() in firestore.rules).
 const routes = [
-  { path: '/', page: home, section: '/' },
-  { path: '/table', page: table, section: '/table' },
-  { path: '/fixtures', page: fixtures, section: '/fixtures' },
-  { path: '/match/:seasonId/:fixtureId', page: match, section: '/fixtures' },
-  { path: '/teams', page: teams, section: '/teams' },
-  { path: '/team/:teamId', page: team, section: '/teams' },
-  { path: '/player/:playerId', page: player, section: '/teams' },
-  { path: '/stats', page: comingSoon('Statistics', 4), section: '/stats' },
+  { path: '/', page: events.home, section: '/' },
+  { path: '/exhibitions', page: events.exhibitions, section: '/exhibitions' },
+  { path: '/tournaments', page: events.tournaments, section: '/tournaments' },
+  { path: '/event/:eventId', page: events.eventPage, section: null },
+
+  { path: '/league', page: leagueHome, section: '/league', league: true },
+  { path: '/table', page: table, section: '/league', league: true },
+  { path: '/fixtures', page: fixtures, section: '/league', league: true },
+  { path: '/match/:seasonId/:fixtureId', page: match, section: '/league', league: true },
+  { path: '/teams', page: teams, section: '/league', league: true },
+  { path: '/team/:teamId', page: team, section: '/league', league: true },
+  { path: '/player/:playerId', page: player, section: '/league', league: true },
+  { path: '/stats', page: stats, section: '/league', league: true },
+  { path: '/playoffs', page: playoffs, section: '/league', league: true },
+
   { path: '/auth/discord', page: authCallback, section: '/admin' },
-  { path: '/admin', page: matchDay, section: '/admin' },
+  { path: '/admin', page: adminHome, section: '/admin' },
+  { path: '/admin/event/:eventId', page: eventEdit, section: '/admin' },
+  { path: '/admin/matchday', page: matchDay, section: '/admin' },
   { path: '/admin/result/:seasonId/:fixtureId', page: resultEntry, section: '/admin' },
 ];
 
@@ -43,6 +53,13 @@ const notFound = {
   title: 'Not found',
   loading: () => '',
   render: async () => notice('Page not found', ' That link doesn’t go anywhere.'),
+};
+
+const comingSoon = {
+  title: 'Coming soon',
+  loading: () => '',
+  render: async () => `${notice('Coming soon', ' The league isn’t open yet. For now, check out exhibition nights and upcoming tournaments.')}
+    <p style="text-align:center;margin-top:16px"><a class="btn" href="/" data-link>Go to home</a></p>`,
 };
 
 function matchRoute(pathname) {
@@ -69,18 +86,26 @@ let renderId = 0;
 
 async function show() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
-  const { page, params, section } = matchRoute(path);
+  const route = matchRoute(path);
   const id = ++renderId;
 
   document.querySelectorAll('.topnav a, .tabbar a').forEach((a) => {
-    if (a.getAttribute('href') === section) a.setAttribute('aria-current', 'page');
+    if (a.getAttribute('href') === route.section) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
 
-  document.title = page === home ? SITE_NAME : `${page.title} · ${SITE_NAME}`;
+  let { page } = route;
+  if (route.league) {
+    // League pages: admins only for now.
+    const { admin } = await currentAdmin().catch(() => ({ admin: null }));
+    if (id !== renderId) return;
+    if (!admin) page = comingSoon;
+  }
+
+  document.title = page === events.home ? SITE_NAME : `${page.title} · ${SITE_NAME}`;
   main.innerHTML = page.loading();
   try {
-    const out = await page.render(params);
+    const out = await page.render(route.params);
     if (id !== renderId) return; // the user already moved on
     const { html, title } = typeof out === 'string' ? { html: out } : out;
     main.innerHTML = html;
@@ -92,7 +117,7 @@ async function show() {
       main.innerHTML = notice('Not found', ` ${err.message}.`);
     } else {
       console.error(err);
-      main.innerHTML = notice("Couldn't load league data", ' Check your connection and refresh.');
+      main.innerHTML = notice('Couldn’t load this page', ' Check your connection and refresh.');
     }
   }
 }
@@ -122,16 +147,13 @@ document.addEventListener('change', (e) => {
 
 window.addEventListener('popstate', show);
 
-// Show the "Admin" link in the header only to signed-in admins.
+// Admin-only links in the header (League, Admin) appear for signed-in admins.
 onUserChange(async () => {
-  const link = document.querySelector('.topnav .admin-link');
-  if (!link) return;
+  let isAdmin = false;
   try {
-    const { admin } = await currentAdmin();
-    link.hidden = !admin;
-  } catch {
-    link.hidden = true;
-  }
+    isAdmin = Boolean((await currentAdmin()).admin);
+  } catch { /* stay hidden */ }
+  document.querySelectorAll('.admin-only').forEach((el) => { el.hidden = !isAdmin; });
 });
 
 show();

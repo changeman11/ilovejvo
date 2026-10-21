@@ -5,7 +5,7 @@ import { seasonPlayerStats, leaders } from '../rules/stats.js';
 import { esc, skeleton, teamChip, playerLink } from '../ui.js';
 import { matchRow, standingsTable, sortByTime } from './parts.js';
 
-export const title = 'Home';
+export const title = 'League';
 
 // Which stats get a "league leaders" spot, in order (only those the season tracks).
 const LEADER_STATS = ['pts', 'spk', 'blk', 'ace', 'dig', 'ast'];
@@ -62,6 +62,11 @@ export async function render() {
 
   return `
     <section class="hero">
+      <p class="callout">League preview: hidden from the public. Only admins can see this.</p>
+      <nav class="chips" aria-label="League pages">
+        ${[['/table', 'Table'], ['/fixtures', 'Fixtures'], ['/teams', 'Teams'], ['/stats', 'Stats'], ['/playoffs', 'Playoffs'], ['/admin/matchday', 'Match day']]
+          .map(([href, label]) => `<a class="chip-link done" href="${href}" data-link>${label}</a>`).join('')}
+      </nav>
       <span class="eyebrow">${status} · ${esc(data.season.name)}</span>
       <h1>Just Volleyball <span>Oceania</span></h1>
     </section>

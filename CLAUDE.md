@@ -2,7 +2,20 @@
 
 > **Site name (since 2026-10-21): "I<3JVO"** (was "JVO Hub"). Use it everywhere people see the name. Write it as `I&lt;3JVO` inside HTML. The project folder and package name stay `jvo-hub`.
 
-## What we're building
+## CURRENT SCOPE (changed 2026-10-21) — read this first
+
+The league is **TBD and closed to the public**. Until the user says otherwise, the public site is only:
+
+- **Exhibition nights** and **Upcoming tournaments** (`events` collection, `type: exhibition | tournament`), with an admin backend to add/edit/publish/delete them. Dates are optional and show as **"Date TBD"** until set (time optional too: "Time TBD").
+- Drafts (`published: false`) are visible to admins only.
+
+The league section is locked two ways:
+1. `firestore.rules` → `leagueIsPublic()` returns `false`, so seasons, teams, players and cups are admin-read-only.
+2. Routes marked `league: true` in `public/js/app.js` show "Coming soon" to non-admins. Admins see it via the "League" link.
+
+League build work is **paused partway through Phase 4** (rules, tests and draft pages for stats, playoffs, records, awards are committed but not public). Everything below describes the full league plan for when it resumes; it is not the current priority.
+
+## What we're building (full league plan, paused)
 
 A community league hub for **Just Volleyball Oceania (JVO)**: one website where players and fans see live standings, fixtures, results, player and team stats, playoffs, awards and history across every season, and where league admins run the whole competition without touching code.
 

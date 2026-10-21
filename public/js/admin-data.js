@@ -3,13 +3,40 @@
 // audit log uses them to record who changed what.
 
 import {
-  doc, writeBatch, updateDoc, serverTimestamp, Timestamp,
+  doc, collection, setDoc, deleteDoc, writeBatch, updateDoc, serverTimestamp, Timestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
-import { invalidateSeason } from './data.js';
+import { invalidateSeason, invalidateEvents } from './data.js';
 
 const stamp = (uid) => ({ updatedBy: uid, updatedAt: serverTimestamp() });
 const fixtureRef = (seasonId, id) => doc(db, `seasons/${seasonId}/fixtures/${id}`);
+
+// ---------- Events ----------
+
+// Creates (id = null) or replaces an event. Returns its id.
+// event.date is milliseconds or null (TBD).
+export async function saveEvent({ id, uid, event, existing }) {
+  const ref = id ? doc(db, `events/${id}`) : doc(collection(db, 'events'));
+  await setDoc(ref, {
+    ...event,
+    date: event.date ? Timestamp.fromMillis(event.date) : null,
+    createdAt: existing?.createdAt ? Timestamp.fromMillis(existing.createdAt) : serverTimestamp(),
+    createdBy: existing?.createdBy ?? uid,
+    ...stamp(uid),
+  });
+  invalidateEvents();
+  return ref.id;
+}
+
+// Deletes an event, stamping it first so the audit log records who did it.
+export async function deleteEvent({ id, uid }) {
+  const ref = doc(db, `events/${id}`);
+  await updateDoc(ref, stamp(uid));
+  await deleteDoc(ref);
+  invalidateEvents();
+}
+
+// ---------- League ----------
 
 // Playoff auto-advance: fill in (or clear) later-round teams, in the same batch.
 function addAdvance(batch, seasonId, uid, advance = []) {

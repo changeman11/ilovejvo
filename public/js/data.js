@@ -7,6 +7,8 @@ import {
   getDoc,
   getDocs,
   collection,
+  query,
+  where,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
 
@@ -41,6 +43,41 @@ function cached(key, load) {
   }
   return cache.get(key);
 }
+
+// ---------- Events (exhibition nights, tournaments) ----------
+
+const asEvent = (d) => ({ id: d.id, ...plain(d.data()) });
+
+// Published events only: what the public is allowed to see.
+export const loadPublicEvents = () =>
+  cached('events:public', async () => {
+    const snap = await getDocs(query(collection(db, 'events'), where('published', '==', true)));
+    return snap.docs.map(asEvent);
+  });
+
+// Every event including drafts (admins only; the security rules refuse anyone else).
+export async function loadAllEvents() {
+  const snap = await getDocs(collection(db, 'events'));
+  return snap.docs.map(asEvent);
+}
+
+// One event. Drafts and missing events both come back as "not found" for the public.
+export async function loadEvent(id) {
+  try {
+    const ev = await getOne(`events/${id}`);
+    if (!ev) throw new NotFoundError('That event doesn’t exist');
+    return ev;
+  } catch (err) {
+    if (err.code === 'permission-denied') throw new NotFoundError('That event doesn’t exist');
+    throw err;
+  }
+}
+
+export function invalidateEvents() {
+  cache.delete('events:public');
+}
+
+// ---------- League ----------
 
 export const loadSettings = () => cached('settings', () => getOne('settings/site').then((s) => s ?? {}));
 
