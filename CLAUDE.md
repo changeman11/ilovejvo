@@ -1,4 +1,6 @@
-# JVO Hub — Just Volleyball Oceania
+# i<3JVO — Just Volleyball Oceania
+
+> **Site name (since 2026-10-21): "i<3JVO"** (was "JVO Hub"). Use it everywhere people see the name. Write it as `i&lt;3JVO` inside HTML. The project folder and package name stay `jvo-hub`.
 
 ## What we're building
 

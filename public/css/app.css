@@ -1,4 +1,4 @@
-/* JVO Hub styles. Phone-first; wider screens add space and columns.
+/* i<3JVO styles. Phone-first; wider screens add space and columns.
    Brand colours live in :root. Swap them here once JVO's palette is final. */
 
 :root {
@@ -59,7 +59,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
 .topbar-inner { max-width: 1100px; margin: 0 auto; padding: 10px var(--gutter); display: flex; align-items: center; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .brand-text { font-family: var(--font-display); font-weight: 800; font-size: 24px; letter-spacing: 0.02em; }
-.brand-text span { color: var(--accent); margin-left: 3px; }
+.brand-text span { color: var(--accent); margin: 0 1px; }
 .topnav { display: none; gap: 4px; }
 .topnav a { text-decoration: none; padding: 6px 12px; border-radius: 999px; color: var(--muted); font-weight: 600; }
 .topnav a:hover { color: var(--text); }

@@ -1,4 +1,4 @@
-# JVO Hub
+# i<3JVO
 
 League hub for Just Volleyball Oceania. The full spec is in [CLAUDE.md](CLAUDE.md).
 

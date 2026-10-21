@@ -55,6 +55,7 @@ function matchRoute(pathname) {
   return { page: notFound, params: {}, section: null };
 }
 
+const SITE_NAME = 'i<3JVO';
 const main = document.getElementById('main');
 let renderId = 0;
 
@@ -68,14 +69,14 @@ async function show() {
     else a.removeAttribute('aria-current');
   });
 
-  document.title = page === home ? 'JVO Hub' : `${page.title} · JVO Hub`;
+  document.title = page === home ? SITE_NAME : `${page.title} · ${SITE_NAME}`;
   main.innerHTML = page.loading();
   try {
     const out = await page.render(params);
     if (id !== renderId) return; // the user already moved on
     const { html, title } = typeof out === 'string' ? { html: out } : out;
     main.innerHTML = html;
-    if (title) document.title = `${title} · JVO Hub`;
+    if (title) document.title = `${title} · ${SITE_NAME}`;
     page.mount?.(main); // optional per-page setup after drawing
   } catch (err) {
     if (id !== renderId) return;
