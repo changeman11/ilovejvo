@@ -36,7 +36,7 @@ export async function render({ playerId }) {
       </div>
     </section>`;
 
-  if (!career) return { title: player.displayName, html: `<div class="stack">${head}${notice('No matches yet', ' Stats appear after their first match.')}</div>` };
+  if (!career) return { title: player.displayName, html: `<div class="stack">${head}${notice('No matches yet', ' Stats appear after their first match.', 'x')}</div>` };
 
   const perMatch = Object.fromEntries(defs.map((d) => [d.key, career.matches ? (career.totals[d.key] ?? 0) / career.matches : 0]));
   const perSet = Object.fromEntries(defs.map((d) => [d.key, career.sets ? (career.totals[d.key] ?? 0) / career.sets : 0]));

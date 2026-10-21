@@ -2,7 +2,7 @@
 // URL options: ?view=upcoming|results  ?event=<id>
 
 import { loadAllBundles } from '../data.js';
-import { esc, skeleton, notice } from '../ui.js';
+import { esc, skeleton, notice, pageTitle } from '../ui.js';
 import { allFixtures, fixturesByDay, resultOf } from './parts.js';
 
 export const title = 'Fixtures';
@@ -36,11 +36,11 @@ export async function render() {
 
   return `
     <div class="page-head">
-      <div><h1>Fixtures</h1><p class="muted">Every match across exhibition nights and tournaments. Times are in your time zone.</p></div>
+      ${pageTitle('Fixtures', 'Every match across exhibition nights and tournaments. Times are in your time zone.', 'teal')}
       ${bundles.length > 1 ? `<label class="picker"><span class="sr-only">Event</span><select data-nav>${eventOptions}</select></label>` : ''}
     </div>
     <nav class="chips">${chip('upcoming', 'Upcoming', upcoming.length)}${chip('results', 'Results', results.length)}</nav>
     ${shown.length
       ? `<div class="panel flush fixtures">${fixturesByDay(shown, { showEvent: !eventId })}</div>`
-      : notice(view === 'results' ? 'No results yet' : 'Nothing scheduled', view === 'results' ? ' Results appear here once matches are played.' : ' New fixtures will show up here.')}`;
+      : notice(view === 'results' ? 'No results yet' : 'Nothing scheduled', view === 'results' ? ' Results appear here once matches are played.' : ' New fixtures will show up here.', 'x')}`;
 }

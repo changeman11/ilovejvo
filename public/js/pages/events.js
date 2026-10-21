@@ -4,7 +4,7 @@
 import { loadAllBundles, loadPublicEvents, loadEventBundle } from '../data.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
-import { esc, skeleton, notice, safeUrl, fmtNum, teamDot, playerLink, paragraphs, urls } from '../ui.js';
+import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, playerLink, paragraphs, urls } from '../ui.js';
 import { allFixtures, fixtureRow, fixturesByDay, resultOf, standingsTable } from './parts.js';
 import { careerStats, topPlayers, statDefsFor } from './career.js';
 
@@ -77,7 +77,8 @@ export const home = {
           </div>
           <div>
             <div class="hero-art">
-              <picture>
+              <img class="hero-scene" src="/images/art/scene.jpg" alt="A just volleyball player with the ball on a grass court" width="493" height="600">
+              <picture class="hero-logo">
                 <source srcset="/images/game/just-volleyball-logo-wide.avif" type="image/avif">
                 <img src="/images/game/just-volleyball-logo.jpg" alt="just volleyball" width="460" height="215">
               </picture>
@@ -128,10 +129,10 @@ export const eventsList = {
     const { upcoming, past } = sortEvents(all.filter((e) => !EVENT_TYPES[type] || e.type === type));
     const chip = (t, label) => `<a class="chip-link" href="/events${t ? `?type=${t}` : ''}" data-link data-keep-scroll${(t || null) === (EVENT_TYPES[type] ? type : null) ? ' aria-current="true"' : ''}>${label}</a>`;
     return `
-      <div class="page-head"><div><h1>Events</h1><p class="muted">Exhibition nights and tournaments.</p></div></div>
+      <div class="page-head">${pageTitle('Events', 'Exhibition nights and tournaments.', 'pink')}</div>
       <nav class="chips">${chip('', 'All')}${chip('exhibition', 'Exhibition nights')}${chip('tournament', 'Tournaments')}</nav>
       <div class="stack">
-        ${upcoming.length ? `<div class="event-list">${upcoming.map(eventCard).join('')}</div>` : notice('Nothing announced yet', ' Dates are still being worked out. Check back soon.')}
+        ${upcoming.length ? `<div class="event-list">${upcoming.map(eventCard).join('')}</div>` : notice('Nothing announced yet', ' Dates are still being worked out. Check back soon.', 'green')}
         ${past.length ? `<section><div class="section-head"><h2>Past events</h2></div><div class="event-list">${past.map(eventCard).join('')}</div></section>` : ''}
       </div>`;
   },

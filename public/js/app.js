@@ -46,7 +46,7 @@ const redirects = { '/exhibitions': '/events?type=exhibition', '/tournaments': '
 const notFound = {
   title: 'Not found',
   loading: () => '',
-  render: async () => `${notice('Page not found', ' That link doesn’t go anywhere.')}<p style="text-align:center;margin-top:16px"><a class="btn" href="/" data-link>Home</a></p>`,
+  render: async () => `${notice('Page not found', ' That link doesn’t go anywhere.', 'x')}<p style="text-align:center;margin-top:16px"><a class="btn" href="/" data-link>Home</a></p>`,
 };
 
 function matchRoute(pathname) {
@@ -97,10 +97,10 @@ async function show() {
   } catch (err) {
     if (id !== renderId) return;
     if (err instanceof NotFoundError) {
-      main.innerHTML = notice('Not found', ` ${err.message}.`);
+      main.innerHTML = notice('Not found', ` ${err.message}.`, 'x');
     } else {
       console.error(err);
-      main.innerHTML = notice('Couldn’t load this page', ' Check your connection and refresh.');
+      main.innerHTML = notice('Couldn’t load this page', ' Check your connection and refresh.', 'x');
     }
   }
 }

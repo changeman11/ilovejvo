@@ -28,7 +28,8 @@ function signInPanel() {
       <div class="event-links">${DEV_USERS.map((u) => `<button class="btn btn-sm" data-act="dev-signin" data-id="${u.discordId}">${esc(u.name)} <span class="muted">· ${esc(u.note)}</span></button>`).join('')}</div>
     </div>` : '';
   return `
-    <section class="panel auth-card" style="text-align:center">
+    <section class="panel auth-card signin-card" style="text-align:center">
+      <img class="signin-art" src="/images/art/player-teal.jpg" alt="" width="280" height="440" decoding="async">
       <h1>Players</h1>
       <p class="muted" style="margin-bottom:16px">Sign in with Discord to claim your profile, join a team, or register your own.</p>
       ${discordReady

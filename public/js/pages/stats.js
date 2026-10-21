@@ -3,7 +3,7 @@
 
 import { loadAllBundles } from '../data.js';
 import { seasonMatches } from '../rules/season.js';
-import { esc, skeleton, notice, fmtNum, pct, teamDot, playerLink } from '../ui.js';
+import { esc, skeleton, notice, pageTitle, fmtNum, pct, teamDot, playerLink } from '../ui.js';
 import { careerStats, statDefsFor, statValue } from './career.js';
 
 export const title = 'Stats';
@@ -32,7 +32,7 @@ export async function render() {
   };
 
   if (!stats.size) {
-    return `<div class="page-head"><h1>Player stats</h1></div>${notice('No stats yet', ' Stats appear once the first results are in.')}`;
+    return `<div class="page-head">${pageTitle('Player stats', '', 'blond')}</div>${notice('No stats yet', ' Stats appear once the first results are in.', 'x')}`;
   }
 
   // League-wide numbers for the tiles.
@@ -71,7 +71,7 @@ export async function render() {
 
   return `
     <div class="page-head">
-      <div><h1>Player stats</h1><p class="muted">${eventId ? esc(bundles[0].event.title) : 'All events combined'}. Tap a column to sort.</p></div>
+      ${pageTitle('Player stats', `${eventId ? esc(bundles[0].event.title) : 'All events combined'}. Tap a column to sort.`, 'blond')}
       ${all.length > 1 ? `<label class="picker"><span class="sr-only">Event</span><select data-nav>${eventOptions}</select></label>` : ''}
     </div>
     <div class="stack">

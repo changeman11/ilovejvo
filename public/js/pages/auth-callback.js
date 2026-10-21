@@ -16,7 +16,7 @@ export async function render() {
     queueMicrotask(() => navigate(next, { replace: true }));
     return notice('Signed in', ' Taking you there…');
   } catch (err) {
-    return `${notice('Sign-in didn’t work', ` ${err.message}`)}
+    return `${notice('Sign-in didn’t work', ` ${err.message}`, 'x')}
       <p style="text-align:center;margin-top:16px"><a class="btn btn-primary" href="/me" data-link>Try again</a></p>`;
   }
 }

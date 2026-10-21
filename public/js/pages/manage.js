@@ -17,7 +17,7 @@ let page = null; // { user, me, team }
 
 export async function render() {
   const user = await currentUser();
-  if (!user) return notice('Sign in first', ' Managers sign in with Discord on the Me page.');
+  if (!user) return notice('Sign in first', ' Managers sign in with Discord on the Me page.', 'pink');
   const me = await loadMe(user.uid);
   const team = me.team;
   if (!isApprovedTeam(team) || team.managerUid !== user.uid) {

@@ -123,10 +123,21 @@ p { margin: 0; }
 @media (min-width: 700px) { .hero { grid-template-columns: 1.3fr 1fr; padding: 28px; } }
 .hero h1 { font-size: clamp(28px, 7vw, 44px); }
 .hero .lead { font-size: 16px; margin-top: 8px; max-width: 36ch; }
-.hero-art { max-width: 240px; border: var(--outline); border-radius: var(--radius-sm); overflow: hidden; background: var(--yellow); }
-@media (min-width: 700px) { .hero-art { max-width: none; } }
-.hero-art img { width: 100%; height: auto; }
-.hero .credit { margin-top: 6px; font-size: 12px; opacity: 0.9; }
+/* In-game scene with the game logo stuck on the corner */
+.hero-art { position: relative; border: 3px solid var(--ink); border-radius: var(--radius); box-shadow: var(--pop); background: var(--tint-sky); }
+.hero-scene { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: 50% 30%; border-radius: calc(var(--radius) - 3px); }
+.hero-logo { position: absolute; left: -8px; bottom: -14px; width: 46%; max-width: 200px; transform: rotate(-4deg); }
+.hero-logo img { width: 100%; height: auto; border: 2px solid var(--ink); border-radius: var(--radius-sm); box-shadow: 2px 2px 0 var(--ink); }
+.hero .credit { margin-top: 20px; }
+
+/* Character stickers: round face cut-outs from the game */
+.sticker { flex: none; width: 56px; height: 56px; border-radius: 50%; border: 3px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); object-fit: cover; background: var(--tint-sky); }
+.sticker.lg { width: 88px; height: 88px; margin: 0 auto 12px; }
+@media (min-width: 700px) { .sticker { width: 68px; height: 68px; } }
+.titled { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.titled p { margin-top: 4px; }
+.signin-art { width: 120px; height: 150px; object-fit: cover; object-position: 50% 15%; margin: -4px auto 14px; border: 3px solid var(--ink); border-radius: var(--radius); box-shadow: var(--pop); }
+.hero .credit { font-size: 12px; opacity: 0.9; }
 .hero .credit a { font-weight: 700; color: #fff; }
 
 /* ---------- Buttons & chips ---------- */
