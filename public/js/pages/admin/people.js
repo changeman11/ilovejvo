@@ -29,6 +29,10 @@ function teamForm(t) {
         <label class="field"><span>Short name (3–4 letters)</span><input type="text" name="shortName" maxlength="5" value="${esc(t?.shortName ?? '')}" placeholder="e.g. TAS"></label>
       </div>
       <label class="field"><span>Colour</span><input type="color" name="color" value="${esc(t?.colors?.primary ?? '#19c9b1')}" style="width:80px;min-height:40px;padding:2px"></label>
+      <div class="field-row">
+        <label class="field"><span>Status</span><select name="status">${[['approved', 'Approved'], ['pending', 'Waiting for approval'], ['rejected', 'Rejected']].map(([v, l]) => `<option value="${v}"${(t?.status ?? 'approved') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="field"><span>Manager (squad players with Discord)</span><select name="manager"><option value="">No manager</option>${(t ? page.people.players.filter((p) => p.teamId === t.id && p.uid) : []).map((p) => `<option value="${esc(p.id)}"${t?.managerPlayerId === p.id ? ' selected' : ''}>${esc(p.displayName)}</option>`).join('')}</select></label>
+      </div>
       <div class="actions">
         <button type="submit" class="btn btn-primary btn-sm">${t ? 'Save team' : 'Add team'}</button>
         ${t && !page.used.teams.has(t.id) ? '<button type="button" class="btn btn-sm btn-danger" data-act="delete-team">Delete team</button>' : ''}
@@ -46,7 +50,9 @@ function playerForm(p) {
         <label class="field"><span>Player name (as in game)</span><input type="text" name="displayName" maxlength="60" value="${esc(p?.displayName ?? '')}" required></label>
         <label class="field"><span>Jersey number (optional)</span><input type="number" name="number" min="0" max="99" inputmode="numeric" value="${esc(p?.number ?? '')}"></label>
       </div>
+      <label class="field"><span>Team</span><select name="teamId"><option value="">Free agent</option>${page.people.teams.filter((t) => (t.status ?? 'approved') === 'approved').sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<option value="${esc(t.id)}"${p?.teamId === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
       <label class="check"><input type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}> Active</label>
+      ${p?.uid ? `<label class="check"><input type="checkbox" name="unlink"> Unlink Discord account ${esc(p.discordName ?? '')} (ID ${esc(p.discordId ?? '')})</label>` : ''}
       <div class="actions">
         <button type="submit" class="btn btn-primary btn-sm">${p ? 'Save player' : 'Add player'}</button>
         ${p && !page.used.players.has(p.id) ? '<button type="button" class="btn btn-sm btn-danger" data-act="delete-player">Delete player</button>' : ''}
@@ -78,7 +84,7 @@ export async function render() {
   const teamRows = teams.map((t) => `
     <a class="row" href="/admin/people?edit=team:${encodeURIComponent(t.id)}" data-link data-keep-scroll>
       <span class="row-main"><b><span class="team">${teamDot(t)}${esc(t.name)}</span></b></span>
-      <span class="row-side muted small">${esc(t.shortName ?? '')}</span>
+      <span class="row-side">${t.status === 'pending' ? '<span class="tag tag-draft">Waiting</span>' : t.status === 'rejected' ? '<span class="tag tag-cancelled">Rejected</span>' : ''}<span class="muted small">${esc(t.shortName ?? '')} · ${people.players.filter((p) => p.teamId === t.id).length} players</span></span>
     </a>
     ${kind === 'team' && id === t.id ? teamForm(t) : ''}`).join('');
 
@@ -148,7 +154,16 @@ export function mount(el) {
       const shortName = (val('shortName') || name.replace(/[^A-Za-z0-9]/g, '').slice(0, 3)).toUpperCase();
       button.disabled = true;
       try {
-        await saveTeam({ id, uid, existing, team: { ...strip(existing), name, shortName, colors: { primary: val('color') } } });
+        const manager = page.people.players.find((p) => p.id === form.querySelector('[name=manager]').value) ?? null;
+        await saveTeam({
+          id, uid, existing,
+          team: {
+            ...strip(existing), name, shortName, colors: { primary: val('color') },
+            status: form.querySelector('[name=status]').value,
+            managerPlayerId: manager?.id ?? null,
+            managerUid: manager?.uid ?? null,
+          },
+        });
         done();
       } catch (err) {
         button.disabled = false;
@@ -164,7 +179,16 @@ export function mount(el) {
       const number = val('number') === '' ? null : Number(val('number'));
       button.disabled = true;
       try {
-        await savePlayer({ id, uid, existing, player: { ...strip(existing), displayName, number, active: form.querySelector('[name=active]').checked } });
+        const unlink = form.querySelector('[name=unlink]')?.checked;
+        await savePlayer({
+          id, uid, existing,
+          player: {
+            ...strip(existing), displayName, number,
+            active: form.querySelector('[name=active]').checked,
+            teamId: form.querySelector('[name=teamId]').value || null,
+            ...(unlink ? { uid: null, discordId: null, discordName: null } : {}),
+          },
+        });
         done();
       } catch (err) {
         button.disabled = false;

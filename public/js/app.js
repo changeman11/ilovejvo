@@ -7,6 +7,10 @@ import * as fixtures from './pages/fixtures.js';
 import * as stats from './pages/stats.js';
 import * as match from './pages/match.js';
 import * as player from './pages/player.js';
+import * as me from './pages/me.js';
+import * as manage from './pages/manage.js';
+import * as authCallback from './pages/auth-callback.js';
+import * as requests from './pages/admin/requests.js';
 import * as adminHome from './pages/admin/home.js';
 import * as eventEdit from './pages/admin/event-edit.js';
 import * as people from './pages/admin/people.js';
@@ -26,7 +30,11 @@ const routes = [
   { path: '/event/:eventId', page: events.eventPage, section: '/events' },
   { path: '/match/:eventId/:fixtureId', page: match, section: '/fixtures' },
   { path: '/player/:playerId', page: player, section: '/stats' },
+  { path: '/me', page: me, section: '/me' },
+  { path: '/manage', page: manage, section: '/me' },
+  { path: '/auth/discord', page: authCallback, section: '/me' },
   { path: '/admin', page: adminHome, section: '/admin' },
+  { path: '/admin/requests', page: requests, section: '/admin' },
   { path: '/admin/people', page: people, section: '/admin' },
   { path: '/admin/event/:eventId', page: eventEdit, section: '/admin' },
   { path: '/admin/result/:eventId/:fixtureId', page: resultEntry, section: '/admin' },

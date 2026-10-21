@@ -81,12 +81,27 @@ const eventBase = {
 
 export function buildSampleData() {
   const rand = rng(20261021);
-  const teams = TEAMS.map(({ strength, color, ...t }) => ({ ...t, colors: { primary: color } }));
-  const players = TAGS.map((tag, i) => ({ id: tag.toLowerCase(), displayName: tag, number: (i * 7) % 99, active: true }));
+  const teams = TEAMS.map(({ strength, color, ...t }) => ({
+    ...t, colors: { primary: color }, status: 'approved', managerUid: null, managerPlayerId: null,
+  }));
+  // Every player is in one team's squad (5 each).
+  const players = TAGS.map((tag, i) => ({
+    id: tag.toLowerCase(), displayName: tag, number: (i * 7) % 99, active: true, bio: '',
+    teamId: TEAMS[Math.floor(i / 5)].id, uid: null, discordId: null, discordName: null, avatarUrl: null,
+  }));
   const rosters = Object.fromEntries(TEAMS.map((t, ti) => {
     const ids = TAGS.slice(ti * 5, ti * 5 + 5).map((x) => x.toLowerCase());
     return [t.id, { playerIds: ids, captainId: ids[0] }];
   }));
+
+  // Test Discord users (see DEV_USERS in public/js/auth.js):
+  // 1001 Wavecrash manages Tasman Tide, 1002 Coralyn plays for Reef Raiders,
+  // 1003 Drift is a free agent with their own profile, 1004 Newbie has no profile yet.
+  const link = (playerId, discordId, name) => Object.assign(players.find((p) => p.id === playerId), { uid: `discord:${discordId}`, discordId, discordName: name });
+  link('wavecrash', '1001', 'Wavecrash');
+  link('coralyn', '1002', 'Coralyn');
+  players.push({ id: 'd1003', displayName: 'Drift', number: 3, active: true, bio: 'Looking for a team!', teamId: null, uid: 'discord:1003', discordId: '1003', discordName: 'Drift', avatarUrl: null });
+  Object.assign(teams.find((t) => t.id === 'tasman-tide'), { managerUid: 'discord:1001', managerPlayerId: 'wavecrash' });
 
   const events = [];
 

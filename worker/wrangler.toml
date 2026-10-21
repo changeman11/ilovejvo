@@ -1,0 +1,15 @@
+# Cloudflare Worker for I<3JVO Discord sign-in (free plan).
+# Deploy from this folder:  npx wrangler@4.146.0 deploy
+# Secrets (never in this file):
+#   npx wrangler@4.146.0 secret put DISCORD_CLIENT_SECRET
+#   Get-Content path\to\key.json -Raw | npx wrangler@4.146.0 secret put FIREBASE_SERVICE_ACCOUNT
+
+name = "ilovejvo-auth"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+DISCORD_CLIENT_ID = ""
+FIREBASE_PROJECT_ID = "i-love-jvo"
+ALLOWED_ORIGINS = "https://i-love-jvo.web.app,https://i-love-jvo.firebaseapp.com,https://ilovejvo.com,https://www.ilovejvo.com,http://127.0.0.1:5000,http://localhost:5000"

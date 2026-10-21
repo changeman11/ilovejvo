@@ -130,6 +130,41 @@ export async function loadAllBundles({ includeDrafts = false, fresh = false } = 
   return bundles.sort((a, b) => (a.event.date ?? a.event.createdAt ?? 0) - (b.event.date ?? b.event.createdAt ?? 0));
 }
 
+// ---------- Players' own things (needs sign-in; the rules only return the player's own) ----------
+
+async function queryAll(path, field, value) {
+  const snap = await getDocs(query(collection(db, path), where(field, '==', value)));
+  return snap.docs.map(asObj);
+}
+
+// Everything the "Me" page needs for a signed-in user.
+export async function loadMe(uid) {
+  const [people, offers, leaves, claim, sentOffers] = await Promise.all([
+    loadPeople({ fresh: true }),
+    queryAll('offers', 'playerUid', uid),
+    queryAll('leaveRequests', 'uid', uid),
+    getOne(`claims/${uid}`),
+    queryAll('offers', 'fromUid', uid),
+  ]);
+  const player = people.players.find((p) => p.uid === uid) ?? null;
+  const team = player?.teamId ? people.teamsById[player.teamId] ?? null : null;
+  const pendingTeam = people.teams.find((t) => t.managerUid === uid && t.status === 'pending') ?? null;
+  return { ...people, player, team, pendingTeam, offers, sentOffers, leaves, claim };
+}
+
+// Admin inbox: pending team registrations, leave requests and profile claims.
+export async function loadRequests() {
+  const [people, leaves, claims] = await Promise.all([
+    loadPeople({ fresh: true }),
+    queryAll('leaveRequests', 'status', 'pending'),
+    queryAll('claims', 'status', 'pending'),
+  ]);
+  return { ...people, pendingTeams: people.teams.filter((t) => t.status === 'pending'), leaves, claims };
+}
+
+// A team counts as real once approved (older teams have no status = approved).
+export const isApprovedTeam = (t) => Boolean(t) && (t.status ?? 'approved') === 'approved';
+
 // Teams and players by id, without loading any event.
 export async function loadPeople({ fresh = false } = {}) {
   const [teams, players] = await Promise.all([loadTeams({ fresh }), loadPlayers({ fresh })]);

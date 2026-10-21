@@ -2,33 +2,52 @@ rules_version = '2';
 
 // I<3JVO security rules (Firebase free plan: no server code, so these rules are the guard).
 //
-// - The public can read PUBLISHED events, plus their fixtures, results and rosters,
-//   and all teams and players. Drafts and their contents are admin-only.
-// - Only admins can write. An admin is a signed-in user whose uid has a document in /admins.
-//   Admin documents are added from the Firebase console, never from the website.
-// - Every admin save is stamped with who and when (updatedBy / updatedAt = server time),
-//   and writes an entry to /auditLog in the same step. Log entries can't be edited or deleted.
+// Who's who:
+// - Admins: signed-in users with a document in /admins (added in the Firebase console only).
+// - Players: signed in with Discord (uid "discord:<id>"; the token carries discordId).
+//   A player owns the profile whose `uid` is theirs.
+// - Managers: the `managerUid` of an APPROVED team.
+//
+// What players and managers can do (everything else is admin-only):
+// - Create their own profile (id "d<discordId>"), edit their name/number/bio.
+// - Ask to claim an existing profile (/claims; an admin approves).
+// - Register a team: it starts "pending" until an admin approves it.
+// - Managers send offers to free agents and release players from their own team.
+// - Players accept/decline offers (accepting is the only way to join a team themselves).
+// - Players ask to leave their team (/leaveRequests; an admin approves).
+//
+// Every save is stamped with who and when (updatedBy / updatedAt = server time), and writes an
+// /auditLog entry signed with the writer's own uid. Log entries can't be edited or deleted.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function discordId() { return signedIn() ? request.auth.token.get('discordId', '') : ''; }
     function stampedByMe() {
       return request.resource.data.updatedBy == request.auth.uid
           && request.resource.data.updatedAt == request.time;
     }
-
-    function eventPublished(eventId) {
-      return get(/databases/$(database)/documents/events/$(eventId)).data.published == true;
+    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function playerDoc(pid) { return get(/databases/$(database)/documents/players/$(pid)).data; }
+    function teamDoc(tid) { return get(/databases/$(database)/documents/teams/$(tid)).data; }
+    function ownsPlayer(pid) { return signedIn() && playerDoc(pid).get('uid', null) == request.auth.uid; }
+    function managesTeam(tid) {
+      return signedIn() && teamDoc(tid).get('managerUid', null) == request.auth.uid
+          && teamDoc(tid).get('status', 'approved') == 'approved';
     }
-
+    function eventPublished(eventId) { return get(/databases/$(database)/documents/events/$(eventId)).data.published == true; }
+    function validName(field) {
+      let v = request.resource.data[field];
+      return v is string && v.size() > 0 && v.size() <= 60;
+    }
+    function validBio() {
+      let d = request.resource.data;
+      return !('bio' in d) || d.bio == null || (d.bio is string && d.bio.size() <= 300);
+    }
     function validEvent() {
       let d = request.resource.data;
       return d.type in ['exhibition', 'tournament']
@@ -38,19 +57,12 @@ service cloud.firestore {
           && (d.date == null || d.date is timestamp)
           && d.teamIds is list && d.teamIds.size() <= 64;
     }
-
     function validResult() {
       let d = request.resource.data;
-      return d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7
-          && d.playerStats is map;
+      return d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7 && d.playerStats is map;
     }
 
-    function validName(field) {
-      let v = request.resource.data[field];
-      return v is string && v.size() > 0 && v.size() <= 60;
-    }
-
-    // ---- Events (exhibition nights, tournaments) ----
+    // ---------- Events (exhibition nights, tournaments): admin-run ----------
     match /events/{eventId} {
       allow read: if resource.data.published == true || isAdmin();
       allow create, update: if isAdmin() && stampedByMe() && validEvent();
@@ -61,8 +73,6 @@ service cloud.firestore {
         allow create, update: if isAdmin() && stampedByMe() && validResult();
         allow delete: if isAdmin();
       }
-
-      // fixtures, rosters
       match /{collection}/{docId} {
         allow read: if eventPublished(eventId) || isAdmin();
         allow create, update: if isAdmin() && stampedByMe() && collection in ['fixtures', 'rosters'];
@@ -70,38 +80,147 @@ service cloud.firestore {
       }
     }
 
-    // ---- Teams and players (shared across events; stats add up over every event) ----
-    match /teams/{teamId} {
-      allow read: if true;
-      allow create, update: if isAdmin() && stampedByMe() && validName('name');
-      allow delete: if isAdmin();
-    }
-
+    // ---------- Players ----------
     match /players/{playerId} {
       allow read: if true;
-      allow create, update: if isAdmin() && stampedByMe() && validName('displayName');
+
+      allow create: if
+        (isAdmin() && stampedByMe() && validName('displayName'))
+        // A Discord user creates their own profile, one per Discord account, as a free agent.
+        || (discordId() != '' && playerId == 'd' + discordId()
+            && stampedByMe() && validName('displayName') && validBio()
+            && request.resource.data.uid == uid()
+            && request.resource.data.discordId == discordId()
+            && request.resource.data.get('teamId', null) == null
+            && request.resource.data.keys().hasOnly(['displayName', 'number', 'bio', 'uid', 'discordId', 'discordName', 'avatarUrl', 'teamId', 'active', 'updatedBy', 'updatedAt']));
+
+      allow update: if
+        (isAdmin() && stampedByMe() && validName('displayName'))
+        // Owner edits their own profile details.
+        || (signedIn() && resource.data.get('uid', null) == uid() && stampedByMe()
+            && validName('displayName') && validBio()
+            && changedOnly(['displayName', 'number', 'bio', 'avatarUrl', 'discordName', 'updatedBy', 'updatedAt']))
+        // Owner joins a team, only by accepting a pending offer in the same save.
+        || (signedIn() && resource.data.get('uid', null) == uid() && stampedByMe()
+            && resource.data.get('teamId', null) == null
+            && changedOnly(['teamId', 'joinOfferId', 'updatedBy', 'updatedAt'])
+            && get(/databases/$(database)/documents/offers/$(request.resource.data.joinOfferId)).data.status == 'pending'
+            && getAfter(/databases/$(database)/documents/offers/$(request.resource.data.joinOfferId)).data.status == 'accepted'
+            && getAfter(/databases/$(database)/documents/offers/$(request.resource.data.joinOfferId)).data.playerId == playerId
+            && getAfter(/databases/$(database)/documents/offers/$(request.resource.data.joinOfferId)).data.teamId == request.resource.data.teamId)
+        // A manager releases someone (not themselves) from their own team.
+        || (signedIn() && stampedByMe()
+            && resource.data.get('teamId', null) != null
+            && managesTeam(resource.data.teamId)
+            && resource.data.get('uid', null) != uid()
+            && request.resource.data.teamId == null
+            && changedOnly(['teamId', 'updatedBy', 'updatedAt']));
+
       allow delete: if isAdmin();
     }
 
-    // ---- Site settings. Public. ----
+    // ---------- Teams ----------
+    match /teams/{teamId} {
+      allow read: if true;
+
+      allow create: if
+        (isAdmin() && stampedByMe() && validName('name'))
+        // A free-agent player registers a team. It waits for an admin.
+        || (signedIn() && stampedByMe() && validName('name')
+            && request.resource.data.status == 'pending'
+            && request.resource.data.managerUid == uid()
+            && ownsPlayer(request.resource.data.managerPlayerId)
+            && playerDoc(request.resource.data.managerPlayerId).get('teamId', null) == null
+            && request.resource.data.keys().hasOnly(['name', 'shortName', 'colors', 'status', 'managerUid', 'managerPlayerId', 'createdBy', 'updatedBy', 'updatedAt']));
+
+      allow update: if
+        (isAdmin() && stampedByMe() && validName('name'))
+        // The manager tidies up their approved team's name/colours.
+        || (managesTeam(teamId) && stampedByMe() && validName('name')
+            && changedOnly(['name', 'shortName', 'colors', 'updatedBy', 'updatedAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Signing offers (manager -> free agent) ----------
+    match /offers/{offerId} {
+      allow read: if isAdmin()
+        || (signedIn() && (resource.data.fromUid == uid() || resource.data.playerUid == uid()));
+
+      allow create: if signedIn() && stampedByMe()
+        && request.resource.data.fromUid == uid()
+        && managesTeam(request.resource.data.teamId)
+        && request.resource.data.status == 'pending'
+        && playerDoc(request.resource.data.playerId).get('teamId', null) == null
+        && playerDoc(request.resource.data.playerId).get('uid', null) != null
+        && request.resource.data.playerUid == playerDoc(request.resource.data.playerId).uid
+        && request.resource.data.keys().hasOnly(['teamId', 'playerId', 'playerUid', 'fromUid', 'status', 'createdAt', 'updatedBy', 'updatedAt']);
+
+      allow update: if signedIn() && stampedByMe() && resource.data.status == 'pending' && (
+        (resource.data.playerUid == uid() && request.resource.data.status in ['accepted', 'declined']
+          && changedOnly(['status', 'updatedBy', 'updatedAt']))
+        || (resource.data.fromUid == uid() && request.resource.data.status == 'withdrawn'
+          && changedOnly(['status', 'updatedBy', 'updatedAt']))
+        || (isAdmin() && changedOnly(['status', 'updatedBy', 'updatedAt'])));
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Leave requests (player -> admin) ----------
+    match /leaveRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == uid());
+
+      allow create: if signedIn() && stampedByMe()
+        && request.resource.data.uid == uid()
+        && ownsPlayer(request.resource.data.playerId)
+        && request.resource.data.teamId != null
+        && playerDoc(request.resource.data.playerId).get('teamId', null) == request.resource.data.teamId
+        && request.resource.data.status == 'pending'
+        && (!('reason' in request.resource.data) || (request.resource.data.reason is string && request.resource.data.reason.size() <= 500))
+        && request.resource.data.keys().hasOnly(['playerId', 'teamId', 'uid', 'reason', 'status', 'createdAt', 'updatedBy', 'updatedAt']);
+
+      allow update: if (isAdmin() && stampedByMe())
+        || (signedIn() && resource.data.uid == uid() && resource.data.status == 'pending'
+            && request.resource.data.status == 'cancelled' && stampedByMe()
+            && changedOnly(['status', 'updatedBy', 'updatedAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Profile claims (player -> admin). One per account: the doc id is the uid. ----------
+    match /claims/{claimUid} {
+      allow read: if isAdmin() || (signedIn() && claimUid == uid());
+
+      allow create, update: if (isAdmin() && stampedByMe())
+        || (signedIn() && claimUid == uid() && stampedByMe()
+            && request.resource.data.status == 'pending'
+            && request.resource.data.discordId == discordId()
+            && playerDoc(request.resource.data.playerId).get('uid', null) == null
+            && (resource == null || resource.data.status != 'approved')
+            && request.resource.data.keys().hasOnly(['playerId', 'discordId', 'discordName', 'avatarUrl', 'status', 'createdAt', 'updatedBy', 'updatedAt']));
+
+      allow delete: if isAdmin() || (signedIn() && claimUid == uid() && resource.data.status != 'approved');
+    }
+
+    // ---------- Site settings. Public. ----------
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ---- Who is an admin. A signed-in user may check their own entry only. ----
-    match /admins/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
+    // ---------- Who is an admin. A signed-in user may check their own entry only. ----------
+    match /admins/{adminUid} {
+      allow read: if signedIn() && uid() == adminUid;
       allow write: if false;
     }
 
-    // ---- Audit log: append-only. Admins add entries signed with their own uid. ----
+    // ---------- Audit log: append-only, signed with the writer's own uid. Admins read it. ----------
     match /auditLog/{entryId} {
       allow read: if isAdmin();
-      allow create: if isAdmin()
-                    && request.resource.data.by == request.auth.uid
-                    && request.resource.data.at == request.time
-                    && request.resource.data.action in ['create', 'update', 'delete'];
+      allow create: if signedIn()
+        && request.resource.data.by == uid()
+        && request.resource.data.at == request.time
+        && request.resource.data.action in ['create', 'update', 'delete'];
       allow update, delete: if false;
     }
 

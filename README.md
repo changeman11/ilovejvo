@@ -4,7 +4,9 @@ Fixtures, results and player stats for Just Volleyball Oceania: the community ar
 [just volleyball](https://store.steampowered.com/app/5037200/) by temkosoft. Logo used with the developer's OK.
 
 - **Public:** Home, Fixtures, Stats, Events, plus event, match and player pages.
-- **Admin (`/admin`):** events (exhibition nights and tournaments), teams and players, rosters, fixtures, and results with player stats.
+- **Players (`/me`):** sign in with Discord, create or claim a profile, register a team (admin approves), accept or decline signing offers, ask to leave a team. Managers run their squad at `/manage`.
+- **Admin (`/admin`):** events (exhibition nights and tournaments), teams and players, rosters, fixtures, results with player stats, and a Requests inbox (new teams, leave requests, profile claims).
+- Discord sign-in runs on a free Cloudflare Worker (`worker/`); see [DISCORD-SETUP.md](DISCORD-SETUP.md). Locally, the Me page offers pretend Discord users.
 - Runs entirely on Firebase's **free plan** (Hosting, Firestore, Auth). See [GO-LIVE.md](GO-LIVE.md).
 
 ## Run it on your computer

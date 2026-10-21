@@ -1,44 +1,7 @@
-// Admin writes. Every change is saved together with an audit log entry, all or nothing.
-// The security rules insist on the updatedBy/updatedAt stamp and on audit entries being
-// signed with the admin's own uid, and nobody can edit or delete the log.
+// Admin writes. Every change is saved together with an audit log entry (see writes.js).
 
-import {
-  doc, collection, writeBatch, serverTimestamp, Timestamp,
-} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from './firebase.js';
+import { commit, ts, newId, serverTimestamp } from './writes.js';
 import { invalidate } from './data.js';
-
-const stamp = (uid) => ({ updatedBy: uid, updatedAt: serverTimestamp() });
-const strip = (obj) => {
-  if (!obj) return null;
-  const { id, ...rest } = obj;
-  return rest;
-};
-
-// ops: [{ type: 'set' | 'delete', path, data?, before? }]
-async function commit(uid, ops) {
-  // A batch holds 500 writes; each op is 2 (the change + its audit entry).
-  for (let i = 0; i < ops.length; i += 240) {
-    const batch = writeBatch(db);
-    for (const op of ops.slice(i, i + 240)) {
-      const ref = doc(db, op.path);
-      const after = op.type === 'delete' ? null : { ...op.data, ...stamp(uid) };
-      if (op.type === 'delete') batch.delete(ref);
-      else batch.set(ref, after);
-      batch.set(doc(collection(db, 'auditLog')), {
-        at: serverTimestamp(),
-        by: uid,
-        action: op.type === 'delete' ? 'delete' : op.before ? 'update' : 'create',
-        path: op.path,
-        before: strip(op.before),
-        after,
-      });
-    }
-    await batch.commit();
-  }
-}
-
-const ts = (ms) => (ms ? Timestamp.fromMillis(ms) : null);
 
 // Readable ids from names ("Tasman Tide" -> "tasman-tide"), unique among `taken`.
 export function slugId(name, taken) {
@@ -51,7 +14,7 @@ export function slugId(name, taken) {
 // ---------- Events ----------
 
 export async function saveEvent({ id, uid, event, existing }) {
-  const eventId = id ?? doc(collection(db, 'events')).id;
+  const eventId = id ?? newId('events');
   await commit(uid, [{
     type: 'set',
     path: `events/${eventId}`,
@@ -107,7 +70,7 @@ export async function saveRoster({ eventId, teamId, uid, roster, existing }) {
 }
 
 export async function saveFixture({ eventId, id, uid, fixture, existing }) {
-  const fixtureId = id ?? doc(collection(db, `events/${eventId}/fixtures`)).id;
+  const fixtureId = id ?? newId(`events/${eventId}/fixtures`);
   await commit(uid, [{
     type: 'set',
     path: `events/${eventId}/fixtures/${fixtureId}`,
@@ -149,6 +112,42 @@ export async function saveResult({ eventId, fixture, uid, result, existing, swap
     },
   ]);
   invalidate(`event:${eventId}`);
+}
+
+// ---------- Requests from players (team registrations, leave requests, profile claims) ----------
+
+export async function decideTeam({ uid, team, approve }) {
+  const ops = [{ type: 'update', path: `teams/${team.id}`, before: team, data: { status: approve ? 'approved' : 'rejected' } }];
+  // The player who registered it becomes its manager and first squad member.
+  if (approve && team.managerPlayerId) ops.push({ type: 'update', path: `players/${team.managerPlayerId}`, data: { teamId: team.id } });
+  await commit(uid, ops);
+  invalidate();
+}
+
+export async function decideLeave({ uid, request, approve, team }) {
+  const ops = [{ type: 'update', path: `leaveRequests/${request.id}`, before: request, data: { status: approve ? 'approved' : 'declined', decidedBy: uid } }];
+  if (approve) {
+    ops.push({ type: 'update', path: `players/${request.playerId}`, data: { teamId: null } });
+    // A manager who leaves stops being the manager; an admin picks the next one.
+    if (team?.managerPlayerId === request.playerId) {
+      ops.push({ type: 'update', path: `teams/${team.id}`, before: team, data: { managerUid: null, managerPlayerId: null } });
+    }
+  }
+  await commit(uid, ops);
+  invalidate();
+}
+
+export async function decideClaim({ uid, claim, approve }) {
+  const ops = [{ type: 'update', path: `claims/${claim.id}`, before: claim, data: { status: approve ? 'approved' : 'declined' } }];
+  if (approve) {
+    ops.push({
+      type: 'update',
+      path: `players/${claim.playerId}`,
+      data: { uid: claim.id, discordId: claim.discordId, discordName: claim.discordName ?? null, avatarUrl: claim.avatarUrl ?? null },
+    });
+  }
+  await commit(uid, ops);
+  invalidate();
 }
 
 export async function deleteResult({ eventId, fixture, uid, existing }) {

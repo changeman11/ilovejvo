@@ -1,6 +1,6 @@
 // Player profile: career totals and averages, stats per event, and every match.
 
-import { loadAllBundles, loadPeople, NotFoundError } from '../data.js';
+import { loadAllBundles, loadPeople, NotFoundError, isApprovedTeam } from '../data.js';
 import { esc, skeleton, notice, fmtNum, pct, teamDot, urls } from '../ui.js';
 import { statHeads, statCells } from './parts.js';
 import { careerStats, statDefsFor } from './career.js';
@@ -19,14 +19,20 @@ export async function render({ playerId }) {
   const defs = statDefsFor(bundles);
   const career = careerStats(bundles).get(playerId);
   const initial = esc((player.displayName ?? '?').trim().charAt(0).toUpperCase());
-  const lastTeam = career ? people.teamsById[career.log[career.log.length - 1]?.teamId] : null;
+  // Current team (signed players), else free agent.
+  const current = player.teamId ? people.teamsById[player.teamId] : null;
+  const team = isApprovedTeam(current) ? current : null;
+  const avatar = player.avatarUrl
+    ? `<img src="${esc(player.avatarUrl)}" alt="" width="64" height="64" class="avatar" style="padding:0">`
+    : `<div class="avatar">${initial}</div>`;
 
   const head = `
     <section class="panel profile">
-      <div class="avatar">${initial}</div>
+      ${avatar}
       <div>
         <h1>${esc(player.displayName)}</h1>
-        <p class="muted">${lastTeam ? `<span class="team">${teamDot(lastTeam)}${esc(lastTeam.name)}</span>` : 'No matches yet'}${player.number ? ` · #${esc(player.number)}` : ''}</p>
+        <p class="muted">${team ? `<span class="team">${teamDot(team)}${esc(team.name)}</span>` : 'Free agent'}${player.number != null ? ` · #${esc(player.number)}` : ''}</p>
+        ${player.bio ? `<p style="margin-top:6px">${esc(player.bio)}</p>` : ''}
       </div>
     </section>`;
 

@@ -70,7 +70,7 @@ p { margin: 0; }
 /* ---------- Bottom tab bar (phones) ---------- */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
   background: var(--surface); border-top: var(--outline);
 }
@@ -281,8 +281,8 @@ a.row:hover { background: var(--surface-2); }
 .row-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-side { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 600px) {
-  .row:has(.btn) { flex-wrap: wrap; }
-  .row:has(.btn) .row-side { width: 100%; justify-content: flex-start; }
+  .row:has(.row-side .btn + .btn) { flex-wrap: wrap; }
+  .row:has(.row-side .btn + .btn) .row-side { width: 100%; justify-content: flex-start; }
 }
 .inline-form { display: grid; gap: 10px; padding: 14px; border-top: 1px solid var(--line); background: var(--surface-2); }
 .inline-form .field { margin: 0; }

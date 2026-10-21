@@ -106,16 +106,23 @@ function readDetails(form) {
 function teamsHtml() {
   const { b, people } = page;
   const inEvent = new Set(b.event.teamIds ?? []);
-  const teams = [...people.teams].sort((x, y) => x.name.localeCompare(y.name));
+  // Only approved teams can enter events (or ones already in this event).
+  const teams = [...people.teams]
+    .filter((t) => (t.status ?? 'approved') === 'approved' || inEvent.has(t.id))
+    .sort((x, y) => x.name.localeCompare(y.name));
   const players = [...people.players].sort((x, y) => x.displayName.localeCompare(y.displayName));
   const rosterOf = (teamId) => new Set(b.rosters[teamId]?.playerIds ?? []);
 
   const rosterPanels = teams.filter((t) => inEvent.has(t.id)).map((t) => {
     const roster = rosterOf(t.id);
+    const squad = players.filter((p) => p.teamId === t.id);
+    // Squad members first, then everyone else.
+    const ordered = [...squad, ...players.filter((p) => p.teamId !== t.id)];
     return `
       <section class="panel" data-roster="${esc(t.id)}">
         <div class="section-head"><h3><span class="team">${teamDot(t)}${esc(t.name)}</span></h3><span class="muted small">${roster.size} player${roster.size === 1 ? '' : 's'}</span></div>
-        <div class="tick-list">${players.map((p) => `<label class="check"><input type="checkbox" value="${esc(p.id)}" ${roster.has(p.id) ? 'checked' : ''}> ${esc(p.displayName)}</label>`).join('')}</div>
+        ${squad.length ? `<button type="button" class="link-btn" data-act="tick-squad" data-team="${esc(t.id)}" data-ids="${esc(squad.map((p) => p.id).join(','))}">Tick the current squad (${squad.length})</button>` : ''}
+        <div class="tick-list">${ordered.map((p) => `<label class="check"><input type="checkbox" value="${esc(p.id)}" ${roster.has(p.id) ? 'checked' : ''}> ${esc(p.displayName)}${p.teamId === t.id ? ' <span class="muted small">squad</span>' : ''}</label>`).join('')}</div>
         <button type="button" class="btn btn-sm" data-act="save-roster" data-team="${esc(t.id)}" style="margin-top:10px">Save ${esc(t.shortName ?? t.name)} roster</button>
       </section>`;
   }).join('');
@@ -320,6 +327,12 @@ export function mount(el) {
     const button = e.target.closest('[data-act]');
     if (!button) return;
     const act = button.dataset.act;
+
+    if (act === 'tick-squad') {
+      const ids = new Set(button.dataset.ids.split(','));
+      root.querySelectorAll(`[data-roster="${CSS.escape(button.dataset.team)}"] .tick-list input`).forEach((i) => { i.checked = ids.has(i.value); });
+      return;
+    }
 
     if (act === 'clear-date') {
       root.querySelector('[name=date]').value = '';
