@@ -150,8 +150,10 @@ service cloud.firestore {
 
     // ---------- Signing offers (manager -> free agent) ----------
     match /offers/{offerId} {
-      allow read: if isAdmin()
-        || (signedIn() && (resource.data.fromUid == uid() || resource.data.playerUid == uid()));
+      // (Written as separate lines so "offers I sent" and "offers to me" queries each match one.)
+      allow read: if isAdmin();
+      allow read: if signedIn() && resource.data.playerUid == uid();
+      allow read: if signedIn() && resource.data.fromUid == uid();
 
       allow create: if signedIn() && stampedByMe()
         && request.resource.data.fromUid == uid()

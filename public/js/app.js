@@ -16,7 +16,7 @@ import * as eventEdit from './pages/admin/event-edit.js';
 import * as people from './pages/admin/people.js';
 import * as resultEntry from './pages/admin/result.js';
 import { NotFoundError } from './data.js';
-import { onUserChange, currentAdmin } from './auth.js';
+import { onAdminChange, currentAdmin } from './auth.js';
 import { setNav } from './nav.js';
 import { notice } from './ui.js';
 
@@ -130,8 +130,8 @@ document.addEventListener('change', (e) => {
 
 window.addEventListener('popstate', show);
 
-// The "Admin" menu link appears for signed-in admins.
-onUserChange(async () => {
+// The "Admin" menu link appears while the admin (password) sign-in is active.
+onAdminChange(async () => {
   let isAdmin = false;
   try {
     isAdmin = Boolean((await currentAdmin()).admin);

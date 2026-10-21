@@ -1,21 +1,22 @@
-// Sign-in.
-// - Players: Discord. The browser goes to Discord, comes back to /auth/discord with a one-time
-//   code, and our Cloudflare Worker swaps it for a Firebase sign-in token (uid "discord:<id>").
-// - Admins: username + password (Firebase email/password; "jvo" = jvo@users.ilovejvo.com).
+// Sign-in. Two independent sign-ins can be active at once (see firebase.js):
+// - Players: Discord (`auth`). The browser goes to Discord, comes back to /auth/discord with a
+//   one-time code, and our Cloudflare Worker swaps it for a Firebase token (uid "discord:<id>").
+// - Admins: username + password (`adminAuth`; "jvo" = jvo@users.ilovejvo.com).
 // - On this computer only (emulator): pretend Discord users, so everything can be tested offline.
 
 import {
   getAuth, connectAuthEmulator, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut as fbSignOut,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { app, db } from './firebase.js';
+import { app, adminApp, adminDb } from './firebase.js';
 import { useEmulators, emulatorPorts, discordClientId, authWorkerUrl } from './config.js';
 
 export const USERNAME_DOMAIN = 'users.ilovejvo.com';
 
-export const auth = getAuth(app);
+export const auth = getAuth(app); // players
+export const adminAuth = getAuth(adminApp); // admins
 if (useEmulators) {
-  connectAuthEmulator(auth, `http://${location.hostname}:${emulatorPorts.auth}`, { disableWarnings: true });
+  for (const a of [auth, adminAuth]) connectAuthEmulator(a, `http://${location.hostname}:${emulatorPorts.auth}`, { disableWarnings: true });
 }
 
 export const discordReady = Boolean(discordClientId && authWorkerUrl);
@@ -31,15 +32,18 @@ export function usernameOf(user) {
   return email.endsWith(`@${USERNAME_DOMAIN}`) ? email.slice(0, -USERNAME_DOMAIN.length - 1) : email;
 }
 
-const firstAuthState = new Promise((resolve) => {
-  const stop = onAuthStateChanged(auth, (user) => {
+const firstState = (a) => new Promise((resolve) => {
+  const stop = onAuthStateChanged(a, (user) => {
     stop();
     resolve(user);
   });
 });
+const firstPlayerState = firstState(auth);
+const firstAdminState = firstState(adminAuth);
 
+// The signed-in player (Discord), or null.
 export async function currentUser() {
-  await firstAuthState;
+  await firstPlayerState;
   return auth.currentUser;
 }
 
@@ -50,13 +54,14 @@ export async function discordOf(user) {
   return { discordId: claims.discordId ?? user.uid.slice(8), discordName: claims.discordName ?? null };
 }
 
-// { user, admin } where admin is the /admins doc or null.
+// The admin sign-in: { user, admin } where admin is the /admins doc or null.
 // Admin powers only count for password sign-ins (the security rules insist on the same).
 export async function currentAdmin() {
-  const user = await currentUser();
+  await firstAdminState;
+  const user = adminAuth.currentUser;
   if (!user) return { user: null, admin: null };
   if (!user.providerData.some((p) => p.providerId === 'password')) return { user, admin: null };
-  const snap = await getDoc(doc(db, 'admins', user.uid));
+  const snap = await getDoc(doc(adminDb, 'admins', user.uid));
   return { user, admin: snap.exists() ? snap.data() : null };
 }
 
@@ -64,11 +69,15 @@ export function onUserChange(callback) {
   return onAuthStateChanged(auth, callback);
 }
 
+export function onAdminChange(callback) {
+  return onAuthStateChanged(adminAuth, callback);
+}
+
 // ---------- Admin: username + password ----------
 
 export async function signIn(username, password) {
   try {
-    await signInWithEmailAndPassword(auth, emailFor(username), password);
+    await signInWithEmailAndPassword(adminAuth, emailFor(username), password);
   } catch (err) {
     const wrong = ['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email'];
     if (wrong.includes(err.code)) throw new Error('Wrong username or password.');
@@ -77,8 +86,14 @@ export async function signIn(username, password) {
   }
 }
 
+// Signs the player (Discord) out. The admin sign-in is untouched.
 export function signOut() {
   return fbSignOut(auth);
+}
+
+// Signs the admin out. The player (Discord) sign-in is untouched.
+export function adminSignOut() {
+  return fbSignOut(adminAuth);
 }
 
 // ---------- Players: Discord ----------

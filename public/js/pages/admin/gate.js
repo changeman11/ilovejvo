@@ -1,6 +1,6 @@
 // Admin gate: shows the sign-in form unless the visitor is a signed-in admin.
 
-import { currentAdmin, signIn, signOut, usernameOf } from '../../auth.js';
+import { currentAdmin, signIn, adminSignOut, usernameOf } from '../../auth.js';
 import { refresh } from '../../nav.js';
 import { esc } from '../../ui.js';
 
@@ -52,7 +52,7 @@ export function bindAuthActions(root) {
   });
   root.addEventListener('click', async (e) => {
     if (!e.target.closest('[data-action="sign-out"]')) return;
-    await signOut();
+    await adminSignOut(); // the Discord (player) sign-in stays
     refresh();
   });
 }

@@ -1,4 +1,9 @@
-// Starts Firebase once and shares the database connection with the rest of the app.
+// Starts Firebase and shares the connections with the rest of the app.
+//
+// Two separate connections, so a person can be signed in to both at once:
+// - `app` / `db`: the public site and players (Discord sign-in).
+// - `adminApp` / `adminDb`: the admin area (username + password sign-in).
+// Signing in or out of one doesn't touch the other.
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import {
@@ -11,8 +16,9 @@ import {
 import { firebaseConfig, useEmulators, emulatorPorts } from './config.js';
 
 export const app = initializeApp(firebaseConfig);
+export const adminApp = initializeApp(firebaseConfig, 'admin');
 
-// Offline cache: the last data you saw still shows when you lose signal.
+// Offline cache for the public site: the last data you saw still shows when you lose signal.
 // Falls back to memory-only if the browser blocks storage (e.g. some private windows).
 let localCache;
 try {
@@ -22,7 +28,10 @@ try {
 }
 
 export const db = initializeFirestore(app, { localCache });
+// Admin data is always fetched fresh, so no offline copy is kept.
+export const adminDb = initializeFirestore(adminApp, { localCache: memoryLocalCache() });
 
 if (useEmulators) {
   connectFirestoreEmulator(db, location.hostname, emulatorPorts.firestore);
+  connectFirestoreEmulator(adminDb, location.hostname, emulatorPorts.firestore);
 }

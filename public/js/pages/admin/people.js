@@ -67,7 +67,7 @@ export async function render() {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
 
-  const [people, bundles] = await Promise.all([loadPeople({ fresh: true }), loadAllBundles({ includeDrafts: true })]);
+  const [people, bundles] = await Promise.all([loadPeople({ fresh: true, admin: true }), loadAllBundles({ includeDrafts: true })]);
   // Teams/players that appear in any result or fixture can't be deleted.
   const used = { teams: new Set(), players: new Set() };
   for (const b of bundles) {

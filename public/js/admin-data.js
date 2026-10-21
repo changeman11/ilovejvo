@@ -1,7 +1,10 @@
 // Admin writes. Every change is saved together with an audit log entry (see writes.js).
 
-import { commit, ts, newId, serverTimestamp } from './writes.js';
+import { commit as save, ts, newId, serverTimestamp } from './writes.js';
 import { invalidate } from './data.js';
+
+// Admin saves always go through the admin (password) sign-in.
+const commit = (uid, ops) => save(uid, ops, { admin: true });
 
 // Readable ids from names ("Tasman Tide" -> "tasman-tide"), unique among `taken`.
 export function slugId(name, taken) {

@@ -5,7 +5,7 @@
 import {
   doc, collection, writeBatch, serverTimestamp, Timestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from './firebase.js';
+import { db, adminDb } from './firebase.js';
 
 export { serverTimestamp };
 
@@ -22,17 +22,19 @@ const strip = (obj) => {
 // ops: [{ type: 'set' | 'update' | 'delete', path, data?, before? }]
 //   set    = write the whole document (create or replace)
 //   update = change only the given fields
-export async function commit(uid, ops) {
+// admin: save through the admin sign-in (admin pages) instead of the player one.
+export async function commit(uid, ops, { admin = false } = {}) {
+  const database = admin ? adminDb : db;
   // A batch holds 500 writes; each op is 2 (the change + its audit entry).
   for (let i = 0; i < ops.length; i += 240) {
-    const batch = writeBatch(db);
+    const batch = writeBatch(database);
     for (const op of ops.slice(i, i + 240)) {
-      const ref = doc(db, op.path);
+      const ref = doc(database, op.path);
       const after = op.type === 'delete' ? null : { ...op.data, ...stamp(uid) };
       if (op.type === 'delete') batch.delete(ref);
       else if (op.type === 'update') batch.update(ref, after);
       else batch.set(ref, after);
-      batch.set(doc(collection(db, 'auditLog')), {
+      batch.set(doc(collection(database, 'auditLog')), {
         at: serverTimestamp(),
         by: uid,
         action: op.type === 'delete' ? 'delete' : op.before || op.type === 'update' ? 'update' : 'create',

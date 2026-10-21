@@ -1,14 +1,19 @@
 // Reads data from Firestore and turns it into plain objects the pages can use.
 // Dates become milliseconds so the rules engine never sees Firebase types.
 // Everything is cached for the visit; admin pages ask for fresh copies.
+//
+// `admin: true` reads through the admin sign-in (see firebase.js), which can see drafts and
+// requests. Everything else reads through the public/player connection.
 
 import {
   doc, getDoc, getDocs, collection, query, where,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from './firebase.js';
+import { db, adminDb } from './firebase.js';
 import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './rules/defaults.js';
 
 export class NotFoundError extends Error {}
+
+const dbFor = (admin) => (admin ? adminDb : db);
 
 function plain(value) {
   if (value && typeof value.toMillis === 'function') return value.toMillis();
@@ -21,55 +26,75 @@ function plain(value) {
 
 const asObj = (d) => ({ id: d.id, ...plain(d.data()) });
 
-async function getOne(path) {
-  const snap = await getDoc(doc(db, path));
+async function getOne(path, admin = false) {
+  const snap = await getDoc(doc(dbFor(admin), path));
   return snap.exists() ? asObj(snap) : null;
 }
 
-async function getAll(path) {
-  const snap = await getDocs(collection(db, path));
+async function getAll(path, admin = false) {
+  const snap = await getDocs(collection(dbFor(admin), path));
+  return snap.docs.map(asObj);
+}
+
+async function queryAll(path, field, value, admin = false) {
+  const snap = await getDocs(query(collection(dbFor(admin), path), where(field, '==', value)));
   return snap.docs.map(asObj);
 }
 
 // Caches a promise; drops it on failure so the next visit can retry.
+// Admin reads are cached separately (keys start with "A|").
 const cache = new Map();
-function cached(key, load) {
-  if (!cache.has(key)) {
+function cached(key, admin, load) {
+  const k = admin ? `A|${key}` : key;
+  if (!cache.has(k)) {
     const p = load();
-    p.catch(() => cache.delete(key));
-    cache.set(key, p);
+    p.catch(() => cache.delete(k));
+    cache.set(k, p);
   }
-  return cache.get(key);
+  return cache.get(k);
 }
 
-// Forget cached data after an admin change (or pass nothing to forget everything).
+// Forget cached data after a change (or pass nothing to forget everything). Clears both kinds.
 export function invalidate(prefix = '') {
-  for (const key of [...cache.keys()]) if (key.startsWith(prefix)) cache.delete(key);
+  for (const key of [...cache.keys()]) {
+    if (key.startsWith(prefix) || key.startsWith(`A|${prefix}`)) cache.delete(key);
+  }
 }
 
 // ---------- Teams and players (shared by every event) ----------
 
-export const loadTeams = ({ fresh = false } = {}) => {
+export const loadTeams = ({ fresh = false, admin = false } = {}) => {
   if (fresh) invalidate('teams');
-  return cached('teams', () => getAll('teams'));
+  return cached('teams', admin, () => getAll('teams', admin));
 };
-export const loadPlayers = ({ fresh = false } = {}) => {
+export const loadPlayers = ({ fresh = false, admin = false } = {}) => {
   if (fresh) invalidate('players');
-  return cached('players', () => getAll('players'));
+  return cached('players', admin, () => getAll('players', admin));
 };
+
+// Teams and players by id, without loading any event.
+export async function loadPeople({ fresh = false, admin = false } = {}) {
+  const [teams, players] = await Promise.all([loadTeams({ fresh, admin }), loadPlayers({ fresh, admin })]);
+  return {
+    teams,
+    players,
+    teamsById: Object.fromEntries(teams.map((t) => [t.id, t])),
+    playersById: Object.fromEntries(players.map((p) => [p.id, p])),
+  };
+}
+
+// A team counts as real once approved (older teams have no status = approved).
+export const isApprovedTeam = (t) => Boolean(t) && (t.status ?? 'approved') === 'approved';
 
 // ---------- Events ----------
 
 // Published events only: what the public may see.
 export const loadPublicEvents = () =>
-  cached('events:public', async () => {
-    const snap = await getDocs(query(collection(db, 'events'), where('published', '==', true)));
-    return snap.docs.map(asObj);
-  });
+  cached('events:public', false, () => queryAll('events', 'published', true));
 
 // Every event including drafts (admins only; the rules refuse anyone else).
 export async function loadAllEvents() {
-  return getAll('events');
+  return getAll('events', true);
 }
 
 // The settings the scoring/stats engine needs, built from an event.
@@ -88,12 +113,12 @@ export function engineSeason(event) {
 
 // Everything one event's pages need.
 // Returns { event, season, teams, teamsById, playersById, rosters, fixtures, results }
-export function loadEventBundle(eventId, { fresh = false } = {}) {
+export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) {
   if (fresh) invalidate(`event:${eventId}`);
-  return cached(`event:${eventId}`, async () => {
+  return cached(`event:${eventId}`, admin, async () => {
     let event;
     try {
-      event = await getOne(`events/${eventId}`);
+      event = await getOne(`events/${eventId}`, admin);
     } catch (err) {
       if (err.code === 'permission-denied') throw new NotFoundError('That event doesn’t exist');
       throw err;
@@ -101,11 +126,11 @@ export function loadEventBundle(eventId, { fresh = false } = {}) {
     if (!event) throw new NotFoundError('That event doesn’t exist');
     const base = `events/${eventId}`;
     const [teams, players, rosters, fixtures, results] = await Promise.all([
-      loadTeams({ fresh }),
-      loadPlayers({ fresh }),
-      getAll(`${base}/rosters`),
-      getAll(`${base}/fixtures`),
-      getAll(`${base}/results`),
+      loadTeams({ fresh, admin }),
+      loadPlayers({ fresh, admin }),
+      getAll(`${base}/rosters`, admin),
+      getAll(`${base}/fixtures`, admin),
+      getAll(`${base}/results`, admin),
     ]);
     const teamIds = new Set(event.teamIds ?? []);
     return {
@@ -122,22 +147,18 @@ export function loadEventBundle(eventId, { fresh = false } = {}) {
   });
 }
 
-// Every published event's bundle (admins: every event), oldest event first.
+// Every published event's bundle (admins with includeDrafts: every event), oldest event first.
 // Used for site-wide fixtures, stats and player careers.
 export async function loadAllBundles({ includeDrafts = false, fresh = false } = {}) {
-  const events = includeDrafts ? await loadAllEvents() : await loadPublicEvents();
-  const bundles = await Promise.all(events.map((e) => loadEventBundle(e.id, { fresh })));
+  const admin = includeDrafts;
+  const events = admin ? await loadAllEvents() : await loadPublicEvents();
+  const bundles = await Promise.all(events.map((e) => loadEventBundle(e.id, { fresh, admin })));
   return bundles.sort((a, b) => (a.event.date ?? a.event.createdAt ?? 0) - (b.event.date ?? b.event.createdAt ?? 0));
 }
 
-// ---------- Players' own things (needs sign-in; the rules only return the player's own) ----------
+// ---------- Players' own things (Discord sign-in; the rules only return the player's own) ----------
 
-async function queryAll(path, field, value) {
-  const snap = await getDocs(query(collection(db, path), where(field, '==', value)));
-  return snap.docs.map(asObj);
-}
-
-// Everything the "Me" page needs for a signed-in user.
+// Everything the "Me" page needs for a signed-in player.
 export async function loadMe(uid) {
   const [people, offers, leaves, claim, sentOffers] = await Promise.all([
     loadPeople({ fresh: true }),
@@ -152,26 +173,14 @@ export async function loadMe(uid) {
   return { ...people, player, team, pendingTeam, offers, sentOffers, leaves, claim };
 }
 
-// Admin inbox: pending team registrations, leave requests and profile claims.
+// ---------- Admin inbox ----------
+
+// Pending team registrations, leave requests and profile claims.
 export async function loadRequests() {
   const [people, leaves, claims] = await Promise.all([
-    loadPeople({ fresh: true }),
-    queryAll('leaveRequests', 'status', 'pending'),
-    queryAll('claims', 'status', 'pending'),
+    loadPeople({ fresh: true, admin: true }),
+    queryAll('leaveRequests', 'status', 'pending', true),
+    queryAll('claims', 'status', 'pending', true),
   ]);
   return { ...people, pendingTeams: people.teams.filter((t) => t.status === 'pending'), leaves, claims };
-}
-
-// A team counts as real once approved (older teams have no status = approved).
-export const isApprovedTeam = (t) => Boolean(t) && (t.status ?? 'approved') === 'approved';
-
-// Teams and players by id, without loading any event.
-export async function loadPeople({ fresh = false } = {}) {
-  const [teams, players] = await Promise.all([loadTeams({ fresh }), loadPlayers({ fresh })]);
-  return {
-    teams,
-    players,
-    teamsById: Object.fromEntries(teams.map((t) => [t.id, t])),
-    playersById: Object.fromEntries(players.map((p) => [p.id, p])),
-  };
 }

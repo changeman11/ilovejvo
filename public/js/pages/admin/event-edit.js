@@ -214,9 +214,9 @@ export async function render({ eventId }) {
   const params = new URLSearchParams(location.search);
   const isNew = eventId === 'new';
   let b = null;
-  if (!isNew) b = await loadEventBundle(eventId, { fresh: true });
+  if (!isNew) b = await loadEventBundle(eventId, { fresh: true, admin: true });
   if (!isNew && !b) throw new NotFoundError('That event doesn’t exist');
-  const people = await loadPeople({ fresh: true });
+  const people = await loadPeople({ fresh: true, admin: true });
   const askedType = params.get('type');
   const draft = b?.event ?? { type: EVENT_TYPES[askedType] ? askedType : 'exhibition', status: 'upcoming', published: false, date: null, timeTbd: true, teamSize: 4, teamIds: [] };
   const tab = isNew ? 'details' : ['teams', 'fixtures'].includes(params.get('tab')) ? params.get('tab') : 'details';

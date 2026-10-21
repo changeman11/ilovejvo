@@ -302,7 +302,7 @@ export async function render({ eventId, fixtureId }) {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
 
-  const b = await loadEventBundle(eventId, { fresh: true });
+  const b = await loadEventBundle(eventId, { fresh: true, admin: true });
   const fixture = b.fixtures.find((f) => f.id === fixtureId);
   if (!fixture) throw new NotFoundError('That fixture doesn’t exist');
   const back = `<a class="back" href="${urls.adminEvent(eventId, 'fixtures')}" data-link>← ${esc(b.event.title)} fixtures</a>`;

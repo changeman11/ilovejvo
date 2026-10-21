@@ -2,7 +2,7 @@
 // answer signing offers, register a team, or ask to leave a team.
 
 import {
-  currentUser, discordOf, discordReady, startDiscordSignIn, devSignIn, devSignInAvailable, DEV_USERS,
+  currentUser, currentAdmin, discordOf, discordReady, startDiscordSignIn, devSignIn, devSignInAvailable, DEV_USERS,
   signOut, lastDiscordProfile,
 } from '../auth.js';
 import { loadMe, isApprovedTeam } from '../data.js';
@@ -182,19 +182,23 @@ function noProfileBlock(me, discord) {
     </div>`;
 }
 
+// Shown on the Me page while the admin sign-in is also active.
+const adminShortcut = (admin) => (admin ? `
+  <a class="panel admin-shortcut" href="/admin" data-link>
+    <b>Admin area</b><span class="muted small">Signed in as ${esc(admin.name ?? 'admin')} · open →</span>
+  </a>` : '');
+
 export async function render() {
-  const user = await currentUser();
-  if (!user) return { title: 'Sign in', html: `<div class="me-root">${signInPanel()}</div>` };
+  let user = await currentUser();
+  // Before admins had their own sign-in, a password login lived here. Clear it out.
+  if (user && !(await discordOf(user))) {
+    await signOut();
+    user = null;
+  }
+  const { admin } = await currentAdmin().catch(() => ({ admin: null }));
+  if (!user) return { title: 'Sign in', html: `<div class="me-root stack">${adminShortcut(admin)}${signInPanel()}</div>` };
 
   const discord = await discordOf(user);
-  if (!discord) {
-    return {
-      title: 'Me',
-      html: `<div class="me-root">${notice('Signed in as an admin', ' Player features (profiles, teams, offers) are for Discord sign-ins.')}
-        <p style="text-align:center;margin-top:16px"><a class="btn" href="/admin" data-link>Go to admin</a> <button class="btn" data-act="sign-out">Sign out</button></p></div>`,
-    };
-  }
-
   const me = await loadMe(user.uid);
   page = { user, discord, me };
 
@@ -212,7 +216,7 @@ export async function render() {
         <div class="stack">${editProfileForm(me.player)}</div>
       </div>`;
   }
-  return { title: me.player?.displayName ?? 'Me', html: `<div class="me-root stack">${body}</div>` };
+  return { title: me.player?.displayName ?? 'Me', html: `<div class="me-root stack">${adminShortcut(admin)}${body}</div>` };
 }
 
 function showError(el, message) {
