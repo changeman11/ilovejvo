@@ -1,5 +1,13 @@
 # Discord sign-in for players: setup checklist
 
+> **Status (21 Oct 2026): done and working.** Discord app client ID `1562397361878343743`; Worker `ilovejvo-auth` at
+> https://ilovejvo-auth.ilovejvo.workers.dev with secrets `DISCORD_CLIENT_SECRET` and `FIREBASE_SERVICE_ACCOUNT`
+> (key for `discord-signin@i-love-jvo.iam.gserviceaccount.com`, no roles). Admin powers only work with password sign-ins,
+> so this key can never act as an admin. When ilovejvo.com is connected, add `https://ilovejvo.com/auth/discord` to the
+> Discord redirects (the Worker already allows that site).
+>
+> To update the Worker later: `cd worker`, then `npx.cmd --yes wrangler@4.146.0 deploy`.
+
 Players sign in with Discord. A tiny **Cloudflare Worker** (free, no card) confirms the login and
 hands the site a Firebase sign-in. Everything else stays on Firebase's free plan.
 
