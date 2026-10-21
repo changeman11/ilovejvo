@@ -1,0 +1,3 @@
+# Keep line endings as LF in the repo and on disk, so Windows and Firebase agree.
+* text=auto eol=lf
+*.png binary

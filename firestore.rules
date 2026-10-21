@@ -1,0 +1,83 @@
+rules_version = '2';
+
+// JVO Hub security rules
+// - The public can read league data.
+// - Only authorised admins can write it. An admin is a user whose uid has a
+//   document in /admins. Admin documents are added from the Firebase console
+//   or by a Cloud Function, never from the website.
+// - The audit log and analytics are written by the server only.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // League data: public read, admin write
+    match /seasons/{seasonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      // rosters, fixtures, results, transfers, awards, playoffs
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    match /teams/{teamId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /players/{playerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /cups/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Who is an admin. A signed-in user may check their own entry only.
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Server-written only. Admins can read.
+    match /auditLog/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /analytics/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Anyone can report a front-end error (small, fixed shape). Nobody can edit them.
+    match /clientErrors/{errorId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly(['message', 'stack', 'url', 'userAgent', 'at'])
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() < 2000
+                    && (!('stack' in request.resource.data) || (request.resource.data.stack is string && request.resource.data.stack.size() < 8000))
+                    && request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
+
+    // Everything else is closed.
+  }
+}
