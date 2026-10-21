@@ -1,7 +1,7 @@
 // Match page: score, sets, MVP, box scores, VOD and screenshots.
 
 import { loadEventBundle, NotFoundError } from '../data.js';
-import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, playerLink, urls } from '../ui.js';
+import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, teamLink, playerLink, urls } from '../ui.js';
 import { formatFor } from '../rules/season.js';
 import { resultOf, statHeads, statCells } from './parts.js';
 
@@ -21,7 +21,7 @@ function boxScore(b, teamId, result) {
   const totals = Object.fromEntries(defs.map((d) => [d.key, lines.reduce((n, [, l]) => n + (Number(l[d.key]) || 0), 0)]));
   return `
     <section>
-      <div class="section-head"><h2><span class="team">${teamDot(team, 'lg')}${esc(team?.name ?? teamId)}</span></h2></div>
+      <div class="section-head"><h2>${team ? teamLink(team, { size: 'lg' }) : esc(teamId)}</h2></div>
       <div class="panel flush"><div class="table-wrap"><table class="data">
         <thead><tr><th class="first">Player</th>${statHeads(defs)}</tr></thead>
         <tbody>${lines.map(([pid, line]) => `<tr><td class="first">${playerLink(b.playersById[pid], pid)}${result.mvpPlayerId === pid ? '<span class="badge">MVP</span>' : ''}</td>${statCells(line, defs)}</tr>`).join('')}</tbody>
@@ -71,9 +71,9 @@ export async function render({ eventId, fixtureId }) {
         <section class="panel match-head">
           <p class="muted small">${sub}</p>
           <div class="mh-teams">
-            <div class="mh-team ${played && !homeWon ? 'lost' : ''}">${teamDot(home, 'lg')}${esc(home?.name ?? 'TBC')}</div>
+            <a class="mh-team ${played && !homeWon ? 'lost' : ''}" ${home ? `href="${urls.team(home.id)}" data-link` : ''}>${teamDot(home, 'xl')}${esc(home?.name ?? 'TBC')}</a>
             <div class="mh-score num">${played ? `${check.homeSets}<i>–</i>${check.awaySets}` : '<i>v</i>'}</div>
-            <div class="mh-team ${played && homeWon ? 'lost' : ''}">${teamDot(away, 'lg')}${esc(away?.name ?? 'TBC')}</div>
+            <a class="mh-team ${played && homeWon ? 'lost' : ''}" ${away ? `href="${urls.team(away.id)}" data-link` : ''}>${teamDot(away, 'xl')}${esc(away?.name ?? 'TBC')}</a>
           </div>
           <p class="${f.scheduledAt ? '' : 'event-when tbd'}" style="font-weight:700">${esc(when)}</p>
           ${played && !result.forfeit ? `<div class="set-strip">${result.sets.map((s, i) => `<span>Set ${i + 1}: ${s.home}–${s.away}</span>`).join('')}<span>Points ${check.homePoints}–${check.awayPoints}</span></div>` : ''}

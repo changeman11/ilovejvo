@@ -5,7 +5,10 @@ import { currentUser } from '../auth.js';
 import { loadMe, isApprovedTeam } from '../data.js';
 import { updateTeam, sendOffer, withdrawOffer, releasePlayer } from '../player-data.js';
 import { refresh } from '../nav.js';
-import { esc, skeleton, notice, teamDot, playerLink } from '../ui.js';
+import { esc, skeleton, notice, teamDot, playerLink, urls } from '../ui.js';
+import { FriendlyError } from '../media.js';
+import { DEFAULT_STATS } from '../rules/defaults.js';
+import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
 
 export const title = 'Manage team';
 
@@ -75,15 +78,17 @@ export async function render() {
               </div>
             </section>
             <section>
-              <div class="section-head"><h2>Team details</h2></div>
+              <div class="section-head"><h2>Team profile</h2><a href="${urls.team(team.id)}" data-link>View it</a></div>
               <form class="panel" data-form="team" novalidate>
                 <div class="field-row">
                   <label class="field"><span>Name</span><input type="text" name="name" maxlength="60" value="${esc(team.name)}"></label>
                   <label class="field"><span>Short name</span><input type="text" name="shortName" maxlength="5" value="${esc(team.shortName ?? '')}"></label>
                 </div>
-                <label class="field"><span>Colour</span><input type="color" name="color" value="${esc(team.colors?.primary ?? '#19c9b1')}" style="width:80px;min-height:40px;padding:2px"></label>
-                <button class="btn btn-primary" type="submit">Save</button>
-                <p class="form-error" role="alert" hidden></p>
+                <label class="field"><span>Team colour (dot next to the name)</span><input type="color" name="color" value="${esc(team.colors?.primary ?? '#19c9b1')}" class="color-input"></label>
+                ${customiseFields('team', team, DEFAULT_STATS, team.colors?.primary)}
+                <div class="save-bar">
+                  <button class="btn btn-primary" type="submit">Save team profile</button>
+                </div>
               </form>
             </section>
           </div>
@@ -96,6 +101,7 @@ export async function render() {
 export function mount(el) {
   const root = el.querySelector('.manage-root');
   if (!root || !page) return;
+  bindImagePreviews(root);
   const { user, me, team } = page;
   const showError = (msg) => {
     const box = root.querySelector('[data-global]');
@@ -147,13 +153,21 @@ export function mount(el) {
     const form = e.target;
     const val = (n) => form.querySelector(`[name=${n}]`).value.trim();
     if (!val('name')) return showError('The team needs a name.');
-    form.querySelector('[type=submit]').disabled = true;
+    const button = form.querySelector('[type=submit]');
+    button.disabled = true;
+    button.textContent = 'Saving…';
     try {
-      await updateTeam({ uid: user.uid, team, changes: { name: val('name'), shortName: (val('shortName') || val('name').slice(0, 3)).toUpperCase(), colors: { primary: val('color') } } });
+      await saveCustomise({
+        form, kind: 'team', owner: 'teams', id: team.id, doc: team,
+        extra: { name: val('name'), shortName: (val('shortName') || val('name').slice(0, 3)).toUpperCase(), colors: { ...(team.colors ?? {}), primary: val('color') } },
+        save: (changes) => updateTeam({ uid: user.uid, team, changes }),
+      });
       refresh();
     } catch (err) {
-      form.querySelector('[type=submit]').disabled = false;
-      fail(err);
+      button.disabled = false;
+      button.textContent = 'Save team profile';
+      if (err instanceof FriendlyError) showError(err.message);
+      else fail(err);
     }
   });
 }

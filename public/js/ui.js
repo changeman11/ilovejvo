@@ -1,5 +1,7 @@
 // Small shared helpers for building page HTML safely.
 
+import { mediaUrl } from './media.js';
+
 export function esc(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -32,13 +34,32 @@ export const urls = {
   event: (id) => `/event/${encodeURIComponent(id)}`,
   match: (eventId, fixtureId) => `/match/${encodeURIComponent(eventId)}/${encodeURIComponent(fixtureId)}`,
   player: (id) => `/player/${encodeURIComponent(id)}`,
+  team: (id) => `/team/${encodeURIComponent(id)}`,
   adminEvent: (id, tab = '') => `/admin/event/${encodeURIComponent(id)}${tab ? `?tab=${tab}` : ''}`,
   adminResult: (eventId, fixtureId) => `/admin/result/${encodeURIComponent(eventId)}/${encodeURIComponent(fixtureId)}`,
 };
 
-// Team colour dot (outlined, like the game's art).
+// Team mark: its logo if it has one, otherwise a colour dot (outlined, like the game's art).
 export function teamDot(team, size = '') {
+  const logo = mediaUrl(team?.logoPath);
+  if (logo) return `<img class="dot logo ${size}" src="${esc(logo)}" alt="" loading="lazy" decoding="async">`;
   return `<i class="dot ${size}" style="background:${esc(team?.colors?.primary ?? '#ffffff')}"></i>`;
+}
+
+// Team name linking to its profile (approved teams only; others show plain).
+export function teamLink(team, { dot = true, size = '' } = {}) {
+  if (!team) return '<span class="team">TBC</span>';
+  const inner = `${dot ? teamDot(team, size) : ''}<span>${esc(team.name)}</span>`;
+  return (team.status ?? 'approved') === 'approved'
+    ? `<a class="team" href="${urls.team(team.id)}" data-link>${inner}</a>`
+    : `<span class="team">${inner}</span>`;
+}
+
+// A player's picture: uploaded one, else Discord's, else their first letter.
+export function avatarImg(player, cls = 'avatar') {
+  const src = mediaUrl(player?.avatarPath) ?? safeUrl(player?.avatarUrl);
+  if (src) return `<img class="${cls} has-img" src="${esc(src)}" alt="" loading="lazy" decoding="async">`;
+  return `<span class="${cls}">${esc((player?.displayName ?? '?').trim().charAt(0).toUpperCase())}</span>`;
 }
 
 export function playerLink(player, fallbackId = '') {

@@ -52,7 +52,42 @@ service cloud.firestore {
     }
     function validBio() {
       let d = request.resource.data;
-      return !('bio' in d) || d.bio == null || (d.bio is string && d.bio.size() <= 300);
+      return !('bio' in d) || d.bio == null || (d.bio is string && d.bio.size() <= 1000);
+    }
+    // ---------- Profile customisation (teams and players) ----------
+    // Optional text field up to `max` characters.
+    function optText(field, max) {
+      let d = request.resource.data;
+      return !(field in d) || d[field] == null || (d[field] is string && d[field].size() <= max);
+    }
+    // Optional link: empty, or https://... up to 200 characters.
+    function optLink(socials, key) {
+      let v = socials.get(key, '');
+      return v == null || v == '' || (v is string && v.size() <= 200 && v.matches('https://.+'));
+    }
+    // An uploaded image path must point at this team's/player's own folder, e.g. teams/abc/logo/x1.gif
+    function optMedia(field, folder) {
+      let d = request.resource.data;
+      return !(field in d) || d[field] == null
+          || (d[field] is string && d[field].matches(folder + '[A-Za-z0-9_-]+[.](png|jpg|webp|gif)'));
+    }
+    function validCustomise(base) {
+      let d = request.resource.data;
+      return optText('tagline', 80) && validBio()
+          && (!('theme' in d) || d.theme == null || (d.theme is string && d.theme.matches('#[0-9a-fA-F]{6}')))
+          && (!('showcase' in d) || d.showcase == null || (d.showcase is list && d.showcase.size() <= 4))
+          && (!('socials' in d) || d.socials == null
+              || (d.socials is map
+                  && d.socials.keys().hasOnly(['discord', 'youtube', 'twitch', 'tiktok', 'x'])
+                  && optLink(d.socials, 'discord') && optLink(d.socials, 'youtube') && optLink(d.socials, 'twitch')
+                  && optLink(d.socials, 'tiktok') && optLink(d.socials, 'x')))
+          && optMedia('bannerPath', base + '/banner/') && optMedia('backgroundPath', base + '/background/');
+    }
+    function validTeamProfile(teamId) {
+      return validCustomise('teams/' + teamId) && optMedia('logoPath', 'teams/' + teamId + '/logo/');
+    }
+    function validPlayerProfile(playerId) {
+      return validCustomise('players/' + playerId) && optMedia('avatarPath', 'players/' + playerId + '/avatar/');
     }
     function validEvent() {
       let d = request.resource.data;
@@ -102,10 +137,12 @@ service cloud.firestore {
 
       allow update: if
         (isAdmin() && stampedByMe() && validName('displayName'))
-        // Owner edits their own profile details.
+        // Owner edits and customises their own profile.
         || (signedIn() && resource.data.get('uid', null) == uid() && stampedByMe()
-            && validName('displayName') && validBio()
-            && changedOnly(['displayName', 'number', 'bio', 'avatarUrl', 'discordName', 'updatedBy', 'updatedAt']))
+            && validName('displayName') && validPlayerProfile(playerId)
+            && changedOnly(['displayName', 'number', 'bio', 'avatarUrl', 'discordName',
+                            'tagline', 'theme', 'showcase', 'socials', 'avatarPath', 'bannerPath', 'backgroundPath',
+                            'updatedBy', 'updatedAt']))
         // Owner joins a team, only by accepting a pending offer in the same save.
         || (signedIn() && resource.data.get('uid', null) == uid() && stampedByMe()
             && resource.data.get('teamId', null) == null
@@ -141,9 +178,16 @@ service cloud.firestore {
 
       allow update: if
         (isAdmin() && stampedByMe() && validName('name'))
-        // The manager tidies up their approved team's name/colours.
-        || (managesTeam(teamId) && stampedByMe() && validName('name')
-            && changedOnly(['name', 'shortName', 'colors', 'updatedBy', 'updatedAt']));
+        // The manager edits and customises their approved team.
+        || (managesTeam(teamId) && stampedByMe() && validName('name') && validTeamProfile(teamId)
+            && changedOnly(['name', 'shortName', 'colors',
+                            'tagline', 'bio', 'theme', 'showcase', 'socials', 'logoPath', 'bannerPath', 'backgroundPath',
+                            'updatedBy', 'updatedAt']))
+        // While waiting for approval, the person who registered it can add a logo and profile.
+        || (signedIn() && resource.data.status == 'pending' && resource.data.managerUid == uid()
+            && stampedByMe() && validTeamProfile(teamId)
+            && changedOnly(['tagline', 'bio', 'theme', 'showcase', 'socials', 'logoPath', 'bannerPath', 'backgroundPath',
+                            'updatedBy', 'updatedAt']));
 
       allow delete: if isAdmin();
     }

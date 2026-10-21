@@ -2,6 +2,7 @@
 
 import { commit as save, ts, newId, serverTimestamp } from './writes.js';
 import { invalidate } from './data.js';
+import { deleteImage } from './media.js';
 
 // Admin saves always go through the admin (password) sign-in.
 const commit = (uid, ops) => save(uid, ops, { admin: true });
@@ -62,6 +63,24 @@ export async function savePlayer({ id, uid, player, existing }) {
 }
 export async function deletePlayer({ id, uid, existing }) {
   await commit(uid, [{ type: 'delete', path: `players/${id}`, before: existing }]);
+  invalidate();
+}
+
+// ---------- Profile moderation ----------
+
+// Takes down one uploaded image (logo, picture, banner or background) and deletes the file.
+// owner: 'teams' | 'players'
+export async function removeProfileImage({ uid, owner, doc, kind }) {
+  const field = `${kind}Path`;
+  const path = doc[field];
+  await commit(uid, [{ type: 'update', path: `${owner}/${doc.id}`, before: doc, data: { [field]: null } }]);
+  await deleteImage(path, { admin: true });
+  invalidate();
+}
+
+// Clears a profile's tagline, bio and links (for anything unsuitable).
+export async function clearProfileText({ uid, owner, doc }) {
+  await commit(uid, [{ type: 'update', path: `${owner}/${doc.id}`, before: doc, data: { tagline: null, bio: '', socials: null } }]);
   invalidate();
 }
 

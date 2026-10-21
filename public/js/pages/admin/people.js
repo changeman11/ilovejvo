@@ -2,9 +2,10 @@
 // /admin/people[?edit=team:<id>|team:new|player:<id>|player:new]
 
 import { loadPeople, loadAllBundles } from '../../data.js';
-import { saveTeam, deleteTeam, savePlayer, deletePlayer, slugId } from '../../admin-data.js';
+import { saveTeam, deleteTeam, savePlayer, deletePlayer, slugId, removeProfileImage, clearProfileText } from '../../admin-data.js';
 import { navigate } from '../../nav.js';
-import { esc, skeleton, teamDot } from '../../ui.js';
+import { esc, skeleton, teamDot, urls } from '../../ui.js';
+import { mediaUrl, MEDIA } from '../../media.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
 export const title = 'Teams & players';
@@ -21,6 +22,27 @@ const strip = (o) => {
   return rest;
 };
 
+const IMAGE_KINDS = { teams: ['logo', 'banner', 'background'], players: ['avatar', 'banner', 'background'] };
+const hasImages = (owner, d) => IMAGE_KINDS[owner].some((k) => d[`${k}Path`]);
+const hasText = (d) => Boolean(d.tagline || d.bio || Object.values(d.socials ?? {}).some(Boolean));
+
+// Uploaded images and profile text, with take-down buttons.
+function moderation(owner, d) {
+  if (!d || (!hasImages(owner, d) && !hasText(d))) return '';
+  const thumbs = IMAGE_KINDS[owner].filter((k) => d[`${k}Path`]).map((k) => `
+    <div class="mod-thumb">
+      <a href="${esc(mediaUrl(d[`${k}Path`]))}" target="_blank" rel="noopener"><img src="${esc(mediaUrl(d[`${k}Path`]))}" alt="${esc(MEDIA[k].label)}" loading="lazy"></a>
+      <button type="button" class="btn btn-sm btn-danger" data-act="remove-image" data-owner="${owner}" data-id="${esc(d.id)}" data-kind="${k}">Remove ${esc(MEDIA[k].label.toLowerCase())}</button>
+    </div>`).join('');
+  return `
+    <div class="mod">
+      <span class="field-label">Profile images &amp; text</span>
+      ${thumbs ? `<div class="mod-thumbs">${thumbs}</div>` : ''}
+      ${hasText(d) ? `<p class="small">${d.tagline ? `<b>${esc(d.tagline)}</b> ` : ''}${esc((d.bio ?? '').slice(0, 160))}${(d.bio ?? '').length > 160 ? '…' : ''}</p>
+        <button type="button" class="btn btn-sm btn-danger" data-act="clear-text" data-owner="${owner}" data-id="${esc(d.id)}">Clear tagline, bio &amp; links</button>` : ''}
+    </div>`;
+}
+
 function teamForm(t) {
   return `
     <form class="inline-form" data-form="team" data-id="${esc(t?.id ?? '')}" novalidate>
@@ -33,6 +55,7 @@ function teamForm(t) {
         <label class="field"><span>Status</span><select name="status">${[['approved', 'Approved'], ['pending', 'Waiting for approval'], ['rejected', 'Rejected']].map(([v, l]) => `<option value="${v}"${(t?.status ?? 'approved') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="field"><span>Manager (squad players with Discord)</span><select name="manager"><option value="">No manager</option>${(t ? page.people.players.filter((p) => p.teamId === t.id && p.uid) : []).map((p) => `<option value="${esc(p.id)}"${t?.managerPlayerId === p.id ? ' selected' : ''}>${esc(p.displayName)}</option>`).join('')}</select></label>
       </div>
+      ${moderation('teams', t)}
       <div class="actions">
         <button type="submit" class="btn btn-primary btn-sm">${t ? 'Save team' : 'Add team'}</button>
         ${t && !page.used.teams.has(t.id) ? '<button type="button" class="btn btn-sm btn-danger" data-act="delete-team">Delete team</button>' : ''}
@@ -53,6 +76,7 @@ function playerForm(p) {
       <label class="field"><span>Team</span><select name="teamId"><option value="">Free agent</option>${page.people.teams.filter((t) => (t.status ?? 'approved') === 'approved').sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<option value="${esc(t.id)}"${p?.teamId === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
       <label class="check"><input type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}> Active</label>
       ${p?.uid ? `<label class="check"><input type="checkbox" name="unlink"> Unlink Discord account ${esc(p.discordName ?? '')} (ID ${esc(p.discordId ?? '')})</label>` : ''}
+      ${moderation('players', p)}
       <div class="actions">
         <button type="submit" class="btn btn-primary btn-sm">${p ? 'Save player' : 'Add player'}</button>
         ${p && !page.used.players.has(p.id) ? '<button type="button" class="btn btn-sm btn-danger" data-act="delete-player">Delete player</button>' : ''}
@@ -81,6 +105,24 @@ export async function render() {
   const teams = [...people.teams].sort((a, b) => a.name.localeCompare(b.name));
   const players = [...people.players].sort((a, b) => a.displayName.localeCompare(b.displayName));
 
+  // Newest custom profiles first, so admins can glance over what's been uploaded lately.
+  const custom = [
+    ...people.teams.filter((t) => hasImages('teams', t) || hasText(t)).map((d) => ({ owner: 'teams', d, name: d.name })),
+    ...people.players.filter((p) => hasImages('players', p) || hasText(p)).map((d) => ({ owner: 'players', d, name: d.displayName })),
+  ].sort((a, b) => (b.d.updatedAt ?? 0) - (a.d.updatedAt ?? 0)).slice(0, 12);
+  const recentBlock = custom.length ? `
+    <section style="margin-bottom:20px">
+      <div class="section-head"><h2>Recently customised profiles</h2><span class="muted small">Newest first</span></div>
+      <div class="panel flush rows">${custom.map(({ owner, d, name }) => `
+        <div class="row">
+          <span class="row-main"><b><a class="plink" href="${owner === 'teams' ? urls.team(d.id) : urls.player(d.id)}" data-link>${esc(name)}</a></b>
+            <span class="muted small">${owner === 'teams' ? 'Team' : 'Player'}${d.tagline ? ` · ${esc(d.tagline)}` : ''}</span></span>
+          <span class="row-side mod-mini">${IMAGE_KINDS[owner].filter((k) => d[`${k}Path`]).map((k) => `<img src="${esc(mediaUrl(d[`${k}Path`]))}" alt="${esc(MEDIA[k].label)}" title="${esc(MEDIA[k].label)}" loading="lazy">`).join('')}
+            <a class="btn btn-sm" href="/admin/people?edit=${owner === 'teams' ? 'team' : 'player'}:${encodeURIComponent(d.id)}" data-link data-keep-scroll>Review</a></span>
+        </div>`).join('')}
+      </div>
+    </section>` : '';
+
   const teamRows = teams.map((t) => `
     <a class="row" href="/admin/people?edit=team:${encodeURIComponent(t.id)}" data-link data-keep-scroll>
       <span class="row-main"><b><span class="team">${teamDot(t)}${esc(t.name)}</span></b></span>
@@ -101,6 +143,7 @@ export async function render() {
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/people')}
         <div class="page-head"><div><h1>Teams &amp; players</h1><p class="muted">Shared by every event, so player stats add up across all of them.</p></div></div>
+        ${recentBlock}
         <div class="cols">
           <section>
             <div class="section-head"><h2>Teams</h2><a href="/admin/people?edit=team:new" data-link data-keep-scroll>+ Add team</a></div>
@@ -202,6 +245,16 @@ export function mount(el) {
     if (!button) return;
     const form = button.closest('form');
     try {
+      if (button.dataset.act === 'remove-image' || button.dataset.act === 'clear-text') {
+        const { owner, id, kind } = button.dataset;
+        const doc = (owner === 'teams' ? page.people.teamsById : page.people.playersById)[id];
+        const what = button.dataset.act === 'clear-text' ? 'their tagline, bio and links' : `the ${MEDIA[kind].label.toLowerCase()}`;
+        if (!window.confirm(`Remove ${what} from ${doc.name ?? doc.displayName}? This can’t be undone.`)) return;
+        button.disabled = true;
+        if (button.dataset.act === 'clear-text') await clearProfileText({ uid, owner, doc });
+        else await removeProfileImage({ uid, owner, doc, kind });
+        done();
+      }
       if (button.dataset.act === 'delete-team') {
         const existing = page.people.teams.find((t) => t.id === form.dataset.id);
         if (!window.confirm(`Delete ${existing.name}?`)) return;

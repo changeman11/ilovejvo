@@ -4,7 +4,7 @@
 import { loadAllBundles, loadPublicEvents, loadEventBundle } from '../data.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
-import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, playerLink, paragraphs, urls } from '../ui.js';
+import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls } from '../ui.js';
 import { allFixtures, fixtureRow, fixturesByDay, resultOf, standingsTable } from './parts.js';
 import { careerStats, topPlayers, statDefsFor } from './career.js';
 
@@ -184,7 +184,7 @@ export const eventPage = {
               </section>
               ${b.teams.length ? `<section><div class="section-head"><h2>Teams</h2></div><div class="panel flush rows">${b.teams.map((t) => {
                 const roster = (b.rosters[t.id]?.playerIds ?? []).map((pid) => playerLink(b.playersById[pid], pid)).join(', ');
-                return `<div class="row"><span class="row-main"><b><span class="team">${teamDot(t)}${esc(t.name)}</span></b><span class="small">${roster || '<span class="muted">Roster TBD</span>'}</span></span></div>`;
+                return `<div class="row"><span class="row-main"><b>${teamLink(t)}</b><span class="small">${roster || '<span class="muted">Roster TBD</span>'}</span></span></div>`;
               }).join('')}</div></section>` : ''}
               ${e.details ? `<section><div class="section-head"><h2>Details</h2></div><div class="panel prose">${paragraphs(e.details)}</div></section>` : ''}
             </div>

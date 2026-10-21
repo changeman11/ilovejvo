@@ -282,6 +282,89 @@ a.event-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var
 .profile { display: flex; align-items: center; gap: 16px; }
 .avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, var(--yellow), var(--coral)); border: 3px solid var(--ink); font: 700 28px var(--font-head); }
 
+.avatar.has-img { object-fit: cover; background: var(--surface); }
+.avatar.sm { width: 32px; height: 32px; border-width: 2px; font-size: 15px; }
+.dot.logo { width: 20px; height: 20px; object-fit: cover; background: var(--surface); }
+.dot.logo.lg { width: 28px; height: 28px; }
+.dot.xl { width: 56px; height: 56px; border-width: 3px; }
+a.mh-team { text-decoration: none; color: inherit; }
+a.mh-team:hover { text-decoration: underline; text-decoration-color: var(--blue); text-underline-offset: 4px; }
+
+/* ---------- Team & player profiles (Steam style) ---------- */
+.pro { --theme: var(--blue); --theme-tint: color-mix(in srgb, var(--theme) 16%, white); display: grid; gap: 20px; }
+/* Optional page background (GIFs welcome), fixed behind everything, softened so text stays readable */
+.pro-bg { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; opacity: 0.55; pointer-events: none; }
+.pro-head { padding: 0; overflow: hidden; border-color: var(--ink); }
+.pro-banner { aspect-ratio: 4 / 1; min-height: 110px; max-height: 300px; width: 100%; border-bottom: 3px solid var(--ink);
+  background: linear-gradient(120deg, var(--theme), color-mix(in srgb, var(--theme) 45%, var(--sky)) 60%, color-mix(in srgb, var(--theme) 35%, var(--purple))); }
+.pro-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pro-id { display: flex; align-items: flex-end; gap: 14px; padding: 0 16px 14px; flex-wrap: wrap; }
+.pro-mark { flex: none; width: 96px; height: 96px; margin-top: -48px; border: 4px solid var(--ink); box-shadow: var(--pop); background: var(--surface); }
+@media (min-width: 700px) { .pro-mark { width: 128px; height: 128px; margin-top: -64px; } .pro-id { padding: 0 22px 18px; gap: 18px; } }
+.avatar.pro-mark { font-size: 44px; }
+.team-logo { border-radius: 22px; object-fit: cover; }
+.team-logo.mono { display: grid; place-items: center; font: 700 30px var(--font-head); letter-spacing: 0.03em; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; }
+.pro-name { flex: 1; min-width: 180px; padding-top: 10px; }
+.pro-name h1 { font-size: clamp(26px, 6vw, 40px); overflow-wrap: anywhere; }
+.pro-name .muted { margin-top: 2px; }
+.pro-tagline { margin-top: 6px; font-weight: 700; color: color-mix(in srgb, var(--theme) 70%, var(--ink)); }
+/* Steam-like level ring; the coloured part shows progress to the next level */
+.pro-level { flex: none; display: grid; place-items: center; align-content: center; width: 64px; height: 64px; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--surface) 76%, transparent 78%), conic-gradient(var(--theme) var(--progress), var(--line) 0);
+  border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+.pro-level b { font-family: var(--font-num); font-size: 22px; line-height: 1; }
+.pro-level span { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.socials { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 16px; }
+@media (min-width: 700px) { .socials { padding: 0 22px 18px; } }
+.social { text-decoration: none; font-weight: 800; font-size: 13px; padding: 4px 12px; border-radius: 999px; border: 2px solid var(--ink); background: var(--surface); }
+.social:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--ink); }
+.social-discord { background: #dfe2ff; }
+.social-youtube { background: #ffd9d6; }
+.social-twitch { background: #eadcff; }
+.social-tiktok { background: #d6f7f4; }
+.social-x { background: var(--surface-2); }
+.pro-show { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+@media (min-width: 640px) { .pro-show { grid-template-columns: repeat(4, 1fr); } }
+.pro-tile { background: var(--theme-tint); border: var(--outline); border-radius: var(--radius-sm); box-shadow: 2px 2px 0 var(--ink); padding: 12px; border-top: 6px solid var(--theme); }
+.pro-tile b { display: block; font-family: var(--font-num); font-size: 28px; line-height: 1.1; }
+.pro-tile span { font-size: 12px; color: var(--muted); font-weight: 700; }
+.pro-h { font-size: 18px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 3px solid var(--theme); display: inline-block; }
+.pro .section-head h2 { border-bottom: 3px solid var(--theme); }
+.pro-facts { flex-direction: column; gap: 6px; }
+.pro-facts div { justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.pro-team { font-size: 18px; font-weight: 700; }
+.squad { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.squad li { display: flex; align-items: center; gap: 8px; }
+.squad li a { display: flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 700; flex: 1; min-width: 0; }
+.squad li a:hover span { text-decoration: underline; }
+/* Badges: colour shows how rare the step is (tier 1 = first steps, 5 = legendary) */
+.badges { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.bdg { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border: 2px solid var(--ink); border-radius: 999px; font-weight: 800; font-size: 13px; background: var(--tint-sky); }
+.bdg-mark { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 4px; border-radius: 999px; background: var(--surface); border: 1.5px solid var(--ink); font-size: 10px; color: var(--ink); }
+.bdg.t2 { background: var(--tint-teal); }
+.bdg.t3 { background: var(--tint-purple); }
+.bdg.t4 { background: var(--tint-coral); }
+.bdg.t5 { background: linear-gradient(135deg, var(--yellow), #ffb84d); }
+
+/* ---------- Customise form ---------- */
+fieldset.cz { border: 0; border-top: 2px solid var(--line); margin: 6px 0 0; padding: 14px 0 4px; min-width: 0; }
+fieldset.cz legend { font-family: var(--font-head); font-weight: 600; font-size: 17px; padding-right: 8px; }
+.img-grid { display: grid; gap: 14px; }
+@media (min-width: 560px) { .img-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+.img-field { display: grid; gap: 6px; align-content: start; }
+.img-label, .field-label { font-size: 13px; font-weight: 800; }
+.img-preview { display: grid; place-items: center; border: 2px dashed var(--ink); border-radius: var(--radius-sm); background: var(--surface-2); overflow: hidden; aspect-ratio: 1; width: 96px; }
+.img-preview.img-banner, .img-preview.img-background { aspect-ratio: 16 / 7; width: 100%; max-width: 280px; }
+.img-preview img { width: 100%; height: 100%; object-fit: cover; }
+.img-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.img-actions .check { min-height: 0; }
+.color-input { width: 80px; min-height: 40px; padding: 2px; }
+.mod { display: grid; gap: 8px; padding: 10px; border: 2px dashed var(--coral); border-radius: var(--radius-sm); background: var(--surface); }
+.mod-thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+.mod-thumb { display: grid; gap: 6px; justify-items: start; }
+.mod-thumb img { width: 120px; height: 72px; object-fit: cover; border: 2px solid var(--ink); border-radius: 8px; }
+.mod-mini img { width: 34px; height: 34px; object-fit: cover; border: 1.5px solid var(--ink); border-radius: 6px; }
+
 /* ---------- Forms ---------- */
 input[type="text"], input[type="password"], input[type="number"], input[type="url"], input[type="date"], input[type="time"], textarea, select {
   width: 100%; background: var(--surface); color: var(--ink); border: var(--outline); border-radius: var(--radius-sm);

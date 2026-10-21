@@ -1,7 +1,7 @@
 // Building blocks shared by several pages.
 // A "bundle" is one event's data from data.js loadEventBundle().
 
-import { esc, fmtDay, fmtTime, teamDot, urls } from '../ui.js';
+import { esc, fmtDay, fmtTime, teamDot, teamLink, urls } from '../ui.js';
 import { checkResult } from '../rules/match.js';
 import { formatFor } from '../rules/season.js';
 import { byTime } from '../rules/standings.js';
@@ -79,7 +79,7 @@ export function statCells(values, statDefs, fmt = (n) => n) {
 export function standingsTable(rows, b) {
   const body = rows.map((r) => `
     <tr>
-      <td class="first"><span class="rank">${r.rank}</span><span class="team">${teamDot(b.teamsById[r.teamId])}${esc(r.name)}</span></td>
+      <td class="first"><span class="rank">${r.rank}</span>${teamLink(b.teamsById[r.teamId] ?? { id: r.teamId, name: r.name })}</td>
       <td>${r.played}</td><td>${r.wins}</td><td>${r.losses}</td><td class="strong">${r.points}</td>
       <td>${r.setsWon}–${r.setsLost}</td><td>${r.pointsWon}–${r.pointsLost}</td>
     </tr>`).join('');

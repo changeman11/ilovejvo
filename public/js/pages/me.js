@@ -7,10 +7,14 @@ import {
 } from '../auth.js';
 import { loadMe, isApprovedTeam } from '../data.js';
 import {
-  createProfile, updateProfile, requestClaim, cancelClaim, registerTeam, answerOffer, requestLeave, cancelLeave,
+  createProfile, updateProfile, requestClaim, cancelClaim, registerTeam, updateTeam, answerOffer, requestLeave, cancelLeave,
 } from '../player-data.js';
+import { MEDIA, prepareImage, uploadImage, FriendlyError } from '../media.js';
+import { uploadsReady } from '../config.js';
+import { DEFAULT_STATS } from '../rules/defaults.js';
+import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
 import { refresh, navigate } from '../nav.js';
-import { esc, skeleton, notice, teamDot, urls } from '../ui.js';
+import { esc, skeleton, notice, teamDot, teamLink, avatarImg, urls } from '../ui.js';
 
 export const title = 'Me';
 
@@ -43,8 +47,8 @@ function signInPanel() {
 
 function profileHead(me, discord) {
   const p = me.player;
-  const avatar = p.avatarUrl ? `<img src="${esc(p.avatarUrl)}" alt="" width="64" height="64" class="avatar" style="padding:0">` : `<div class="avatar">${esc(p.displayName.charAt(0).toUpperCase())}</div>`;
-  const team = isApprovedTeam(me.team) ? `<span class="team">${teamDot(me.team)}${esc(me.team.name)}</span>` : 'Free agent';
+  const avatar = avatarImg(p);
+  const team = isApprovedTeam(me.team) ? teamLink(me.team) : 'Free agent';
   return `
     <section class="panel profile">
       ${avatar}
@@ -57,18 +61,20 @@ function profileHead(me, discord) {
     <p class="muted small">Signed in with Discord as ${esc(discord.discordName ?? discord.discordId)}.</p>`;
 }
 
-function editProfileForm(p) {
+function editProfileForm(p, team) {
   return `
     <section>
-      <div class="section-head"><h2>Your profile</h2></div>
+      <div class="section-head"><h2>Customise your profile</h2><a href="${urls.player(p.id)}" data-link>View it</a></div>
       <form class="panel" data-form="profile" novalidate>
         <div class="field-row">
           <label class="field"><span>Player name (as in game)</span><input type="text" name="displayName" maxlength="60" value="${esc(p.displayName)}"></label>
           <label class="field"><span>Jersey number</span><input type="number" name="number" min="0" max="99" inputmode="numeric" value="${esc(p.number ?? '')}"></label>
         </div>
-        <label class="field"><span>About you (optional)</span><textarea name="bio" rows="2" maxlength="300">${esc(p.bio ?? '')}</textarea></label>
-        <button class="btn btn-primary" type="submit">Save profile</button>
-        <p class="form-error" role="alert" hidden></p>
+        ${customiseFields('player', p, DEFAULT_STATS, team?.theme ?? team?.colors?.primary)}
+        <div class="save-bar">
+          <button class="btn btn-primary" type="submit">Save profile</button>
+          <p class="form-error" role="alert" hidden style="margin:0"></p>
+        </div>
       </form>
     </section>`;
 }
@@ -107,7 +113,16 @@ function registerTeamBlock(me) {
           <label class="field"><span>Team name</span><input type="text" name="name" maxlength="60"></label>
           <label class="field"><span>Short name</span><input type="text" name="shortName" maxlength="5" placeholder="e.g. TAS"></label>
         </div>
-        <label class="field"><span>Colour</span><input type="color" name="color" value="#19c9b1" style="width:80px;min-height:40px;padding:2px"></label>
+        <label class="field"><span>Colour</span><input type="color" name="color" value="#19c9b1" class="color-input"></label>
+        ${uploadsReady ? `
+        <div class="field">
+          <span>Logo (optional, GIFs welcome, up to ${MEDIA.logo.maxMb} MB)</span>
+          <div class="img-field">
+            <div class="img-preview img-logo" data-preview="logo"><span class="muted small">None yet</span></div>
+            <div class="img-actions"><label class="btn btn-sm">Choose…<input type="file" name="file-logo" accept="image/png,image/jpeg,image/webp,image/gif" hidden></label></div>
+          </div>
+        </div>` : ''}
+        <p class="muted small" style="margin-bottom:10px">You can add a banner, bio and more once it’s approved.</p>
         <button class="btn btn-primary" type="submit">Send for approval</button>
         <p class="form-error" role="alert" hidden></p>
       </form>
@@ -123,7 +138,7 @@ function teamBlock(me) {
     <section>
       <div class="section-head"><h2>Your team</h2></div>
       <div class="panel">
-        <h3><span class="team">${teamDot(t, 'lg')}${esc(t.name)}</span></h3>
+        <h3>${teamLink(t, { size: 'lg' })}</h3>
         <p class="muted small" style="margin:4px 0 12px">${isManager ? 'You’re the manager.' : 'You’re in the squad.'}</p>
         ${isManager ? '<a class="btn btn-primary" href="/manage" data-link>Manage team</a>' : ''}
       </div>
@@ -214,7 +229,7 @@ export async function render() {
         <div class="stack">
           ${onTeam ? teamBlock(me) : `${offersBlock(me)}${registerTeamBlock(me)}`}
         </div>
-        <div class="stack">${editProfileForm(me.player)}</div>
+        <div class="stack">${editProfileForm(me.player, onTeam ? me.team : null)}</div>
       </div>`;
   }
   return { title: me.player?.displayName ?? 'Me', html: `<div class="me-root stack">${adminShortcut(admin)}${body}</div>` };
@@ -230,6 +245,7 @@ function showError(el, message) {
 
 const fail = (err) => {
   console.error(err);
+  if (err instanceof FriendlyError) return err.message;
   return err.code === 'permission-denied'
     ? 'That isn’t allowed right now. Refresh the page and try again.'
     : err.message?.startsWith('Discord') || err.message?.startsWith('Your browser') ? err.message : 'Something went wrong. Check your connection and try again.';
@@ -238,6 +254,7 @@ const fail = (err) => {
 export function mount(el) {
   const root = el.querySelector('.me-root');
   if (!root) return;
+  bindImagePreviews(root);
 
   root.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]');
@@ -295,19 +312,36 @@ export function mount(el) {
       if (form.dataset.form === 'profile') {
         if (!val('displayName')) return showError(form, 'Enter your player name.');
         button.disabled = true;
-        await updateProfile({ uid: user.uid, player: me.player, changes: { displayName: val('displayName'), number: numberOrNull(val('number')), bio: val('bio') } });
+        button.textContent = 'Saving…';
+        await saveCustomise({
+          form, kind: 'player', owner: 'players', id: me.player.id, doc: me.player,
+          extra: { displayName: val('displayName'), number: numberOrNull(val('number')) },
+          save: (changes) => updateProfile({ uid: user.uid, player: me.player, changes }),
+        });
         refresh();
       }
       if (form.dataset.form === 'team') {
         const name = val('name');
         if (!name) return showError(form, 'Give your team a name.');
         if (me.teams.some((t) => t.name.toLowerCase() === name.toLowerCase())) return showError(form, 'That team name is taken.');
+        // Check the logo before registering, so a bad file doesn't leave a team without it.
+        const file = form.querySelector('[name="file-logo"]')?.files?.[0];
+        const logo = file ? await prepareImage(file, 'logo') : null;
         button.disabled = true;
-        await registerTeam({
+        const teamId = await registerTeam({
           uid: user.uid, player: me.player, name,
           shortName: (val('shortName') || name.replace(/[^A-Za-z0-9]/g, '').slice(0, 3)).toUpperCase(),
           color: form.querySelector('[name=color]').value, takenIds: new Set(me.teams.map((t) => t.id)),
         });
+        if (logo) {
+          try {
+            const logoPath = await uploadImage({ owner: 'teams', id: teamId, kind: 'logo', image: logo });
+            await updateTeam({ uid: user.uid, team: { id: teamId }, changes: { logoPath } });
+          } catch (err) {
+            console.error(err);
+            window.alert('Your team was sent for approval, but the logo didn’t upload. You can add it after it’s approved.');
+          }
+        }
         refresh();
       }
       if (form.dataset.form === 'leave') {

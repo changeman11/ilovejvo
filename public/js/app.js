@@ -7,6 +7,7 @@ import * as fixtures from './pages/fixtures.js';
 import * as stats from './pages/stats.js';
 import * as match from './pages/match.js';
 import * as player from './pages/player.js';
+import * as team from './pages/team.js';
 import * as me from './pages/me.js';
 import * as manage from './pages/manage.js';
 import * as authCallback from './pages/auth-callback.js';
@@ -30,6 +31,7 @@ const routes = [
   { path: '/event/:eventId', page: events.eventPage, section: '/events' },
   { path: '/match/:eventId/:fixtureId', page: match, section: '/fixtures' },
   { path: '/player/:playerId', page: player, section: '/stats' },
+  { path: '/team/:teamId', page: team, section: '/stats' },
   { path: '/me', page: me, section: '/me' },
   { path: '/manage', page: manage, section: '/me' },
   { path: '/auth/discord', page: authCallback, section: '/me' },
