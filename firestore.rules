@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// i<3JVO security rules
+// I<3JVO security rules
 // - The public can read league data.
 // - Only authorised admins can write it. An admin is a user whose uid has a
 //   document in /admins. Admin documents are added from the Firebase console

@@ -55,7 +55,7 @@ function matchRoute(pathname) {
   return { page: notFound, params: {}, section: null };
 }
 
-const SITE_NAME = 'i<3JVO';
+const SITE_NAME = 'I<3JVO';
 const main = document.getElementById('main');
 let renderId = 0;
 

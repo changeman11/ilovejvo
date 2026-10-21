@@ -2,7 +2,7 @@
   "name": "jvo-hub",
   "version": "0.1.0",
   "private": true,
-  "description": "i<3JVO: league hub for Just Volleyball Oceania",
+  "description": "I<3JVO: league hub for Just Volleyball Oceania",
   "type": "module",
   "scripts": {
     "dev": "firebase emulators:start",
