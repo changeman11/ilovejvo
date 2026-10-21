@@ -29,4 +29,4 @@ export const firebaseConfig = useEmulators ? emulatorConfig : liveConfig;
 // Discord Developer Portal -> your app -> OAuth2 -> Client ID.
 export const discordClientId = '1562397361878343743';
 // The Cloudflare Worker's address, e.g. https://ilovejvo-auth.<your-name>.workers.dev
-export const authWorkerUrl = '';
+export const authWorkerUrl = 'https://ilovejvo-auth.ilovejvo.workers.dev';
