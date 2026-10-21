@@ -12,6 +12,13 @@ export const firebaseConfig = {
   appId: 'demo-app',
 };
 
+// Where the Cloud Functions run (Sydney). Must match setGlobalOptions in functions/index.js.
+export const functionsRegion = 'australia-southeast1';
+
+// Discord Developer Portal -> your app -> OAuth2 -> Client ID. Public, not a secret.
+// Leave empty until the Discord app exists; the sign-in button explains what's missing.
+export const discordClientId = '';
+
 // Use the local emulators when the site is opened from this computer.
 export const useEmulators = ['localhost', '127.0.0.1'].includes(location.hostname);
-export const emulatorPorts = { firestore: 8080, auth: 9099 };
+export const emulatorPorts = { firestore: 8080, auth: 9099, functions: 5001 };

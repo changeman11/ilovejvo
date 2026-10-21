@@ -9,7 +9,12 @@ import * as match from './pages/match.js';
 import * as teams from './pages/teams.js';
 import * as team from './pages/team.js';
 import * as player from './pages/player.js';
+import * as authCallback from './pages/auth-callback.js';
+import * as matchDay from './pages/admin/matchday.js';
+import * as resultEntry from './pages/admin/result.js';
 import { NotFoundError } from './data.js';
+import { onUserChange, currentAdmin } from './auth.js';
+import { setNav } from './nav.js';
 import { notice } from './ui.js';
 
 const comingSoon = (name, phase) => ({
@@ -29,6 +34,9 @@ const routes = [
   { path: '/team/:teamId', page: team, section: '/teams' },
   { path: '/player/:playerId', page: player, section: '/teams' },
   { path: '/stats', page: comingSoon('Statistics', 4), section: '/stats' },
+  { path: '/auth/discord', page: authCallback, section: '/admin' },
+  { path: '/admin', page: matchDay, section: '/admin' },
+  { path: '/admin/result/:seasonId/:fixtureId', page: resultEntry, section: '/admin' },
 ];
 
 const notFound = {
@@ -89,13 +97,16 @@ async function show() {
   }
 }
 
-function navigate(href, { keepScroll = false } = {}) {
+function navigate(href, { keepScroll = false, replace = false } = {}) {
   if (href !== location.pathname + location.search) {
-    history.pushState(null, '', href);
+    if (replace) history.replaceState(null, '', href);
+    else history.pushState(null, '', href);
     if (!keepScroll) window.scrollTo(0, 0);
   }
   show();
 }
+
+setNav({ navigate, refresh: show });
 
 document.addEventListener('click', (e) => {
   const link = e.target.closest('a[data-link]');
@@ -110,6 +121,18 @@ document.addEventListener('change', (e) => {
 });
 
 window.addEventListener('popstate', show);
+
+// Show the "Admin" link in the header only to signed-in admins.
+onUserChange(async () => {
+  const link = document.querySelector('.topnav .admin-link');
+  if (!link) return;
+  try {
+    const { admin } = await currentAdmin();
+    link.hidden = !admin;
+  } catch {
+    link.hidden = true;
+  }
+});
 
 show();
 

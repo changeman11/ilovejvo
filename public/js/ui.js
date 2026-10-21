@@ -53,6 +53,7 @@ export const urls = {
   match: (seasonId, fixtureId) => `/match/${encodeURIComponent(seasonId)}/${encodeURIComponent(fixtureId)}`,
   team: (teamId) => `/team/${encodeURIComponent(teamId)}`,
   player: (playerId) => `/player/${encodeURIComponent(playerId)}`,
+  adminResult: (seasonId, fixtureId) => `/admin/result/${encodeURIComponent(seasonId)}/${encodeURIComponent(fixtureId)}`,
 };
 
 export function teamChip(team, size = '') {

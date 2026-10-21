@@ -16,6 +16,8 @@ The reference is **ORC Hub** (https://orc-hub.web.app), the hub for the Oceanic 
 - **Table points**: 2–0 win = 3, 2–1 win = 2, 1–2 loss = 1, 0–2 loss = 0.
 - **Positions**: none fixed. Players do everything. Keep the `position` field (empty) for later.
 - **Player stats** (from the game's end-of-match screen, per player per match): `pts`, `spk`, `blk`, `rec`, `set`, `ast`, `ace`, `dig`. Exact meanings of SET vs AST are _TBC_.
+- **Forfeits**: no player stats; the other team gets the win and 3 table points, recorded as a 2–0 with every set 10–0, so sets and points count. (The user's wording was "3x set wins"; 2–0 is the current reading, to be confirmed.) Stored as `forfeit: {teamId}` on the result.
+- **Admin sign-in**: Discord via a Cloud Function custom token (uid `discord:<id>`); admins listed in `/admins`. Functions region `australia-southeast1`.
 - **Still to fill in**: game name, brand colours and logo (placeholders: yellow `#ffc533` on navy `#0a0e17`), Discord invite, YouTube/Twitch links, playoff format.
 
 ## Tech stack

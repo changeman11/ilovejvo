@@ -60,6 +60,8 @@ async function main() {
   const put = (path, data) => writes.push({ update: { name: `${root}/${path}`, fields: encodeFields(data) } });
 
   put('settings/site', d.settings);
+  // The emulator-only "Sign in as test admin" account. Real admins are added in the Firebase console.
+  put('admins/discord:dev-admin', { name: 'Test Admin', addedAt: new Date() });
   for (const { id, ...t } of d.teams) put(`teams/${id}`, t);
   for (const { id, ...p } of d.players) put(`players/${id}`, p);
   for (const s of d.seasons) {

@@ -51,8 +51,15 @@ export const loadSeasonList = () =>
 const loadTeams = () => cached('teams', () => getAll('teams'));
 const loadPlayers = () => cached('players', () => getAll('players'));
 
+// Forget a season's cached data, e.g. after an admin saves a result.
+export function invalidateSeason(seasonId) {
+  cache.delete(`season:${seasonId}`);
+}
+
 // Everything a season page needs, loaded in parallel.
-export function loadSeason(seasonId) {
+// fresh: true skips the cache (admin pages always want the latest).
+export function loadSeason(seasonId, { fresh = false } = {}) {
+  if (fresh) invalidateSeason(seasonId);
   return cached(`season:${seasonId}`, async () => {
     const base = `seasons/${seasonId}`;
     const [season, teams, players, rosters, fixtures, results] = await Promise.all([
@@ -92,11 +99,11 @@ export async function loadHomeSeason() {
 }
 
 // The season named in the URL (?season=s0), or the home season.
-export async function loadSeasonFromUrl() {
+export async function loadSeasonFromUrl({ fresh = false } = {}) {
   const fromUrl = new URLSearchParams(location.search).get('season');
   const [seasons, settings] = await Promise.all([loadSeasonList(), loadSettings()]);
   const id = fromUrl && seasons.some((s) => s.id === fromUrl) ? fromUrl : await homeSeasonId();
-  return { settings, seasons, ...(await loadSeason(id)) };
+  return { settings, seasons, ...(await loadSeason(id, { fresh })) };
 }
 
 // Every season's data, oldest first. Used by profiles for career stats.

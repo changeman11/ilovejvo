@@ -2,7 +2,7 @@
 // Network first (always fresh when online), cached copy when offline.
 // League data itself is cached by Firestore's own offline cache, not here.
 
-const CACHE = 'jvo-shell-v2';
+const CACHE = 'jvo-shell-v3';
 const SHELL = [
   '/',
   '/index.html',
@@ -12,6 +12,14 @@ const SHELL = [
   '/js/firebase.js',
   '/js/data.js',
   '/js/ui.js',
+  '/js/nav.js',
+  '/js/auth.js',
+  '/js/pages/auth-callback.js',
+  '/js/pages/admin/gate.js',
+  '/js/pages/admin/matchday.js',
+  '/js/pages/admin/result.js',
+  '/js/admin-data.js',
+  '/js/rules/results.js',
   '/js/pages/parts.js',
   '/js/pages/home.js',
   '/js/pages/table.js',

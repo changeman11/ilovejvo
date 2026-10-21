@@ -5,18 +5,21 @@ import { checkResult } from '../rules/match.js';
 
 // One match line, linking to the match page: finished (score + sets) or upcoming (date/time).
 // timeOnly: drop the date (for lists already grouped under a day heading).
-export function matchRow(fixture, data, { showRound = false, timeOnly = false } = {}) {
+// href: link somewhere other than the public match page (admin uses this).
+export function matchRow(fixture, data, { showRound = false, timeOnly = false, href = null } = {}) {
   const home = data.teamsById[fixture.homeTeamId];
   const away = data.teamsById[fixture.awayTeamId];
   const result = data.results[fixture.id];
   const check = result ? checkResult(result.sets, data.season.format) : null;
-  const href = urls.match(data.season.id, fixture.id);
+  href ??= urls.match(data.season.id, fixture.id);
   const name = (t) => esc(t?.name ?? 'TBC');
   const round = showRound ? `<div class="sets">Round ${esc(fixture.round)} · ${fmtDay(fixture.scheduledAt)}</div>` : '';
 
   if (check?.ok) {
     const homeWon = check.winner === 'home';
-    const sets = result.sets.map((s) => `${s.home}-${s.away}`).join(', ');
+    const sets = result.forfeit
+      ? `Forfeit: ${esc(data.teamsById[result.forfeit.teamId]?.name ?? 'a team')} didn’t play`
+      : result.sets.map((s) => `${s.home}-${s.away}`).join(', ');
     return `
       <a class="match" href="${href}" data-link>
         <div class="side home ${homeWon ? 'won' : 'lost'}">${teamChip(home)}<span>${name(home)}</span></div>

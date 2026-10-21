@@ -144,10 +144,13 @@ export async function render({ seasonId, fixtureId }) {
     ? `<div class="mh-score num">${check.homeSets}<span>–</span>${check.awaySets}</div>`
     : `<div class="mh-vs"><b>VS</b><span>${fmtTime(fixture.scheduledAt)}</span></div>`;
 
-  const status = played ? 'Final' : result ? 'Result under review' : 'Upcoming';
+  const status = played ? (result.forfeit ? 'Forfeit' : 'Final') : result ? 'Result under review' : 'Upcoming';
 
   let body;
-  if (played) {
+  if (played && result.forfeit) {
+    const quitter = data.teamsById[result.forfeit.teamId];
+    body = notice('Forfeit', ` ${quitter?.name ?? 'A team'} didn’t play, so the match counts as a ${check.homeSets}–${check.awaySets} win with no player stats.`);
+  } else if (played) {
     body = `
       <div class="grid grid-match">
         ${setsCard(result, check, home, away)}
