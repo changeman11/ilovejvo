@@ -66,7 +66,7 @@ export const home = {
 
     return `
       <div class="stack">
-        <section class="panel yellow hero">
+        <section class="panel hero">
           <div>
             <h1>Just Volleyball Oceania</h1>
             <p class="lead">Fixtures, results and player stats from our exhibition nights and tournaments.</p>
