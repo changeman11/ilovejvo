@@ -68,7 +68,7 @@ p { margin: 0; }
   font-family: var(--font-head); font-weight: 700; color: #fff; letter-spacing: 0.07em;
   -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill;
 }
-.wordmark .heart { color: var(--pink); }
+.wordmark .heart { color: var(--yellow); }
 
 /* ---------- Header ---------- */
 .topbar { background: var(--blue); border-bottom: 3px solid var(--ink); padding-top: env(safe-area-inset-top); }
