@@ -34,7 +34,7 @@ export const uploadsReady = useEmulators || liveUploadsReady;
 // The game's Steam page (the "wishlist" button).
 export const steamUrl = 'https://store.steampowered.com/app/5037200/';
 // JVO's Discord invite link, e.g. 'https://discord.gg/abc123'. Empty = the "discord" button is hidden.
-export const discordInviteUrl = '';
+export const discordInviteUrl = 'https://discord.gg/PWXtgFVu2Q';
 
 // Discord sign-in for players (both public, not secrets).
 // Discord Developer Portal -> your app -> OAuth2 -> Client ID.
