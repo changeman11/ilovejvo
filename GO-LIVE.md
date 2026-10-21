@@ -1,5 +1,9 @@
 # Going live: checklist (free plan)
 
+> **Status (21 Oct 2026): live at https://i-love-jvo.web.app.** Parts 1–4 are done (project `i-love-jvo`, admin login `jvo`). Only Part 5 (the domain) is left.
+>
+> To publish changes later: `npm run deploy` from a terminal in this folder (on this PC, call the CLI as `firebase.cmd`, because PowerShell blocks `.ps1` scripts).
+
 Everything runs on Firebase's **free Spark plan**: no card, no bill. The only cost is the domain.
 If the free limits are ever reached, the site pauses for the rest of the day; it can't charge you.
 
