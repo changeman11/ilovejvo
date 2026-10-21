@@ -528,7 +528,8 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
   }
   .mobile-only { display: none !important; }
   body {
-    background: var(--g-bar) url("/images/art/court-bg.jpg") center top / cover fixed;
+    /* ?v= changes whenever the picture changes, so browsers don't keep an old copy (images are cached for a week) */
+    background: var(--g-bar) url("/images/art/court-bg.jpg?v=clean1") center top / cover fixed;
     padding-bottom: var(--playerbar-h);
   }
 
