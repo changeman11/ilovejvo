@@ -3,19 +3,13 @@
 // <select data-nav> dropdowns navigate to the URL in their value.
 
 import * as events from './pages/events.js';
-import * as leagueHome from './pages/league-home.js';
-import * as table from './pages/table.js';
 import * as fixtures from './pages/fixtures.js';
-import * as match from './pages/match.js';
-import * as teams from './pages/teams.js';
-import * as team from './pages/team.js';
-import * as player from './pages/player.js';
 import * as stats from './pages/stats.js';
-import * as playoffs from './pages/playoffs.js';
-import * as authCallback from './pages/auth-callback.js';
+import * as match from './pages/match.js';
+import * as player from './pages/player.js';
 import * as adminHome from './pages/admin/home.js';
 import * as eventEdit from './pages/admin/event-edit.js';
-import * as matchDay from './pages/admin/matchday.js';
+import * as people from './pages/admin/people.js';
 import * as resultEntry from './pages/admin/result.js';
 import { NotFoundError } from './data.js';
 import { onUserChange, currentAdmin } from './auth.js';
@@ -23,43 +17,28 @@ import { setNav } from './nav.js';
 import { notice } from './ui.js';
 
 // Path patterns. ":name" parts are passed to the page's render() as params.
-// `section` is the nav item to highlight.
-// `league: true` pages are hidden from the public until the league launches
-// (the database rules block the data too; see leagueIsPublic() in firestore.rules).
+// `section` is the menu item to highlight.
 const routes = [
   { path: '/', page: events.home, section: '/' },
-  { path: '/exhibitions', page: events.exhibitions, section: '/exhibitions' },
-  { path: '/tournaments', page: events.tournaments, section: '/tournaments' },
-  { path: '/event/:eventId', page: events.eventPage, section: null },
-
-  { path: '/league', page: leagueHome, section: '/league', league: true },
-  { path: '/table', page: table, section: '/league', league: true },
-  { path: '/fixtures', page: fixtures, section: '/league', league: true },
-  { path: '/match/:seasonId/:fixtureId', page: match, section: '/league', league: true },
-  { path: '/teams', page: teams, section: '/league', league: true },
-  { path: '/team/:teamId', page: team, section: '/league', league: true },
-  { path: '/player/:playerId', page: player, section: '/league', league: true },
-  { path: '/stats', page: stats, section: '/league', league: true },
-  { path: '/playoffs', page: playoffs, section: '/league', league: true },
-
-  { path: '/auth/discord', page: authCallback, section: '/admin' },
+  { path: '/fixtures', page: fixtures, section: '/fixtures' },
+  { path: '/stats', page: stats, section: '/stats' },
+  { path: '/events', page: events.eventsList, section: '/events' },
+  { path: '/event/:eventId', page: events.eventPage, section: '/events' },
+  { path: '/match/:eventId/:fixtureId', page: match, section: '/fixtures' },
+  { path: '/player/:playerId', page: player, section: '/stats' },
   { path: '/admin', page: adminHome, section: '/admin' },
+  { path: '/admin/people', page: people, section: '/admin' },
   { path: '/admin/event/:eventId', page: eventEdit, section: '/admin' },
-  { path: '/admin/matchday', page: matchDay, section: '/admin' },
-  { path: '/admin/result/:seasonId/:fixtureId', page: resultEntry, section: '/admin' },
+  { path: '/admin/result/:eventId/:fixtureId', page: resultEntry, section: '/admin' },
 ];
+
+// Old addresses from earlier versions of the site.
+const redirects = { '/exhibitions': '/events?type=exhibition', '/tournaments': '/events?type=tournament' };
 
 const notFound = {
   title: 'Not found',
   loading: () => '',
-  render: async () => notice('Page not found', ' That link doesn’t go anywhere.'),
-};
-
-const comingSoon = {
-  title: 'Coming soon',
-  loading: () => '',
-  render: async () => `${notice('Coming soon', ' The league isn’t open yet. For now, check out exhibition nights and upcoming tournaments.')}
-    <p style="text-align:center;margin-top:16px"><a class="btn" href="/" data-link>Go to home</a></p>`,
+  render: async () => `${notice('Page not found', ' That link doesn’t go anywhere.')}<p style="text-align:center;margin-top:16px"><a class="btn" href="/" data-link>Home</a></p>`,
 };
 
 function matchRoute(pathname) {
@@ -86,31 +65,27 @@ let renderId = 0;
 
 async function show() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
-  const route = matchRoute(path);
+  if (redirects[path]) {
+    history.replaceState(null, '', redirects[path]);
+    return show();
+  }
+  const { page, params, section } = matchRoute(path);
   const id = ++renderId;
 
   document.querySelectorAll('.topnav a, .tabbar a').forEach((a) => {
-    if (a.getAttribute('href') === route.section) a.setAttribute('aria-current', 'page');
+    if (a.getAttribute('href') === section) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
-
-  let { page } = route;
-  if (route.league) {
-    // League pages: admins only for now.
-    const { admin } = await currentAdmin().catch(() => ({ admin: null }));
-    if (id !== renderId) return;
-    if (!admin) page = comingSoon;
-  }
 
   document.title = page === events.home ? SITE_NAME : `${page.title} · ${SITE_NAME}`;
   main.innerHTML = page.loading();
   try {
-    const out = await page.render(route.params);
+    const out = await page.render(params);
     if (id !== renderId) return; // the user already moved on
     const { html, title } = typeof out === 'string' ? { html: out } : out;
     main.innerHTML = html;
     if (title) document.title = `${title} · ${SITE_NAME}`;
-    page.mount?.(main); // optional per-page setup after drawing
+    page.mount?.(main);
   } catch (err) {
     if (id !== renderId) return;
     if (err instanceof NotFoundError) {
@@ -147,7 +122,7 @@ document.addEventListener('change', (e) => {
 
 window.addEventListener('popstate', show);
 
-// Admin-only links in the header (League, Admin) appear for signed-in admins.
+// The "Admin" menu link appears for signed-in admins.
 onUserChange(async () => {
   let isAdmin = false;
   try {

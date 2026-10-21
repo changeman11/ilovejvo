@@ -1,41 +1,32 @@
-# Going live: checklist
+# Going live: checklist (free plan)
 
-Parts 1–3 are yours: accounts, payment and secrets. Part 4 is Claude's. Tick as you go.
+Everything runs on Firebase's **free Spark plan**: no card, no bill. The only cost is the domain.
+If the free limits are ever reached, the site pauses for the rest of the day; it can't charge you.
 
-**What's safe to paste to Claude:** the Firebase web config, the project ID and the Discord **Client ID**. These are public.
-**Never paste anywhere:** the Discord **Client Secret** (Part 3 stores it safely).
+**Safe to paste to Claude:** the Firebase web config and the project ID (both public).
+**Never paste anywhere:** admin passwords.
 
 ---
 
-## Part 1: Firebase project
+## Part 1: Firebase project (you)
 
-- [ ] **Create the project.** Go to https://console.firebase.google.com → **Create a project**.
-  - Name: `I love JVO`. Note the **project ID** it shows underneath (e.g. `ilovejvo` or `ilovejvo-1a2b3`).
-  - Google Analytics: **turn it off**. It isn't needed.
-- [ ] **Upgrade to Blaze (pay-as-you-go).** In the console, bottom-left: **Spark → Upgrade**. Add your billing account and card.
-- [ ] **Set budget alerts** (so you get emailed long before it costs anything real):
-  Google Cloud console → **Billing → Budgets & alerts → Create budget** → amount **$5** → alert thresholds **20%, 50%, 100%** (emails at $1, $2.50, $5).
-  Budget alerts only email you; they don't stop the site.
-- [ ] **Create the database.** **Build → Firestore Database → Create database**:
-  - Location: **australia-southeast1 (Sydney)**. *This can never be changed*, and the server code expects Sydney.
-  - Start in **production mode**. Our own rules replace the defaults on deploy.
-- [ ] **Turn on sign-in.** **Build → Authentication → Get started**. You don't need to enable any provider. Discord sign-in works through our own server function.
-- [ ] **Register the web app.** ⚙️ **Project settings → General → Your apps → `</>` (Web)**:
-  - Nickname: `I<3JVO web`. **Don't** tick "Also set up Firebase Hosting" (Claude does that).
-  - Copy the `firebaseConfig` values (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId) and **paste them to Claude**.
+- [ ] https://console.firebase.google.com → **Create a project** → name `I love JVO`. Note the **project ID**. Turn **Google Analytics off**.
+  Stay on the **Spark (free)** plan. Don't upgrade.
+- [ ] **Build → Firestore Database → Create database** → location **australia-southeast1 (Sydney)** (can't be changed later) → **production mode**.
+- [ ] **Build → Authentication → Get started → Sign-in method → Email/Password → Enable** (just the first switch) → Save.
+- [ ] ⚙️ **Project settings → General → Your apps → `</>` (Web)** → nickname `I<3JVO web` → don't tick Hosting → **Register** → **paste the `firebaseConfig` values to Claude**.
 
-## Part 2: Discord app
+## Part 2: Admin logins (you)
 
-- [ ] Go to https://discord.com/developers/applications → **New Application** → name it `I<3JVO` → accept Discord's developer terms.
-- [ ] **OAuth2** page → copy the **Client ID** and **paste it to Claude**.
-- [ ] **OAuth2 → Redirects → Add Redirect.** Add all of these (replace `PROJECT-ID`), then **Save Changes**:
-  ```
-  https://PROJECT-ID.web.app/auth/discord
-  https://PROJECT-ID.firebaseapp.com/auth/discord
-  http://127.0.0.1:5000/auth/discord
-  ```
-  Once the domain is connected, also add `https://ilovejvo.com/auth/discord`.
-- [ ] **OAuth2 → Reset Secret** → copy the **Client Secret**. Keep it for Part 3. **Don't paste it into chat.**
+Admins sign in with a **username + password**. Behind the scenes, username `george` is the Firebase account `george@users.ilovejvo.com`. That address never receives email.
+
+For each admin:
+- [ ] **Authentication → Users → Add user** → Email: `USERNAME@users.ilovejvo.com` → a strong password → **Add user**.
+- [ ] Copy that user's **User UID** (the long code in the list).
+- [ ] **Firestore → Start collection** `admins` (first time) → **Document ID = the User UID** → field `name` (string) = their name → Save.
+
+Forgotten password? Delete the user, add them again with a new password, and update their `admins` document to the new UID.
+(Prefer password-reset emails? Use a real email address as the login instead; the sign-in box accepts full emails too.)
 
 ## Part 3: Your terminal (in the project folder)
 
@@ -43,41 +34,27 @@ Parts 1–3 are yours: accounts, payment and secrets. Part 4 is Claude's. Tick a
   ```
   firebase login
   ```
-- [ ] Store the Discord secret in Google Secret Manager. Paste the secret when it asks; it won't show on screen:
-  ```
-  firebase functions:secrets:set DISCORD_CLIENT_SECRET --project PROJECT-ID
-  ```
-- [ ] Optional, for testing Discord sign-in locally: open `functions/.secret.local` and put the secret after `DISCORD_CLIENT_SECRET=`. Git ignores that file.
 - [ ] Tell Claude it's done.
 
-## Part 4: Claude fills in settings and deploys
+## Part 4: Claude deploys
 
-- [ ] Live config into `public/js/config.js`, Client ID into `config.js` and `functions/.env`, `prod` alias in `.firebaserc`.
-- [ ] `npm run deploy`. This checks settings, runs the tests, then deploys the site, database rules and server functions.
-- [ ] Turn on automatic cleanup of old function builds (avoids small storage fees).
+- [ ] Live config into `public/js/config.js`, `prod` alias in `.firebaserc`.
+- [ ] `npm run deploy`. This checks settings, runs the tests, then publishes the site and the database rules.
+- [ ] Check `https://PROJECT-ID.web.app`, sign in at `/admin`, add the real teams, players and events.
 
-## Part 5: Make yourself the first admin
+## Part 5: The domain (ilovejvo.com)
 
-- [ ] **Allow the server to create sign-ins** (one-time, after the first deploy):
-  Google Cloud console → **IAM & Admin → IAM** → find `PROJECT-NUMBER-compute@developer.gserviceaccount.com` → ✏️ **Edit** → **Add another role** → **Service Account Token Creator** → **Save**.
-- [ ] Open `https://PROJECT-ID.web.app/admin` → **Sign in with Discord**. It'll say "Not an admin yet" and show your ID, like `discord:123456789012345678`.
-- [ ] Firebase console → **Firestore** → **Start collection** `admins` → Document ID = **that ID** → add field `name` (string) = your name → Save.
-- [ ] Refresh `/admin`. You're in. Add the real events.
-
-## Part 6: The domain (ilovejvo.com)
-
-- [ ] Buy `ilovejvo.com` from any registrar (e.g. Cloudflare Registrar, Porkbun, Namecheap). Skip add-ons: no paid email, "premium DNS" or SSL packages. Firebase gives free HTTPS.
-- [ ] Firebase console → **Hosting → Add custom domain** → `ilovejvo.com` (and optionally `www.ilovejvo.com` redirecting to it).
-- [ ] Add the DNS records Firebase shows at your registrar. Verification and the free HTTPS certificate can take from a few minutes up to 24 hours.
-- [ ] Add `https://ilovejvo.com/auth/discord` to the Discord app's redirects (Part 2).
+- [ ] Buy `ilovejvo.com` (e.g. Cloudflare Registrar, Porkbun, Namecheap). Skip add-ons: no paid email, "premium DNS" or SSL packages.
+- [ ] Firebase console → **Hosting → Add custom domain** → `ilovejvo.com` (and `www` redirecting to it) → add the DNS records it shows at your registrar. Free HTTPS follows within minutes to 24 hours.
+- [ ] **Authentication → Settings → Authorized domains → Add domain** → `ilovejvo.com`.
 
 ---
 
-### What it costs
+### Free plan limits (per day)
 
-| Item | Cost |
-|---|---|
-| Hosting, database, sign-in | Free allowance; far above this site's needs |
-| Server functions (Discord sign-in, audit log) | Free allowance covers millions of calls a month |
-| Secret storage, build storage | Cents at most, with the cleanup turned on |
-| ilovejvo.com | Roughly US$10–15/year (check the registrar's renewal price, not just year one) |
+| | Free allowance | What it means here |
+|---|---|---|
+| Database reads | 50,000 | Roughly 1,000+ visitors a day browsing several pages |
+| Database writes | 20,000 | Far more than admins will ever enter |
+| Hosting transfer | 360 MB | Pages are small; the logo is the biggest file (~30 KB) |
+| Sign-ins | Free | Email/password is free on Spark |

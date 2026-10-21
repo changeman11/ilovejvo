@@ -1,12 +1,14 @@
-// Draws the placeholder JVO app icon (a volleyball) as SVG + PNGs, with no extra packages.
+// Draws the I<3JVO app icon (a blue volleyball with yellow seams and a black outline,
+// on game yellow) as SVG + PNGs, with no extra packages.
 // Run: npm run icons   -> writes public/icons/*
-// Replace with JVO's real logo once it exists.
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
-const BG = '#0a0e17';
-const BALL = '#ffc533';
+const BG = '#ffe200';
+const BALL = '#1438d8';
+const INK = '#121317';
+const SEAM = '#ffe200';
 
 // Geometry in a 64-unit box: a ball with three curved seams spinning out from the centre.
 const C = 32, R = 22, LINE = 3.2, SEAM_R = 30;
@@ -29,11 +31,11 @@ function colourAt(x, y, scale) {
   const uy = C + (y - C) / scale;
   const d = Math.hypot(ux - C, uy - C);
   if (d > R + LINE / 2) return BG;
-  if (d > R - LINE / 2) return BG; // outline
+  if (d > R - LINE / 2) return INK; // outline
   for (const { S, perp } of seams) {
     const onArc = Math.abs(Math.hypot(ux - S[0], uy - S[1]) - SEAM_R) < LINE / 2;
     const forward = (ux - C) * perp[0] + (uy - C) * perp[1] > -LINE / 2;
-    if (onArc && forward) return BG;
+    if (onArc && forward) return SEAM;
   }
   return BALL;
 }
@@ -48,8 +50,9 @@ function svg() {
     .join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="${BG}"/>
-  <circle cx="${C}" cy="${C}" r="${R}" fill="${BALL}" stroke="${BG}" stroke-width="${LINE}"/>
-  <g fill="none" stroke="${BG}" stroke-width="${LINE}" stroke-linecap="round">${paths}</g>
+  <circle cx="${C}" cy="${C}" r="${R}" fill="${BALL}"/>
+  <g fill="none" stroke="${SEAM}" stroke-width="${LINE}" stroke-linecap="round">${paths}</g>
+  <circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="${INK}" stroke-width="${LINE}"/>
 </svg>
 `;
 }

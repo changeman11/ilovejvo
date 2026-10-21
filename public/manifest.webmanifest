@@ -1,12 +1,12 @@
 {
   "name": "I<3JVO — Just Volleyball Oceania",
   "short_name": "I<3JVO",
-  "description": "Live standings, fixtures, results and stats for Just Volleyball Oceania.",
+  "description": "Fixtures, results and player stats for Just Volleyball Oceania.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0e17",
-  "theme_color": "#0a0e17",
+  "background_color": "#eef2fb",
+  "theme_color": "#ffe200",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

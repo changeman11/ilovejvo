@@ -1,14 +1,15 @@
-// Admin home: every exhibition night and tournament (drafts included), plus the hidden league tools.
+// Admin home: every event (drafts included), with what needs a result.
 
-import { loadAllEvents } from '../../data.js';
+import { loadAllEvents, loadAllBundles } from '../../data.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents } from '../../rules/events.js';
-import { esc, skeleton } from '../../ui.js';
+import { esc, skeleton, urls } from '../../ui.js';
+import { fixtureRow } from '../parts.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
 export const title = 'Admin';
 
 export function loading() {
-  return `<div class="grid">${skeleton([60, 240, 240])}</div>`;
+  return skeleton([50, 260]);
 }
 
 export function mount(el) {
@@ -16,56 +17,48 @@ export function mount(el) {
   if (root) bindAuthActions(root);
 }
 
-function row(e) {
-  const badges = [
-    e.published ? '<span class="tag tag-live">Published</span>' : '<span class="tag tag-draft">Draft</span>',
-    e.status !== 'upcoming' ? `<span class="tag tag-${esc(e.status)}">${esc(EVENT_STATUSES[e.status] ?? e.status)}</span>` : '',
-  ].join('');
-  return `
-    <a class="admin-event" href="/admin/event/${encodeURIComponent(e.id)}" data-link>
-      <span class="ae-main"><b>${esc(e.title)}</b><small class="muted">${esc(eventDateLabel(e))}</small></span>
-      <span class="ae-badges">${badges}</span>
-      <span aria-hidden="true">›</span>
-    </a>`;
-}
-
 export async function render() {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
 
-  const events = await loadAllEvents();
-  const block = (type) => {
-    const cfg = EVENT_TYPES[type];
-    const { upcoming, past } = sortEvents(events.filter((e) => e.type === type));
-    const list = [...upcoming, ...past];
-    return `
-      <section class="card">
-        <div class="section-head">
-          <h2>${esc(cfg.plural)}</h2>
-          <a class="btn btn-sm" href="/admin/event/new?type=${type}" data-link>+ Add</a>
-        </div>
-        ${list.length ? `<div class="admin-events">${list.map(row).join('')}</div>` : `<p class="muted">None yet. Add the first one.</p>`}
-      </section>`;
-  };
+  const [events, bundles] = await Promise.all([loadAllEvents(), loadAllBundles({ includeDrafts: true, fresh: true })]);
+  const { upcoming, past } = sortEvents(events);
+  const now = Date.now();
+  const waiting = bundles.flatMap((b) => b.fixtures
+    .filter((f) => !b.results[f.id] && f.scheduledAt && f.scheduledAt <= now && f.homeTeamId && f.awayTeamId)
+    .map((f) => ({ b, f })));
+
+  const row = (e) => `
+    <a class="row" href="${urls.adminEvent(e.id)}" data-link>
+      <span class="row-main"><b>${esc(e.title)}</b><span class="muted small">${esc(EVENT_TYPES[e.type]?.label)} · ${esc(eventDateLabel(e))}</span></span>
+      <span class="row-side">
+        ${e.published ? '<span class="tag tag-live">Published</span>' : '<span class="tag tag-draft">Draft</span>'}
+        ${e.status !== 'upcoming' ? `<span class="tag tag-${esc(e.status)}">${esc(EVENT_STATUSES[e.status])}</span>` : ''}
+      </span>
+    </a>`;
 
   return {
     title: 'Admin',
     html: `
       <div class="admin-root">
-        ${adminBar(gate.user, gate.admin)}
-        <section class="hero"><span class="eyebrow">Admin</span><h1>Events</h1></section>
-        <p class="muted small">Drafts are only visible to admins. Leave the date empty to show “Date TBD”.</p>
-        <div class="grid">
-          ${block('exhibition')}
-          ${block('tournament')}
-          <section class="card">
-            <div class="section-head"><h2>League (hidden)</h2></div>
-            <p class="muted">The league is closed to the public for now. Only admins can open these.</p>
-            <div class="admin-tools">
-              <a class="btn btn-ghost btn-sm" href="/admin/matchday" data-link>Match day &amp; results</a>
-              <a class="btn btn-ghost btn-sm" href="/league" data-link>League preview</a>
-            </div>
+        ${adminBar(gate.user, gate.admin, '/admin')}
+        <div class="page-head">
+          <div><h1>Events</h1><p class="muted">Each event holds its own teams, fixtures and results. Drafts are only visible to admins.</p></div>
+          <div class="event-links">
+            <a class="btn btn-primary" href="/admin/event/new?type=exhibition" data-link>+ Exhibition night</a>
+            <a class="btn" href="/admin/event/new?type=tournament" data-link>+ Tournament</a>
+          </div>
+        </div>
+        <div class="stack">
+          ${waiting.length ? `<section>
+            <div class="section-head"><h2>Needs a result</h2><span class="muted small">${waiting.length} played match${waiting.length === 1 ? '' : 'es'}</span></div>
+            <div class="panel flush fixtures">${waiting.map(({ b, f }) => fixtureRow(b, f, { showEvent: true, href: urls.adminResult(b.event.id, f.id) })).join('')}</div>
+          </section>` : ''}
+          <section>
+            <div class="section-head"><h2>Upcoming</h2></div>
+            <div class="panel flush rows">${upcoming.map(row).join('') || '<p class="muted" style="padding:16px">No upcoming events. Add one above.</p>'}</div>
           </section>
+          ${past.length ? `<section><div class="section-head"><h2>Past</h2></div><div class="panel flush rows">${past.map(row).join('')}</div></section>` : ''}
         </div>
       </div>`,
   };

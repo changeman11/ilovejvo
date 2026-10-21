@@ -7,9 +7,12 @@ import { finishedMatches } from './standings.js';
 
 export const isPlayoff = (fixture) => fixture?.stage === 'playoffs';
 
-// The match format for one fixture. Playoff rounds can override best-of and set targets.
+// The match format for one fixture.
+// A fixture can set its own `bestOf` (e.g. a best-of-5 final in a tournament);
+// league playoff rounds can override best-of and set targets.
 export function formatFor(season, fixture) {
   const base = season?.format ?? DEFAULT_FORMAT;
+  if (fixture?.bestOf) return { ...base, bestOf: fixture.bestOf };
   if (!isPlayoff(fixture)) return base;
   const round = season?.playoffs?.rounds?.find((r) => r.id === fixture.playoffRound);
   if (!round) return base;

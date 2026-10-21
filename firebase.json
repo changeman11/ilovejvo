@@ -9,8 +9,8 @@
         "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
       },
       {
-        "source": "**/*.@(js|css|webmanifest|svg|png)",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        "source": "/images/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
       },
       {
         "source": "/sw.js",
@@ -22,17 +22,9 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-      "ignore": ["node_modules", ".git", "*.local", "firebase-debug.log"]
-    }
-  ],
   "emulators": {
     "singleProjectMode": true,
     "auth": { "port": 9099 },
-    "functions": { "port": 5001 },
     "firestore": { "port": 8080 },
     "hosting": { "port": 5000 },
     "ui": { "enabled": true, "port": 4000 }

@@ -70,6 +70,12 @@ test('champion from a best-of-5 final', () => {
   assert.deepEqual(advanceUpdates(season, fixtures, changed), []);
 });
 
+test('a fixture can set its own best-of', () => {
+  assert.equal(formatFor(season, { round: 1, bestOf: 5 }).bestOf, 5);
+  assert.equal(formatFor(season, { round: 1, bestOf: 5 }).pointsPerSet, 10);
+  assert.equal(formatFor(season, { round: 1 }).bestOf, 3);
+});
+
 test('no seeds = no bracket; projected seeds = top 4', () => {
   assert.equal(resolveBracket({ ...season, playoffs: { ...DEFAULT_PLAYOFFS } }, [], {}), null);
   assert.deepEqual(projectedSeeds([{ teamId: 'X' }, { teamId: 'Y' }, { teamId: 'Z' }, { teamId: 'Q' }, { teamId: 'R' }]), ['X', 'Y', 'Z', 'Q']);

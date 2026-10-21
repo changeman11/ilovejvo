@@ -1,17 +1,22 @@
-// Loads the sample season into the LOCAL Firestore emulator.
+// Loads sample data into the LOCAL Firebase emulators, and creates a local test admin login.
 // It only ever talks to 127.0.0.1, so it can't touch a live Firebase project.
 //
-// Usage (with the emulator running in another terminal):  npm run seed
+// Usage (with the emulators running in another terminal):  npm run seed
+//
+// Local test admin: username "admin", password "jvo-local-admin" (emulator only).
 
 import { readFileSync } from 'node:fs';
-import { buildSampleData } from './sample-season.mjs';
-import { buildSampleEvents } from './sample-events.mjs';
+import { buildSampleData } from './sample-data.mjs';
 
+const firebaseJson = JSON.parse(readFileSync(new URL('../firebase.json', import.meta.url)));
 const projectId = JSON.parse(readFileSync(new URL('../.firebaserc', import.meta.url))).projects.default;
-const host = `http://127.0.0.1:${JSON.parse(readFileSync(new URL('../firebase.json', import.meta.url))).emulators.firestore.port}`;
+const host = `http://127.0.0.1:${firebaseJson.emulators.firestore.port}`;
+const authHost = `http://127.0.0.1:${firebaseJson.emulators.auth.port}`;
 const root = `projects/${projectId}/databases/(default)/documents`;
 // "Bearer owner" is an emulator-only key that skips security rules. It does nothing on real Firebase.
 const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer owner' };
+
+const ADMIN = { email: 'admin@users.ilovejvo.com', password: 'jvo-local-admin', name: 'Test Admin' };
 
 // Converts a plain JS value to Firestore's REST format.
 function encode(value) {
@@ -32,13 +37,21 @@ function encodeFields(obj) {
 
 async function commit(writes) {
   for (let i = 0; i < writes.length; i += 400) {
-    const res = await fetch(`${host}/v1/${root}:commit`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ writes: writes.slice(i, i + 400) }),
-    });
+    const res = await fetch(`${host}/v1/${root}:commit`, { method: 'POST', headers, body: JSON.stringify({ writes: writes.slice(i, i + 400) }) });
     if (!res.ok) throw new Error(`Write failed (${res.status}): ${await res.text()}`);
   }
+}
+
+// Creates the test admin in the Auth emulator and returns its uid.
+async function createAdmin() {
+  await fetch(`${authHost}/emulator/v1/projects/${projectId}/accounts`, { method: 'DELETE' });
+  const res = await fetch(`${authHost}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: ADMIN.email, password: ADMIN.password, returnSecureToken: true }),
+  });
+  if (!res.ok) throw new Error(`Couldn't create test admin (${res.status}): ${await res.text()}`);
+  return (await res.json()).localId;
 }
 
 async function main() {
@@ -50,34 +63,31 @@ async function main() {
   }
 
   // Start from an empty database so re-running gives the same result.
-  const wipe = await fetch(`${host}/emulator/v1/projects/${projectId}/databases/(default)/documents`, {
-    method: 'DELETE',
-    headers,
-  });
+  const wipe = await fetch(`${host}/emulator/v1/projects/${projectId}/databases/(default)/documents`, { method: 'DELETE', headers });
   if (!wipe.ok) throw new Error(`Couldn't clear emulator: ${wipe.status}`);
 
+  const adminUid = await createAdmin();
   const d = buildSampleData();
+  const stamp = { updatedBy: 'seed', updatedAt: new Date() };
   const writes = [];
-  const put = (path, data) => writes.push({ update: { name: `${root}/${path}`, fields: encodeFields(data) } });
+  const put = (path, data) => writes.push({ update: { name: `${root}/${path}`, fields: encodeFields({ ...data, ...stamp }) } });
 
-  put('settings/site', d.settings);
-  // The emulator-only "Sign in as test admin" account. Real admins are added in the Firebase console.
-  put('admins/discord:dev-admin', { name: 'Test Admin', addedAt: new Date() });
-  for (const { id, ...e } of buildSampleEvents()) put(`events/${id}`, { ...e, updatedAt: e.createdAt });
+  put(`admins/${adminUid}`, { name: ADMIN.name });
   for (const { id, ...t } of d.teams) put(`teams/${id}`, t);
   for (const { id, ...p } of d.players) put(`players/${id}`, p);
-  for (const s of d.seasons) {
-    put(`seasons/${s.id}`, s.season);
-    for (const [teamId, r] of Object.entries(s.rosters)) put(`seasons/${s.id}/rosters/${teamId}`, r);
-    for (const { id, ...f } of s.fixtures) put(`seasons/${s.id}/fixtures/${id}`, f);
-    for (const [id, r] of Object.entries(s.results)) put(`seasons/${s.id}/results/${id}`, r);
+  for (const e of d.events) {
+    put(`events/${e.id}`, { ...e.doc, createdAt: new Date(), createdBy: 'seed' });
+    for (const { id, ...f } of e.fixtures) put(`events/${e.id}/fixtures/${id}`, f);
+    for (const [id, r] of Object.entries(e.results)) put(`events/${e.id}/results/${id}`, r);
+    for (const [teamId, r] of Object.entries(e.rosters)) put(`events/${e.id}/rosters/${teamId}`, r);
   }
-
   await commit(writes);
-  console.log(`Seeded ${buildSampleEvents().length} events (1 draft), ${d.teams.length} teams, ${d.players.length} players.`);
-  for (const s of d.seasons) {
-    console.log(`  ${s.season.name}: ${s.fixtures.length} fixtures, ${Object.keys(s.results).length} results`);
+
+  console.log(`Seeded ${d.teams.length} teams, ${d.players.length} players, ${d.events.length} events:`);
+  for (const e of d.events) {
+    console.log(`  ${e.doc.title}${e.doc.published ? '' : ' (draft)'}: ${e.fixtures.length} fixtures, ${Object.keys(e.results).length} results`);
   }
+  console.log('Local test admin: username "admin" (password in seed/seed.mjs).');
 }
 
 main().catch((err) => {

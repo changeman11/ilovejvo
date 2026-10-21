@@ -1,50 +1,47 @@
-// Admin result entry: set scores, forfeits, player stat lines, MVP, VOD and screenshots.
-// The form keeps its own draft (`page.state`) and checks it live against the season's rules.
+// Admin result entry for one fixture in an event: set scores, forfeits, player stat lines,
+// MVP, VOD and screenshots. The form keeps a draft (`page.state`) and checks it live.
+// /admin/result/<eventId>/<fixtureId>
 
-import { loadSeason, NotFoundError } from '../../data.js';
+import { loadEventBundle, NotFoundError } from '../../data.js';
 import { checkResult } from '../../rules/match.js';
+import { formatFor } from '../../rules/season.js';
 import { forfeitSets, visibleSetCount, cleanStatLine, suggestMvp, reviewResult } from '../../rules/results.js';
 import { saveResult, deleteResult } from '../../admin-data.js';
 import { navigate } from '../../nav.js';
-import { esc, skeleton, notice, safeUrl, fmtLongDay, fmtTime, teamChip, urls } from '../../ui.js';
-import { formatFor, roundLabel } from '../../rules/season.js';
-import { advanceUpdates } from '../../rules/playoffs.js';
+import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
 import { statHeads } from '../parts.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
 export const title = 'Enter result';
 
 export function loading() {
-  return `<div class="grid">${skeleton([60, 120, 220, 300])}</div>`;
+  return skeleton([60, 160, 300]);
 }
 
-// The page currently open: { seasonId, fixtureId, data, fixture, existing, user, state }
+// The page currently open: { eventId, b, fixture, existing, user, format, teamSize, state }
 let page = null;
 
-const statDefsOf = (data) => data.season.stats ?? [];
-const statKeysOf = (data) => statDefsOf(data).map((s) => s.key);
+const statDefs = () => page.b.season.stats ?? [];
+const statKeys = () => statDefs().map((s) => s.key);
 
-function initialState(fixture, existing, data) {
-  const statKeys = statKeysOf(data);
-  const sets = Array.from({ length: formatFor(data.season, fixture).bestOf }, (_, i) => {
+function initialState(fixture, existing, b) {
+  const sets = Array.from({ length: page.format.bestOf }, (_, i) => {
     const s = !existing?.forfeit && existing?.sets?.[i];
     return { home: s ? String(s.home) : '', away: s ? String(s.away) : '' };
   });
-
-  // Each team's rows: this season's roster, plus anyone with a saved stat line for the team.
+  // Each team's rows: the event roster, plus anyone with a saved stat line for the team.
   const players = {};
   for (const teamId of [fixture.homeTeamId, fixture.awayTeamId]) {
-    const ids = [...(data.rosters[teamId]?.playerIds ?? [])];
+    const ids = [...(b.rosters[teamId]?.playerIds ?? [])];
     for (const [pid, line] of Object.entries(existing?.playerStats ?? {})) {
       if (line.teamId === teamId && !ids.includes(pid)) ids.push(pid);
     }
     players[teamId] = ids.map((pid) => {
       const line = existing?.playerStats?.[pid];
       const played = line?.teamId === teamId;
-      return { pid, played, line: Object.fromEntries(statKeys.map((k) => [k, played ? String(line[k] ?? 0) : ''])) };
+      return { pid, played, line: Object.fromEntries(statKeys().map((k) => [k, played ? String(line[k] ?? 0) : ''])) };
     });
   }
-
   return {
     homeId: fixture.homeTeamId,
     awayId: fixture.awayTeamId,
@@ -63,47 +60,37 @@ const numericSets = (sets) => sets.map((s) => ({
   away: s.away === '' ? NaN : Number(s.away),
 }));
 
-// Builds the result that would be saved, plus anything that blocks saving.
+// The result that would be saved, plus anything that blocks saving.
 function draftResult() {
-  const { state: s, data } = page;
-  const format = page.format;
+  const s = page.state;
   const problems = [];
   let result;
-
   if (s.mode === 'forfeit') {
     if (!s.forfeitTeamId) problems.push('Pick which team didn’t play');
-    const winner = s.forfeitTeamId === s.homeId ? 'away' : 'home';
     result = {
-      sets: forfeitSets(format, winner),
+      sets: forfeitSets(page.format, s.forfeitTeamId === s.homeId ? 'away' : 'home'),
       playerStats: {},
       mvpPlayerId: null,
       forfeit: s.forfeitTeamId ? { teamId: s.forfeitTeamId } : null,
     };
   } else {
     const nums = numericSets(s.sets);
-    const sets = nums.slice(0, visibleSetCount(nums, format));
+    const sets = nums.slice(0, visibleSetCount(nums, page.format));
     const playerStats = {};
     for (const teamId of [s.homeId, s.awayId]) {
       for (const row of s.players[teamId]) {
-        if (row.played) playerStats[row.pid] = { teamId, ...cleanStatLine(row.line, statKeysOf(data)) };
+        if (row.played) playerStats[row.pid] = { teamId, ...cleanStatLine(row.line, statKeys()) };
       }
     }
-    result = {
-      sets,
-      playerStats,
-      mvpPlayerId: s.mvp && playerStats[s.mvp] ? s.mvp : null,
-      forfeit: null,
-    };
-    problems.push(...checkResult(sets, format).errors);
+    result = { sets, playerStats, mvpPlayerId: s.mvp && playerStats[s.mvp] ? s.mvp : null, forfeit: null };
+    problems.push(...checkResult(sets, page.format).errors);
   }
-
   const vod = s.vod.trim();
   if (vod && !safeUrl(vod)) problems.push('The VOD link must be a full web address starting with https://');
   const shotLines = s.shots.split('\n').map((l) => l.trim()).filter(Boolean);
-  if (shotLines.some((l) => !safeUrl(l))) problems.push('Each screenshot link must be a full web address starting with https://');
+  if (shotLines.some((l) => !safeUrl(l))) problems.push('Each screenshot link must start with https://');
   result.vodUrl = vod ? safeUrl(vod) : null;
   result.screenshots = shotLines.map(safeUrl).filter(Boolean);
-
   return { result, problems };
 }
 
@@ -126,80 +113,75 @@ function setsBlock(s, home, away) {
 }
 
 function playersCard(teamId) {
-  const { data, state: s } = page;
-  const team = data.teamsById[teamId];
-  const statDefs = statDefsOf(data);
+  const { b, state: s } = page;
+  const team = b.teamsById[teamId];
+  const defs = statDefs();
   const rows = s.players[teamId].map((row) => {
-    const name = data.playersById[row.pid]?.displayName ?? row.pid;
-    const inputs = statDefs.map((st) => `
-      <td><input type="number" inputmode="numeric" min="0" data-stat="${esc(st.key)}" value="${esc(row.line[st.key])}" aria-label="${esc(name)} ${esc(st.name)}"></td>`).join('');
+    const name = b.playersById[row.pid]?.displayName ?? row.pid;
     return `
       <tr data-pid="${esc(row.pid)}" data-team="${esc(teamId)}" class="${row.played ? '' : 'off'}">
-        <td class="team-col"><label class="played-toggle"><input type="checkbox" data-played ${row.played ? 'checked' : ''}> ${esc(name)}</label></td>
-        ${inputs}
+        <td class="first"><label class="played-toggle"><input type="checkbox" data-played ${row.played ? 'checked' : ''}> ${esc(name)}</label></td>
+        ${defs.map((st) => `<td><input type="number" inputmode="numeric" min="0" data-stat="${esc(st.key)}" value="${esc(row.line[st.key])}" aria-label="${esc(name)} ${esc(st.name)}"></td>`).join('')}
       </tr>`;
   }).join('');
-
   const listed = new Set(s.players[teamId].map((r) => r.pid));
-  const options = Object.values(data.playersById)
+  const options = Object.values(b.playersById)
     .filter((p) => !listed.has(p.id))
-    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .sort((x, y) => x.displayName.localeCompare(y.displayName))
     .map((p) => `<option value="${esc(p.id)}">${esc(p.displayName)}</option>`)
     .join('');
-
   return `
-    <section class="card">
-      <div class="section-head"><h2 class="with-chip">${teamChip(team, 'lg')}${esc(team?.name ?? teamId)}</h2><span class="muted small played-count" data-team="${esc(teamId)}"></span></div>
-      <p class="muted small" style="margin:0 0 8px">Tick who played, then copy their numbers from the end-of-match screen. Blank = 0.</p>
-      <div class="table-wrap"><table class="data entry-table">
-        <thead><tr><th class="team-col">Player</th>${statHeads(statDefs)}</tr></thead>
-        <tbody>${rows || `<tr><td class="team-col muted" colspan="${statDefs.length + 1}">No roster for this team. Add players below.</td></tr>`}</tbody>
-      </table></div>
-      <label class="field add-player"><span>Add a sub or ringer</span>
-        <select data-add-player="${esc(teamId)}"><option value="">Choose a player…</option>${options}</select>
-      </label>
+    <section>
+      <div class="section-head"><h2><span class="team">${teamDot(team, 'lg')}${esc(team?.name ?? teamId)}</span></h2><span class="muted small played-count" data-team="${esc(teamId)}"></span></div>
+      <div class="panel flush">
+        <p class="muted small" style="padding:12px 14px 0">Tick who played and copy their numbers from the end-of-match screen. Blank = 0.</p>
+        <div class="table-wrap"><table class="data entry">
+          <thead><tr><th class="first">Player</th>${statHeads(defs)}</tr></thead>
+          <tbody>${rows || `<tr><td class="first muted" colspan="${defs.length + 1}">No roster yet. Add players below, or set the roster on the event’s Teams tab.</td></tr>`}</tbody>
+        </table></div>
+        <div class="inline-form"><label class="field"><span>Add a player</span><select data-add-player="${esc(teamId)}"><option value="">Choose a player…</option>${options}</select></label></div>
+      </div>
     </section>`;
 }
 
 function mvpOptions() {
-  const { data, state: s } = page;
+  const { b, state: s } = page;
   const groups = [s.homeId, s.awayId].map((teamId) => {
     const opts = s.players[teamId]
       .filter((r) => r.played)
-      .map((r) => `<option value="${esc(r.pid)}" ${r.pid === s.mvp ? 'selected' : ''}>${esc(data.playersById[r.pid]?.displayName ?? r.pid)}</option>`)
+      .map((r) => `<option value="${esc(r.pid)}" ${r.pid === s.mvp ? 'selected' : ''}>${esc(b.playersById[r.pid]?.displayName ?? r.pid)}</option>`)
       .join('');
-    return opts ? `<optgroup label="${esc(data.teamsById[teamId]?.name ?? teamId)}">${opts}</optgroup>` : '';
+    return opts ? `<optgroup label="${esc(b.teamsById[teamId]?.name ?? teamId)}">${opts}</optgroup>` : '';
   }).join('');
   return `<option value="">No MVP</option>${groups}`;
 }
 
 function formHtml() {
-  const { data, fixture, existing, state: s, seasonId, fixtureId } = page;
-  const home = data.teamsById[s.homeId];
-  const away = data.teamsById[s.awayId];
+  const { b, fixture, existing, state: s, eventId } = page;
+  const home = b.teamsById[s.homeId];
+  const away = b.teamsById[s.awayId];
   const swapped = s.homeId !== fixture.homeTeamId;
+  const when = fixture.scheduledAt ? `${fmtDay(fixture.scheduledAt)} ${fixture.timeTbd ? '· Time TBD' : fmtTime(fixture.scheduledAt)}` : 'Date TBD';
 
   const forfeitPick = `
-    <fieldset class="choice-list">
-      <legend>Which team didn’t play?</legend>
-      ${[s.homeId, s.awayId].map((id) => `
-        <label><input type="radio" name="forfeitTeam" value="${esc(id)}" ${s.forfeitTeamId === id ? 'checked' : ''}> ${teamChip(data.teamsById[id])} ${esc(data.teamsById[id]?.name ?? id)}</label>`).join('')}
+    <fieldset style="border:0;padding:0;margin:0 0 8px">
+      <legend style="font-weight:800;margin-bottom:8px">Which team didn’t play?</legend>
+      ${[s.homeId, s.awayId].map((id) => `<label class="check"><input type="radio" name="forfeitTeam" value="${esc(id)}" ${s.forfeitTeamId === id ? 'checked' : ''}> ${teamDot(b.teamsById[id])} ${esc(b.teamsById[id]?.name ?? id)}</label>`).join('')}
     </fieldset>
-    <p class="muted small">Recorded as a win for the other team with every set ${page.format.pointsPerSet}–0, and no player stats.</p>`;
+    <p class="muted small">Counts as a win for the other team, every set ${page.format.pointsPerSet}–0, no player stats.</p>`;
 
   return `
-    <section class="card entry-head">
-      <span class="eyebrow">${esc(data.season.name)} · ${esc(roundLabel(data.season, fixture))} · ${fmtLongDay(fixture.scheduledAt)} ${fmtTime(fixture.scheduledAt)}</span>
-      <h1 class="entry-teams">${teamChip(home, 'lg')}${esc(home?.name ?? 'TBC')} <span class="muted">vs</span> ${esc(away?.name ?? 'TBC')}${teamChip(away, 'lg')}</h1>
-      <div class="entry-actions">
-        <button type="button" class="btn btn-ghost btn-sm" data-act="swap">⇄ Swap home/away</button>
-        ${swapped ? '<span class="tag">Swapped: the fixture will be saved this way round</span>' : ''}
-        <a class="small" href="${urls.match(seasonId, fixtureId)}" data-link>Public match page →</a>
+    <section class="panel">
+      <p class="muted small">${esc(b.event.title)}${fixture.label ? ` · ${esc(fixture.label)}` : ''} · ${esc(when)} · Best of ${page.format.bestOf}</p>
+      <h1 style="margin:6px 0 10px"><span class="team">${teamDot(home, 'lg')}${esc(home?.name ?? 'TBC')}</span> <span class="muted">v</span> <span class="team">${esc(away?.name ?? 'TBC')}${teamDot(away, 'lg')}</span></h1>
+      <div class="event-links">
+        <button type="button" class="btn btn-sm" data-act="swap">⇄ Swap home/away</button>
+        <a class="btn btn-sm" href="${urls.match(eventId, fixture.id)}" data-link>Public match page</a>
       </div>
+      ${swapped ? '<p class="small" style="margin-top:8px;font-weight:700">Swapped: the fixture will be saved this way round.</p>' : ''}
     </section>
 
-    <section class="card">
-      <div class="section-head"><h2>Result</h2></div>
+    <section class="panel">
       <div class="segmented" role="radiogroup" aria-label="Result type">
         <label><input type="radio" name="mode" value="played" ${s.mode === 'played' ? 'checked' : ''}><span>Played</span></label>
         <label><input type="radio" name="mode" value="forfeit" ${s.mode === 'forfeit' ? 'checked' : ''}><span>Forfeit</span></label>
@@ -209,28 +191,24 @@ function formHtml() {
 
     ${s.mode === 'played' ? `${playersCard(s.homeId)}${playersCard(s.awayId)}` : ''}
 
-    <section class="card">
-      <div class="section-head"><h2>Extras</h2></div>
+    <section class="panel">
       ${s.mode === 'played' ? `
       <div class="field"><span>Match MVP</span>
-        <div class="field-row">
-          <select name="mvp">${mvpOptions()}</select>
-          <button type="button" class="btn btn-ghost btn-sm" data-act="suggest-mvp">Suggest</button>
-        </div>
+        <div style="display:flex;gap:8px"><select name="mvp">${mvpOptions()}</select><button type="button" class="btn btn-sm" data-act="suggest-mvp">Suggest</button></div>
       </div>` : ''}
       <label class="field"><span>VOD link</span><input type="url" name="vod" placeholder="https://youtube.com/…" value="${esc(s.vod)}"></label>
-      <label class="field"><span>Screenshot links (one per line)</span><textarea name="shots" rows="3" placeholder="https://…">${esc(s.shots)}</textarea></label>
+      <label class="field" style="margin:0"><span>Screenshot links (one per line)</span><textarea name="shots" rows="3" placeholder="https://…">${esc(s.shots)}</textarea></label>
     </section>
 
-    <section class="card review-card" hidden>
-      <div class="section-head"><h2>Before you save</h2></div>
+    <section class="panel review-card" hidden>
+      <h3 style="margin-bottom:6px">Before you save</h3>
       <ul class="flags review"></ul>
     </section>
 
     <div class="save-bar">
-      <button type="button" class="btn" data-act="save">${existing ? 'Save changes' : 'Save result'}</button>
+      <button type="button" class="btn btn-primary" data-act="save">${existing ? 'Save changes' : 'Save result'}</button>
       ${existing ? '<button type="button" class="btn btn-danger" data-act="delete">Delete result</button>' : ''}
-      <a class="link-btn" href="/admin/matchday?season=${encodeURIComponent(seasonId)}" data-link>Cancel</a>
+      <a class="link-btn" href="${urls.adminEvent(eventId, 'fixtures')}" data-link>Cancel</a>
       <p class="form-error" role="alert" hidden></p>
     </div>`;
 }
@@ -253,19 +231,14 @@ function readForm(root) {
     row.played = tr.querySelector('[data-played]').checked;
     tr.querySelectorAll('[data-stat]').forEach((input) => { row.line[input.dataset.stat] = input.value; });
   });
-  const mvp = root.querySelector('[name=mvp]');
-  if (mvp) s.mvp = mvp.value;
-  const vod = root.querySelector('[name=vod]');
-  if (vod) s.vod = vod.value;
-  const shots = root.querySelector('[name=shots]');
-  if (shots) s.shots = shots.value;
+  for (const name of ['mvp', 'vod', 'shots']) {
+    const el = root.querySelector(`[name=${name}]`);
+    if (el) s[name] = el.value;
+  }
 }
 
 function updateLive(root) {
-  const { data, state: s } = page;
-  const format = page.format;
-  const teamSize = format.teamSize ?? 4;
-
+  const { b, state: s, format, teamSize } = page;
   if (s.mode === 'played') {
     const nums = numericSets(s.sets);
     const visible = visibleSetCount(nums, format);
@@ -278,46 +251,38 @@ function updateLive(root) {
       status.className = 'set-status';
       status.textContent = 'Enter each set’s score.';
     } else if (check.ok) {
-      const winner = data.teamsById[check.winner === 'home' ? s.homeId : s.awayId];
+      const winner = b.teamsById[check.winner === 'home' ? s.homeId : s.awayId];
       status.className = 'set-status ok';
       status.textContent = `${winner?.name ?? 'Winner'} win ${Math.max(check.homeSets, check.awaySets)}–${Math.min(check.homeSets, check.awaySets)} · points ${check.homePoints}–${check.awayPoints}`;
     } else {
       status.className = 'set-status bad';
       status.textContent = check.errors[0];
     }
-
     for (const teamId of [s.homeId, s.awayId]) {
       const n = s.players[teamId].filter((r) => r.played).length;
       const el = root.querySelector(`.played-count[data-team="${CSS.escape(teamId)}"]`);
-      if (el) {
-        el.textContent = `${n} of ${teamSize} ticked`;
-        el.classList.toggle('warn', n !== teamSize);
-      }
+      if (el) el.textContent = `${n} of ${teamSize} ticked`;
     }
     root.querySelectorAll('tr[data-pid]').forEach((tr) => tr.classList.toggle('off', !tr.querySelector('[data-played]').checked));
-
     const mvp = root.querySelector('[name=mvp]');
     if (mvp) mvp.innerHTML = mvpOptions();
   }
 
-  // Review: blocking problems first, then softer "something to check" notes.
   const { result, problems } = draftResult();
   const { warnings } = reviewResult(result, {
     homeTeamId: s.homeId,
     awayTeamId: s.awayId,
     format,
     teamSize,
-    rosters: data.rosters,
-    teamNames: Object.fromEntries(Object.values(data.teamsById).map((t) => [t.id, t.name])),
+    rosters: b.rosters,
+    teamNames: Object.fromEntries(Object.values(b.teamsById).map((t) => [t.id, t.name])),
   });
-  const card = root.querySelector('.review-card');
-  const list = root.querySelector('.review');
   const items = [
     ...problems.filter((p) => !p.startsWith('Set ') && !p.startsWith('Match isn')).map((p) => `<li class="err">${esc(p)}</li>`),
     ...warnings.map((w) => `<li>${esc(w)}</li>`),
   ];
-  list.innerHTML = items.join('');
-  card.hidden = items.length === 0;
+  root.querySelector('.review').innerHTML = items.join('');
+  root.querySelector('.review-card').hidden = items.length === 0;
 }
 
 function redraw(root) {
@@ -333,36 +298,36 @@ function showError(root, message) {
 
 // ---------- Page hooks ----------
 
-export async function render({ seasonId, fixtureId }) {
+export async function render({ eventId, fixtureId }) {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
 
-  const data = await loadSeason(seasonId, { fresh: true });
-  const fixture = data.fixtures.find((f) => f.id === fixtureId);
+  const b = await loadEventBundle(eventId, { fresh: true });
+  const fixture = b.fixtures.find((f) => f.id === fixtureId);
   if (!fixture) throw new NotFoundError('That fixture doesn’t exist');
-  const existing = data.results[fixtureId] ?? null;
+  const back = `<a class="back" href="${urls.adminEvent(eventId, 'fixtures')}" data-link>← ${esc(b.event.title)} fixtures</a>`;
 
   if (!fixture.homeTeamId || !fixture.awayTeamId) {
     return {
       title: 'Enter result',
-      html: `<div class="admin-root">${adminBar(gate.user, gate.admin)}
-        <a class="back" href="/admin/matchday?season=${encodeURIComponent(seasonId)}" data-link>← Match day</a>
-        ${notice('Teams not decided yet', ` The ${roundLabel(data.season, fixture)} teams fill in automatically once the earlier rounds have results.`)}</div>`,
+      html: `<div class="admin-root">${adminBar(gate.user, gate.admin)}${back}${notice('Teams not set yet', ' Pick both teams for this fixture first.')}</div>`,
     };
   }
 
-  page = { seasonId, fixtureId, data, fixture, existing, user: gate.user, format: formatFor(data.season, fixture) };
-  page.state = initialState(fixture, existing, data);
+  const existing = b.results[fixtureId] ?? null;
+  const format = formatFor(b.season, fixture);
+  page = { eventId, b, fixture, existing, user: gate.user, format, teamSize: b.event.teamSize ?? format.teamSize ?? 4 };
+  page.state = initialState(fixture, existing, b);
 
-  const home = data.teamsById[fixture.homeTeamId]?.shortName ?? 'TBC';
-  const away = data.teamsById[fixture.awayTeamId]?.shortName ?? 'TBC';
+  const home = b.teamsById[fixture.homeTeamId]?.shortName ?? 'TBC';
+  const away = b.teamsById[fixture.awayTeamId]?.shortName ?? 'TBC';
   return {
-    title: `${existing ? 'Edit' : 'Enter'} result: ${home} vs ${away}`,
+    title: `${existing ? 'Edit' : 'Enter'} result: ${home} v ${away}`,
     html: `
       <div class="admin-root">
-        ${adminBar(gate.user, gate.admin)}
-        <a class="back" href="/admin/matchday?season=${encodeURIComponent(seasonId)}" data-link>← Match day</a>
-        <div class="entry grid">${formHtml()}</div>
+        ${adminBar(gate.user, gate.admin, '/admin')}
+        ${back}
+        <div class="entry stack">${formHtml()}</div>
       </div>`,
   };
 }
@@ -371,11 +336,10 @@ export function mount(el) {
   const root = el.querySelector('.admin-root');
   if (!root) return;
   bindAuthActions(root);
-  if (!root.querySelector('.entry')) return; // sign-in panel only
+  if (!root.querySelector('.entry')) return;
   updateLive(root);
 
   root.addEventListener('input', (e) => {
-    // Typing a stat ticks that player as having played.
     const statInput = e.target.closest('[data-stat]');
     if (statInput && statInput.value !== '') statInput.closest('tr').querySelector('[data-played]').checked = true;
     readForm(root);
@@ -392,8 +356,7 @@ export function mount(el) {
     const add = e.target.closest('[data-add-player]');
     if (add && add.value) {
       readForm(root);
-      const teamId = add.dataset.addPlayer;
-      s.players[teamId].push({ pid: add.value, played: true, line: Object.fromEntries(statKeysOf(page.data).map((k) => [k, ''])) });
+      s.players[add.dataset.addPlayer].push({ pid: add.value, played: true, line: Object.fromEntries(statKeys().map((k) => [k, ''])) });
       redraw(root);
       return;
     }
@@ -427,39 +390,30 @@ export function mount(el) {
       button.disabled = true;
       button.textContent = 'Saving…';
       try {
-        const { fixture, data } = page;
-        const swapTeams = s.homeId !== fixture.homeTeamId ? { homeTeamId: s.homeId, awayTeamId: s.awayId } : null;
-        // Playoffs: fill in the next round's teams in the same save.
-        const fixturesAfter = data.fixtures.map((f) => (f.id === fixture.id ? { ...f, ...(swapTeams ?? {}) } : f));
-        const advance = advanceUpdates(data.season, fixturesAfter, { ...data.results, [fixture.id]: result });
+        const { fixture } = page;
         await saveResult({
-          seasonId: page.seasonId,
-          fixtureId: page.fixtureId,
+          eventId: page.eventId,
+          fixture,
           uid: page.user.uid,
           result,
           existing: page.existing,
-          swapTeams,
-          advance,
+          swapTeams: s.homeId !== fixture.homeTeamId ? { homeTeamId: s.homeId, awayTeamId: s.awayId } : null,
         });
-        navigate(urls.match(page.seasonId, page.fixtureId));
+        navigate(urls.match(page.eventId, fixture.id));
       } catch (err) {
         console.error(err);
         button.disabled = false;
         button.textContent = page.existing ? 'Save changes' : 'Save result';
-        showError(root, err.code === 'permission-denied'
-          ? 'Not allowed to save. Are you still on the admin list?'
-          : 'Couldn’t save. Check your connection and try again.');
+        showError(root, err.code === 'permission-denied' ? 'Not allowed to save. Are you still on the admin list?' : 'Couldn’t save. Check your connection and try again.');
       }
     }
 
     if (button.dataset.act === 'delete') {
-      if (!window.confirm('Delete this result? The match goes back to “not played” and the table updates straight away.')) return;
+      if (!window.confirm('Delete this result? The match goes back to “not played”.')) return;
       button.disabled = true;
       try {
-        const { [page.fixtureId]: _removed, ...resultsAfter } = page.data.results;
-        const advance = advanceUpdates(page.data.season, page.data.fixtures, resultsAfter);
-        await deleteResult({ seasonId: page.seasonId, fixtureId: page.fixtureId, uid: page.user.uid, advance });
-        navigate(`/admin/matchday?season=${encodeURIComponent(page.seasonId)}`);
+        await deleteResult({ eventId: page.eventId, fixture: page.fixture, uid: page.user.uid, existing: page.existing });
+        navigate(urls.adminEvent(page.eventId, 'fixtures'));
       } catch (err) {
         console.error(err);
         button.disabled = false;

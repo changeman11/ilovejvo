@@ -19,69 +19,47 @@ export function safeUrl(url) {
   }
 }
 
-export function fmtRatio(r) {
-  if (r === Infinity) return 'MAX';
-  return r.toFixed(3);
-}
-
 // Whole numbers stay whole; averages get `digits` decimals.
-export function fmtNum(n, digits = 1) {
-  return Number.isInteger(n) ? String(n) : n.toFixed(digits);
-}
-
-// 1 -> "1st", 2 -> "2nd", 11 -> "11th", 23 -> "23rd"
-export function ordinal(n) {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
-
-export function pct(part, whole) {
-  return whole ? `${Math.round((part / whole) * 100)}%` : '–';
-}
+export const fmtNum = (n, digits = 1) => (Number.isInteger(n) ? String(n) : n.toFixed(digits));
+export const pct = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : '–');
 
 const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-const longDayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
-
-export const fmtDay = (ms) => (ms ? dayFmt.format(ms) : 'TBC');
-export const fmtLongDay = (ms) => (ms ? longDayFmt.format(ms) : 'Date TBC');
+export const fmtDay = (ms) => (ms ? dayFmt.format(ms) : 'Date TBD');
 export const fmtTime = (ms) => (ms ? timeFmt.format(ms) : '');
 
-// URLs for each kind of page, so links are built the same way everywhere.
 export const urls = {
-  match: (seasonId, fixtureId) => `/match/${encodeURIComponent(seasonId)}/${encodeURIComponent(fixtureId)}`,
-  team: (teamId) => `/team/${encodeURIComponent(teamId)}`,
-  player: (playerId) => `/player/${encodeURIComponent(playerId)}`,
-  adminResult: (seasonId, fixtureId) => `/admin/result/${encodeURIComponent(seasonId)}/${encodeURIComponent(fixtureId)}`,
+  event: (id) => `/event/${encodeURIComponent(id)}`,
+  match: (eventId, fixtureId) => `/match/${encodeURIComponent(eventId)}/${encodeURIComponent(fixtureId)}`,
+  player: (id) => `/player/${encodeURIComponent(id)}`,
+  adminEvent: (id, tab = '') => `/admin/event/${encodeURIComponent(id)}${tab ? `?tab=${tab}` : ''}`,
+  adminResult: (eventId, fixtureId) => `/admin/result/${encodeURIComponent(eventId)}/${encodeURIComponent(fixtureId)}`,
 };
 
-export function teamChip(team, size = '') {
-  const colour = team?.colors?.primary ?? 'var(--muted)';
-  return `<i class="chip ${size}" style="background:${esc(colour)}"></i>`;
-}
-
-export function teamLink(team, { short = false } = {}) {
-  if (!team) return '<span class="team">TBC</span>';
-  return `<a class="team" href="${urls.team(team.id)}" data-link>${teamChip(team)}<span>${esc(short ? team.shortName ?? team.name : team.name)}</span></a>`;
+// Team colour dot (outlined, like the game's art).
+export function teamDot(team, size = '') {
+  return `<i class="dot ${size}" style="background:${esc(team?.colors?.primary ?? '#ffffff')}"></i>`;
 }
 
 export function playerLink(player, fallbackId = '') {
-  const name = player?.displayName ?? fallbackId;
   const id = player?.id ?? fallbackId;
-  return `<a class="plink" href="${urls.player(id)}" data-link>${esc(name)}</a>`;
-}
-
-export function formPills(form) {
-  return `<span class="form">${form
-    .map((f) => `<i class="${f.result}" title="${f.result === 'W' ? 'Won' : 'Lost'} ${esc(f.score)}">${f.result}</i>`)
-    .join('')}</span>`;
+  return `<a class="plink" href="${urls.player(id)}" data-link>${esc(player?.displayName ?? fallbackId)}</a>`;
 }
 
 export function skeleton(heights) {
-  return heights.map((h) => `<div class="skeleton" style="height:${h}px"></div>`).join('');
+  return `<div class="stack">${heights.map((h) => `<div class="skeleton" style="height:${h}px"></div>`).join('')}</div>`;
 }
 
 export function notice(title, body = '') {
   return `<div class="notice"><strong>${esc(title)}</strong>${esc(body)}</div>`;
+}
+
+// Plain text with blank lines between paragraphs -> safe HTML paragraphs.
+export function paragraphs(text) {
+  return String(text ?? '')
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
+    .join('');
 }

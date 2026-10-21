@@ -2,20 +2,21 @@
 
 > **Site name (since 2026-10-21): "I<3JVO"** (was "JVO Hub"). Use it everywhere people see the name. Write it as `I&lt;3JVO` inside HTML. The project folder and package name stay `jvo-hub`.
 
-## CURRENT SCOPE (changed 2026-10-21) — read this first
+## CURRENT SCOPE (changed 2026-10-21, latest) — read this first
 
-The league is **TBD and closed to the public**. Until the user says otherwise, the public site is only:
+**The site's job: record stats and show fixtures for exhibition nights and tournaments.** No league or seasons.
 
-- **Exhibition nights** and **Upcoming tournaments** (`events` collection, `type: exhibition | tournament`), with an admin backend to add/edit/publish/delete them. Dates are optional and show as **"Date TBD"** until set (time optional too: "Time TBD").
-- Drafts (`published: false`) are visible to admins only.
+- **Public pages:** Home, Fixtures (all events, Upcoming / Results), Stats (sortable player table, all events or one), Events (list), event page (fixtures, optional table, top players, teams), match page (box scores), player page (career, by event, match log).
+- **Data:** each event (`events/{id}`) holds its own `fixtures`, `results` and `rosters`. `teams` and `players` are shared, so stats add up across events. Event and fixture dates are optional and show **"Date TBD"** / **"Time TBD"**. Drafts (`published: false`) are admin-only, including their fixtures.
+- **Cost: Firebase free (Spark) plan only, no card.** No Cloud Functions. The only paid thing is the domain (ilovejvo.com).
+- **Admin sign-in:** username + password (Firebase email/password; `username@users.ilovejvo.com`). Admins listed in `/admins/{uid}`. Discord sign-in was dropped because it needs the paid plan.
+- **Audit log:** written by the browser in the same batch as each admin change; rules force `by == uid` and make it append-only.
+- **Look:** light theme in the style of the game *just volleyball* (temkosoft): flat yellow `#ffe200`, ball blue `#1438d8`, teal wins, pink losses, black-outlined "sticker" panels, Fredoka headings, Graduate (jersey-style) numbers. The official logo is used with the developer's OK (`public/images/game/`, credited and linked to Steam). Avoid generic "AI dashboard" styling.
+- The match engine (`public/js/rules/`) is unchanged: Bo3 sets to 10 win by 2, a fixture can be Bo5; forfeit = 2–0, 10–0. The engine's "season" is built from an event by `engineSeason()` in `data.js`.
 
-The league section is locked two ways:
-1. `firestore.rules` → `leagueIsPublic()` returns `false`, so seasons, teams, players and cups are admin-read-only.
-2. Routes marked `league: true` in `public/js/app.js` show "Coming soon" to non-admins. Admins see it via the "League" link.
+The league plan below (seasons, playoffs, awards, Discord bot) is **shelved**. Its code is in git history (commits up to "Phase 4 (paused)").
 
-League build work is **paused partway through Phase 4** (rules, tests and draft pages for stats, playoffs, records, awards are committed but not public). Everything below describes the full league plan for when it resumes; it is not the current priority.
-
-## What we're building (full league plan, paused)
+## What we're building (original league plan, shelved)
 
 A community league hub for **Just Volleyball Oceania (JVO)**: one website where players and fans see live standings, fixtures, results, player and team stats, playoffs, awards and history across every season, and where league admins run the whole competition without touching code.
 

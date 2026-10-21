@@ -1,103 +1,48 @@
 # I<3JVO
 
-Website for Just Volleyball Oceania. The full spec is in [CLAUDE.md](CLAUDE.md).
+Fixtures, results and player stats for Just Volleyball Oceania: the community around
+[just volleyball](https://store.steampowered.com/app/5037200/) by temkosoft. Logo used with the developer's OK.
 
-**Right now the public site is just Exhibition nights and Upcoming tournaments.** The league section (table, fixtures, stats…) is built but closed: only admins can see it, and the database refuses league data to everyone else.
-
-## Managing events (admins)
-
-1. Go to `/admin` and sign in.
-2. Under **Exhibition nights** or **Tournaments**, click **+ Add**, or click an event to edit it.
-3. Leave **Date** empty to show "Date TBD". Leave **Time** empty to show "Time TBD". "Set back to TBD" clears both.
-4. Tick **Published** to show it to everyone. Unticked = draft, admins only.
-5. Set **Status** to Finished or Cancelled after the event; it moves to the "Past" list.
-
-## Opening the league later
-
-1. `firestore.rules`: change `leagueIsPublic()` to `return true;`
-2. `public/js/app.js`: remove `league: true` from the league routes, and add the league links back to the menus in `public/index.html`.
+- **Public:** Home, Fixtures, Stats, Events, plus event, match and player pages.
+- **Admin (`/admin`):** events (exhibition nights and tournaments), teams and players, rosters, fixtures, and results with player stats.
+- Runs entirely on Firebase's **free plan** (Hosting, Firestore, Auth). See [GO-LIVE.md](GO-LIVE.md).
 
 ## Run it on your computer
 
 You need Node.js 20+, Java 21+ and the Firebase CLI (`npm install -g firebase-tools`).
-The first time, install the server code's packages: `cd functions` then `npm install`.
 
-1. Start the local Firebase emulators (leave this running):
-   ```
-   npm run dev
-   ```
-2. In a second terminal, load the sample data (re-run any time to reset it):
-   ```
-   npm run seed
-   ```
-3. Open http://127.0.0.1:5000 for the site and http://127.0.0.1:4000 for the emulator dashboard, where you can browse the data.
-4. For the admin panel, open http://127.0.0.1:5000/admin and click **Sign in as test admin**. That button only exists on your own computer.
+1. Start the local emulators (leave running): `npm run dev`
+2. In a second terminal, load sample data and a test admin: `npm run seed`
+3. Open http://127.0.0.1:5000. The emulator dashboard is at http://127.0.0.1:4000.
+4. Admin: http://127.0.0.1:5000/admin, username `admin`. The password is in `seed/seed.mjs` (local emulator only).
 
-Run the rules tests with `npm test`.
+Tests: `npm test`. Deploy (after GO-LIVE parts 1–3): `npm run deploy`.
 
-Everything runs against a `demo-jvo-hub` project that only exists on your computer. Nothing touches a live Firebase project yet.
-
-## Admin sign-in with Discord
-
-Admins sign in with Discord. Firebase doesn't support Discord directly, so a Cloud Function (`functions/index.js`) swaps Discord's one-time code for a Firebase sign-in. Admin accounts get the ID `discord:<Discord user ID>`.
-
-### 1. Create the Discord app (once)
-
-1. Go to https://discord.com/developers/applications and click **New Application** (name it I<3JVO).
-2. Open **OAuth2**:
-   - Copy the **Client ID**. Paste it into `public/js/config.js` (`discordClientId`) **and** `functions/.env` (`DISCORD_CLIENT_ID=`). It isn't secret.
-   - Click **Reset Secret** and copy the **Client Secret**. This one *is* secret: never paste it into code, chat or git.
-   - Under **Redirects**, add `http://127.0.0.1:5000/auth/discord` (local). Later, also add your live address, e.g. `https://<project>.web.app/auth/discord`.
-
-### 2. Store the secret
-
-- **On your computer:** open `functions/.secret.local` (already ignored by git) and put the secret after `DISCORD_CLIENT_SECRET=`. Restart `npm run dev`.
-- **On the live site:** run `firebase functions:secrets:set DISCORD_CLIENT_SECRET` and paste it when asked. It's stored in Google Secret Manager.
-
-### 3. Add admins
-
-Admins are documents in the `admins` collection, added from the Firebase console only (the website can't add them):
-
-1. Sign in on the site once. If you're not an admin yet, the page shows your ID, like `discord:123456789012345678`.
-2. Firebase console → Firestore → `admins` → **Add document**. Document ID = that ID. Add a field `name` (string) with the admin's name.
-
-### Going live (later)
-
-- Create the Firebase project with Firestore in **australia-southeast1 (Sydney)**, to match the functions' region.
-- Cloud Functions need the **Blaze (pay-as-you-go)** plan. A league this size should stay inside the free allowance; set a budget alert in Google Cloud to be safe.
-- The functions' service account needs the **Service Account Token Creator** role so it can create sign-in tokens (Google Cloud console → IAM).
-
-## Where things live
+## How it fits together
 
 | Path | What it is |
 | --- | --- |
 | `public/` | The website (plain JavaScript, no build step) |
-| `public/js/rules/` | Volleyball rules: set checks, standings, stats, fixture generator, result-entry helpers. No Firebase code, so it's easy to test |
-| `public/js/pages/` | One file per page. `pages/admin/` is the admin panel |
-| `public/js/auth.js` | Sign-in (Discord, plus the local test admin) |
-| `public/js/admin-data.js` | Admin saves and deletes |
-| `public/css/app.css` | All styles. Brand colours are at the top |
-| `functions/` | Server code: Discord sign-in and the audit log |
+| `public/css/app.css` | All styles. Colours at the top, in the game's style (yellow, ball blue, black outlines) |
+| `public/js/pages/` | One file per page; `pages/admin/` is the admin area |
+| `public/js/rules/` | Volleyball maths: set checks, standings, stats, records. No Firebase code; tested in `tests/` |
+| `public/js/data.js` / `admin-data.js` | Reading data / admin saves (each save also writes an audit entry) |
+| `public/images/game/` | Official just volleyball logo (temkosoft) |
 | `firestore.rules` | Who can read and write what |
-| `seed/` | Sample data generator (made-up teams and players) |
-| `tests/` | Automatic tests for the rules |
-| `tools/make-icons.mjs` | Draws the placeholder app icons |
+| `seed/` | Sample data for local testing |
 
-## Data layout (Firestore)
+## Data (Firestore)
 
-- `events/{id}`: exhibition nights and tournaments: `type` (`exhibition` | `tournament`), `title`, `summary`, `details`, `date` (timestamp or null = TBD), `timeTbd`, `status` (`upcoming` | `finished` | `cancelled`), `published`, `signupUrl`, `streamUrl`; tournaments also `format`, `teamSize`, `prize`. Plus `createdAt/By`, `updatedAt/By`. The public can only read `published == true`.
-- `settings/site`: site name, current season, season shown on the league home page
-- `teams/{teamId}`, `players/{playerId}`: carry across seasons
-- `seasons/{seasonId}`: name, status, kickoff, divisions (with team IDs), `format`, `standings`, `stats`, `bands`
-  - `rosters/{teamId}`: `playerIds`, `captainId`
-  - `fixtures/{fixtureId}`: `round`, `division`, `homeTeamId`, `awayTeamId`, `scheduledAt`, `status`, `stream`, `updatedBy`, `updatedAt`
-  - `results/{fixtureId}`: `sets: [{home, away}]`, `playerStats: {playerId: {teamId, pts, spk, ...}}`, `mvpPlayerId`, `vodUrl`, `screenshots`, `forfeit: {teamId} | null`, `enteredBy`, `enteredAt`, `updatedBy`, `updatedAt`
-- `admins/{uid}`: who can write (`name`). Added from the Firebase console only
-- `auditLog/{id}`: every change inside a season: `at`, `action`, `by`, `path`, `before`, `after`. Written by the server only; admins can read it
-- `analytics`: written by the server only
+- `events/{id}`: `type` (exhibition/tournament), `title`, `summary`, `details`, `date` (null = TBD), `timeTbd`, `status`, `published`, `teamIds`, `teamSize`, `matchFormat.bestOf`, `showTable`, `formatNote`, `prize`, `signupUrl`, `streamUrl`
+  - `fixtures/{id}`: `label`, `order`, `homeTeamId`, `awayTeamId`, `scheduledAt` (null = TBD), `timeTbd`, `bestOf` (optional override), `status`
+  - `results/{fixtureId}`: `sets [{home, away}]`, `playerStats {playerId: {teamId, pts, spk, blk, rec, set, ast, ace, dig}}`, `mvpPlayerId`, `forfeit`, `vodUrl`, `screenshots`
+  - `rosters/{teamId}`: `playerIds`
+- `teams/{id}`: `name`, `shortName`, `colors.primary`
+- `players/{id}`: `displayName`, `number`, `active`
+- `admins/{uid}`: who can write (`name`). Added in the Firebase console only.
+- `auditLog/{id}`: every admin change (`at`, `by`, `action`, `path`, `before`, `after`). Append-only.
 
-Every admin save must include `updatedBy` (the admin's ID) and `updatedAt` (server time); the security rules reject saves without them.
+Every admin save carries `updatedBy` + `updatedAt` (server time); the rules reject saves without them.
+Stats, tables and leaderboards are always calculated from results, never stored.
 
-Standings, stats, records and awards are always calculated from results, never stored.
-
-Note: re-seeding the sample data also fills the audit log with entries marked `by: null`, because the seed script writes directly. That only happens on your computer.
+Match rules: every set to 10, win by 2; matches best of 3 (or 5 where set); forfeit = 2–0 with sets 10–0.

@@ -1,20 +1,16 @@
 rules_version = '2';
 
-// I<3JVO security rules
-// - The public can read PUBLISHED events (exhibition nights and tournaments). Drafts are admin-only.
-// - League data (seasons, teams, players, cups) is ADMIN-ONLY for now. To open it to everyone
-//   when the league launches, change leagueIsPublic() to return true.
-// - Only authorised admins can write. An admin is a user whose uid has a document in /admins.
+// I<3JVO security rules (Firebase free plan: no server code, so these rules are the guard).
+//
+// - The public can read PUBLISHED events, plus their fixtures, results and rosters,
+//   and all teams and players. Drafts and their contents are admin-only.
+// - Only admins can write. An admin is a signed-in user whose uid has a document in /admins.
 //   Admin documents are added from the Firebase console, never from the website.
-// - The audit log and analytics are written by the server only.
+// - Every admin save is stamped with who and when (updatedBy / updatedAt = server time),
+//   and writes an entry to /auditLog in the same step. Log entries can't be edited or deleted.
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ---- The switch for the league section ----
-    function leagueIsPublic() {
-      return false;
-    }
 
     function signedIn() {
       return request.auth != null;
@@ -24,21 +20,13 @@ service cloud.firestore {
       return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    function canReadLeague() {
-      return leagueIsPublic() || isAdmin();
-    }
-
-    // Every admin save must say who made it and when, so the server-side audit log
-    // can record it. Deletes are stamped just before they happen.
     function stampedByMe() {
       return request.resource.data.updatedBy == request.auth.uid
           && request.resource.data.updatedAt == request.time;
     }
 
-    function validResult() {
-      let d = request.resource.data;
-      return d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7
-          && d.playerStats is map;
+    function eventPublished(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data.published == true;
     }
 
     function validEvent() {
@@ -47,89 +35,73 @@ service cloud.firestore {
           && d.title is string && d.title.size() > 0 && d.title.size() <= 120
           && d.status in ['upcoming', 'finished', 'cancelled']
           && d.published is bool
-          && (d.date == null || d.date is timestamp);
+          && (d.date == null || d.date is timestamp)
+          && d.teamIds is list && d.teamIds.size() <= 64;
     }
 
-    // ---- Events: exhibition nights and tournaments ----
-    // The public only sees published ones (the site asks for published == true).
+    function validResult() {
+      let d = request.resource.data;
+      return d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7
+          && d.playerStats is map;
+    }
+
+    function validName(field) {
+      let v = request.resource.data[field];
+      return v is string && v.size() > 0 && v.size() <= 60;
+    }
+
+    // ---- Events (exhibition nights, tournaments) ----
     match /events/{eventId} {
       allow read: if resource.data.published == true || isAdmin();
       allow create, update: if isAdmin() && stampedByMe() && validEvent();
       allow delete: if isAdmin();
-    }
-
-    // ---- League data (admin-only until leagueIsPublic() is true) ----
-    match /seasons/{seasonId} {
-      allow read: if canReadLeague();
-      allow create, update: if isAdmin() && stampedByMe();
-      allow delete: if isAdmin();
 
       match /results/{fixtureId} {
-        allow read: if canReadLeague();
+        allow read: if eventPublished(eventId) || isAdmin();
         allow create, update: if isAdmin() && stampedByMe() && validResult();
         allow delete: if isAdmin();
       }
 
-      match /fixtures/{fixtureId} {
-        allow read: if canReadLeague();
-        allow create, update: if isAdmin() && stampedByMe();
-        allow delete: if isAdmin();
-      }
-
-      // rosters, transfers, awards, playoffs
-      // (Firestore allows a write if ANY rule matches, so results/fixtures are excluded here.)
+      // fixtures, rosters
       match /{collection}/{docId} {
-        allow read: if canReadLeague();
-        allow write: if isAdmin() && !(collection in ['results', 'fixtures']);
+        allow read: if eventPublished(eventId) || isAdmin();
+        allow create, update: if isAdmin() && stampedByMe() && collection in ['fixtures', 'rosters'];
+        allow delete: if isAdmin() && collection in ['fixtures', 'rosters'];
       }
     }
 
+    // ---- Teams and players (shared across events; stats add up over every event) ----
     match /teams/{teamId} {
-      allow read: if canReadLeague();
-      allow write: if isAdmin();
+      allow read: if true;
+      allow create, update: if isAdmin() && stampedByMe() && validName('name');
+      allow delete: if isAdmin();
     }
 
     match /players/{playerId} {
-      allow read: if canReadLeague();
-      allow write: if isAdmin();
+      allow read: if true;
+      allow create, update: if isAdmin() && stampedByMe() && validName('displayName');
+      allow delete: if isAdmin();
     }
 
-    match /cups/{document=**} {
-      allow read: if canReadLeague();
-      allow write: if isAdmin();
-    }
-
-    // Site name and links. Public.
+    // ---- Site settings. Public. ----
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Who is an admin. A signed-in user may check their own entry only.
+    // ---- Who is an admin. A signed-in user may check their own entry only. ----
     match /admins/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow write: if false;
     }
 
-    // Server-written only. Admins can read.
+    // ---- Audit log: append-only. Admins add entries signed with their own uid. ----
     match /auditLog/{entryId} {
       allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /analytics/{docId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    // Anyone can report a front-end error (small, fixed shape). Nobody can edit them.
-    match /clientErrors/{errorId} {
-      allow read: if isAdmin();
-      allow create: if request.resource.data.keys().hasOnly(['message', 'stack', 'url', 'userAgent', 'at'])
-                    && request.resource.data.message is string
-                    && request.resource.data.message.size() < 2000
-                    && (!('stack' in request.resource.data) || (request.resource.data.stack is string && request.resource.data.stack.size() < 8000))
-                    && request.resource.data.at == request.time;
+      allow create: if isAdmin()
+                    && request.resource.data.by == request.auth.uid
+                    && request.resource.data.at == request.time
+                    && request.resource.data.action in ['create', 'update', 'delete'];
       allow update, delete: if false;
     }
 

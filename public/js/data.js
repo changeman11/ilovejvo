@@ -1,16 +1,12 @@
-// Reads league data from Firestore and turns it into plain objects the pages can use.
+// Reads data from Firestore and turns it into plain objects the pages can use.
 // Dates become milliseconds so the rules engine never sees Firebase types.
-// Everything is cached for the visit; refresh the page to get the latest.
+// Everything is cached for the visit; admin pages ask for fresh copies.
 
 import {
-  doc,
-  getDoc,
-  getDocs,
-  collection,
-  query,
-  where,
+  doc, getDoc, getDocs, collection, query, where,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
+import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './rules/defaults.js';
 
 export class NotFoundError extends Error {}
 
@@ -23,14 +19,16 @@ function plain(value) {
   return value;
 }
 
+const asObj = (d) => ({ id: d.id, ...plain(d.data()) });
+
 async function getOne(path) {
   const snap = await getDoc(doc(db, path));
-  return snap.exists() ? { id: snap.id, ...plain(snap.data()) } : null;
+  return snap.exists() ? asObj(snap) : null;
 }
 
 async function getAll(path) {
   const snap = await getDocs(collection(db, path));
-  return snap.docs.map((d) => ({ id: d.id, ...plain(d.data()) }));
+  return snap.docs.map(asObj);
 }
 
 // Caches a promise; drops it on failure so the next visit can retry.
@@ -44,107 +42,101 @@ function cached(key, load) {
   return cache.get(key);
 }
 
-// ---------- Events (exhibition nights, tournaments) ----------
+// Forget cached data after an admin change (or pass nothing to forget everything).
+export function invalidate(prefix = '') {
+  for (const key of [...cache.keys()]) if (key.startsWith(prefix)) cache.delete(key);
+}
 
-const asEvent = (d) => ({ id: d.id, ...plain(d.data()) });
+// ---------- Teams and players (shared by every event) ----------
 
-// Published events only: what the public is allowed to see.
+export const loadTeams = ({ fresh = false } = {}) => {
+  if (fresh) invalidate('teams');
+  return cached('teams', () => getAll('teams'));
+};
+export const loadPlayers = ({ fresh = false } = {}) => {
+  if (fresh) invalidate('players');
+  return cached('players', () => getAll('players'));
+};
+
+// ---------- Events ----------
+
+// Published events only: what the public may see.
 export const loadPublicEvents = () =>
   cached('events:public', async () => {
     const snap = await getDocs(query(collection(db, 'events'), where('published', '==', true)));
-    return snap.docs.map(asEvent);
+    return snap.docs.map(asObj);
   });
 
-// Every event including drafts (admins only; the security rules refuse anyone else).
+// Every event including drafts (admins only; the rules refuse anyone else).
 export async function loadAllEvents() {
-  const snap = await getDocs(collection(db, 'events'));
-  return snap.docs.map(asEvent);
+  return getAll('events');
 }
 
-// One event. Drafts and missing events both come back as "not found" for the public.
-export async function loadEvent(id) {
-  try {
-    const ev = await getOne(`events/${id}`);
-    if (!ev) throw new NotFoundError('That event doesn’t exist');
-    return ev;
-  } catch (err) {
-    if (err.code === 'permission-denied') throw new NotFoundError('That event doesn’t exist');
-    throw err;
-  }
+// The settings the scoring/stats engine needs, built from an event.
+// (The engine was written for seasons; an event is shaped the same way.)
+export function engineSeason(event) {
+  return {
+    id: event.id,
+    name: event.title,
+    status: event.status,
+    format: { ...DEFAULT_FORMAT, ...(event.matchFormat ?? {}) },
+    stats: event.stats ?? DEFAULT_STATS,
+    standings: DEFAULT_STANDINGS,
+    divisions: [{ id: 'main', teamIds: event.teamIds ?? [] }],
+  };
 }
 
-export function invalidateEvents() {
-  cache.delete('events:public');
-}
-
-// ---------- League ----------
-
-export const loadSettings = () => cached('settings', () => getOne('settings/site').then((s) => s ?? {}));
-
-// All seasons, oldest first.
-export const loadSeasonList = () =>
-  cached('seasons', () => getAll('seasons').then((list) => list.sort((a, b) => (a.kickoffAt ?? 0) - (b.kickoffAt ?? 0))));
-
-const loadTeams = () => cached('teams', () => getAll('teams'));
-const loadPlayers = () => cached('players', () => getAll('players'));
-
-// Forget a season's cached data, e.g. after an admin saves a result.
-export function invalidateSeason(seasonId) {
-  cache.delete(`season:${seasonId}`);
-}
-
-// Everything a season page needs, loaded in parallel.
-// fresh: true skips the cache (admin pages always want the latest).
-export function loadSeason(seasonId, { fresh = false } = {}) {
-  if (fresh) invalidateSeason(seasonId);
-  return cached(`season:${seasonId}`, async () => {
-    const base = `seasons/${seasonId}`;
-    const [season, teams, players, rosters, fixtures, results] = await Promise.all([
-      getOne(base),
-      loadTeams(),
-      loadPlayers(),
+// Everything one event's pages need.
+// Returns { event, season, teams, teamsById, playersById, rosters, fixtures, results }
+export function loadEventBundle(eventId, { fresh = false } = {}) {
+  if (fresh) invalidate(`event:${eventId}`);
+  return cached(`event:${eventId}`, async () => {
+    let event;
+    try {
+      event = await getOne(`events/${eventId}`);
+    } catch (err) {
+      if (err.code === 'permission-denied') throw new NotFoundError('That event doesn’t exist');
+      throw err;
+    }
+    if (!event) throw new NotFoundError('That event doesn’t exist');
+    const base = `events/${eventId}`;
+    const [teams, players, rosters, fixtures, results] = await Promise.all([
+      loadTeams({ fresh }),
+      loadPlayers({ fresh }),
       getAll(`${base}/rosters`),
       getAll(`${base}/fixtures`),
       getAll(`${base}/results`),
     ]);
-    if (!season) throw new NotFoundError(`Season "${seasonId}" not found`);
-    const seasonTeamIds = new Set((season.divisions ?? []).flatMap((d) => d.teamIds ?? []));
+    const teamIds = new Set(event.teamIds ?? []);
     return {
-      season,
-      teams: teams.filter((t) => seasonTeamIds.has(t.id)),
+      event,
+      season: engineSeason(event),
+      teams: teams.filter((t) => teamIds.has(t.id)),
       teamsById: Object.fromEntries(teams.map((t) => [t.id, t])),
       playersById: Object.fromEntries(players.map((p) => [p.id, p])),
       rosters: Object.fromEntries(rosters.map((r) => [r.id, r])),
-      fixtures,
+      // `round` keeps the engine's ordering for undated fixtures
+      fixtures: fixtures.map((f) => ({ ...f, round: f.order ?? 0 })),
       results: Object.fromEntries(results.map((r) => [r.id, r])),
     };
   });
 }
 
-// The season the home page shows by default (can differ from the current one between seasons).
-export async function homeSeasonId() {
-  const settings = await loadSettings();
-  const id = settings.homeSeasonId ?? settings.currentSeasonId;
-  if (id) return id;
-  const list = await loadSeasonList();
-  if (!list.length) throw new NotFoundError('No season set up yet');
-  return list[list.length - 1].id;
+// Every published event's bundle (admins: every event), oldest event first.
+// Used for site-wide fixtures, stats and player careers.
+export async function loadAllBundles({ includeDrafts = false, fresh = false } = {}) {
+  const events = includeDrafts ? await loadAllEvents() : await loadPublicEvents();
+  const bundles = await Promise.all(events.map((e) => loadEventBundle(e.id, { fresh })));
+  return bundles.sort((a, b) => (a.event.date ?? a.event.createdAt ?? 0) - (b.event.date ?? b.event.createdAt ?? 0));
 }
 
-export async function loadHomeSeason() {
-  return { settings: await loadSettings(), ...(await loadSeason(await homeSeasonId())) };
-}
-
-// The season named in the URL (?season=s0), or the home season.
-export async function loadSeasonFromUrl({ fresh = false } = {}) {
-  const fromUrl = new URLSearchParams(location.search).get('season');
-  const [seasons, settings] = await Promise.all([loadSeasonList(), loadSettings()]);
-  const id = fromUrl && seasons.some((s) => s.id === fromUrl) ? fromUrl : await homeSeasonId();
-  return { settings, seasons, ...(await loadSeason(id, { fresh })) };
-}
-
-// Every season's data, oldest first. Used by profiles for career stats.
-export async function loadAllSeasons() {
-  const list = await loadSeasonList();
-  return Promise.all(list.map((s) => loadSeason(s.id)));
+// Teams and players by id, without loading any event.
+export async function loadPeople({ fresh = false } = {}) {
+  const [teams, players] = await Promise.all([loadTeams({ fresh }), loadPlayers({ fresh })]);
+  return {
+    teams,
+    players,
+    teamsById: Object.fromEntries(teams.map((t) => [t.id, t])),
+    playersById: Object.fromEntries(players.map((p) => [p.id, p])),
+  };
 }

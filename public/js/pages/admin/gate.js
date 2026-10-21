@@ -1,8 +1,6 @@
-// Admin gate: shows the sign-in panel unless the visitor is a signed-in admin.
+// Admin gate: shows the sign-in form unless the visitor is a signed-in admin.
 
-import {
-  currentAdmin, discordIdOf, startDiscordSignIn, devSignIn, signOut, discordConfigured, devSignInAvailable,
-} from '../../auth.js';
+import { currentAdmin, signIn, signOut, usernameOf } from '../../auth.js';
 import { refresh } from '../../nav.js';
 import { esc } from '../../ui.js';
 
@@ -14,66 +12,57 @@ export async function adminGate() {
 }
 
 function signInPanel() {
-  const discord = discordConfigured
-    ? '<button class="btn btn-discord" data-action="discord-signin">Sign in with Discord</button>'
-    : `<button class="btn btn-discord" disabled>Sign in with Discord</button>
-       <p class="muted small">Discord sign-in isn’t set up yet: the Discord Client ID is missing from <code>public/js/config.js</code>.</p>`;
-  const dev = devSignInAvailable
-    ? `<hr><p class="muted small">Local testing only (this button doesn’t exist on the live site):</p>
-       <button class="btn btn-ghost" data-action="dev-signin">Sign in as test admin</button>`
-    : '';
   return `
-    <section class="card auth-card">
-      <span class="eyebrow">Admins</span>
-      <h1>Sign in</h1>
-      <p class="muted">Admins sign in with their Discord account.</p>
-      ${discord}
-      ${dev}
+    <form class="panel auth-card" data-form="sign-in" novalidate>
+      <h1>Admin sign in</h1>
+      <label class="field"><span>Username</span><input type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="btn btn-primary" type="submit">Sign in</button>
       <p class="form-error" role="alert" hidden></p>
-    </section>`;
+    </form>`;
 }
 
 function notAdminPanel(user) {
-  const discordId = discordIdOf(user);
   return `
-    <section class="card auth-card">
-      <span class="eyebrow">Admins</span>
-      <h1>Not an admin yet</h1>
-      <p>You’re signed in as <b>${esc(user.displayName ?? 'Discord user')}</b>, but this account isn’t on the admin list.</p>
-      ${discordId ? `<p class="muted">Send this to a league admin so they can add you:</p><p class="code-chip">discord:${esc(discordId)}</p>` : ''}
-      <button class="btn btn-ghost" data-action="sign-out">Sign out</button>
+    <section class="panel auth-card">
+      <h1>Not an admin</h1>
+      <p>You’re signed in as <b>${esc(usernameOf(user))}</b>, but this account isn’t on the admin list.</p>
+      <p class="muted small">Account ID (for the admin list): <code class="code-chip">${esc(user.uid)}</code></p>
+      <button class="btn" data-action="sign-out">Sign out</button>
     </section>`;
 }
 
-// Buttons on the sign-in panels and the admin header. Bind once per page draw.
+// Sign-in form and sign-out buttons. Bind once per page draw.
 export function bindAuthActions(root) {
-  root.addEventListener('click', async (e) => {
-    const button = e.target.closest('[data-action]');
-    if (!button) return;
-    const action = button.dataset.action;
-    if (!['discord-signin', 'dev-signin', 'sign-out'].includes(action)) return;
-    const error = root.querySelector('.form-error');
+  root.addEventListener('submit', async (e) => {
+    const form = e.target.closest('[data-form="sign-in"]');
+    if (!form) return;
+    e.preventDefault();
+    const error = form.querySelector('.form-error');
+    const button = form.querySelector('button');
     button.disabled = true;
     try {
-      if (action === 'discord-signin') startDiscordSignIn(location.pathname + location.search);
-      if (action === 'dev-signin') { await devSignIn(); refresh(); }
-      if (action === 'sign-out') { await signOut(); refresh(); }
+      await signIn(form.username.value, form.password.value);
+      refresh();
     } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
       button.disabled = false;
-      if (error) {
-        error.textContent = err.message || 'Something went wrong. Please try again.';
-        error.hidden = false;
-      }
     }
+  });
+  root.addEventListener('click', async (e) => {
+    if (!e.target.closest('[data-action="sign-out"]')) return;
+    await signOut();
+    refresh();
   });
 }
 
-// Small "signed in as" bar for the top of admin pages.
-export function adminBar(user, admin) {
-  const photo = user.photoURL ? `<img src="${esc(user.photoURL)}" alt="" width="24" height="24">` : '';
+// "Signed in as" bar with admin navigation, for the top of admin pages.
+export function adminBar(user, admin, current = '') {
+  const links = [['/admin', 'Events'], ['/admin/people', 'Teams & players']];
   return `
     <div class="admin-bar">
-      <span>${photo}${esc(admin.name ?? user.displayName ?? 'Admin')}</span>
-      <button class="link-btn" data-action="sign-out">Sign out</button>
+      <nav class="admin-nav">${links.map(([href, label]) => `<a href="${href}" data-link${href === current ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
+      <span class="muted small">${esc(admin.name ?? usernameOf(user))} · <button class="link-btn" data-action="sign-out">Sign out</button></span>
     </div>`;
 }

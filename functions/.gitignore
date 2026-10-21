@@ -1,3 +1,0 @@
-node_modules/
-# Local copies of secrets for the emulator. Never commit.
-.secret.local
