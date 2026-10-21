@@ -487,3 +487,164 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 .skeleton { background: linear-gradient(90deg, #e4e9f4 0%, #f2f5fb 50%, #e4e9f4 100%); background-size: 200% 100%; animation: shimmer 1.2s infinite linear; border-radius: var(--radius); }
 @keyframes shimmer { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } .btn:hover, a.event-card:hover { transform: none; } }
+
+/* ---------- Teams list ---------- */
+.team-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.team-card { --theme: var(--blue); padding: 0; overflow: hidden; text-decoration: none; display: grid; }
+a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.tc-banner { height: 74px; border-bottom: 3px solid var(--ink); background: linear-gradient(120deg, var(--theme), color-mix(in srgb, var(--theme) 40%, var(--sky))); }
+.tc-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tc-body { display: flex; align-items: flex-end; gap: 12px; padding: 0 14px 14px; }
+.tc-logo { flex: none; width: 64px; height: 64px; margin-top: -32px; border-radius: 16px; border: 3px solid var(--ink); background: var(--surface); object-fit: cover; box-shadow: 2px 2px 0 var(--ink); }
+.tc-logo.mono { display: grid; place-items: center; font: 700 18px var(--font-head); color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; }
+.tc-text { min-width: 0; padding-top: 8px; }
+.tc-text h3 { font-size: 19px; overflow-wrap: anywhere; }
+.tc-tag { font-weight: 700; font-size: 13px; color: color-mix(in srgb, var(--theme) 70%, var(--ink)); }
+
+/* =====================================================================================
+   Desktop "game menu" look (1024px and wider): a replica of just volleyball's own menus.
+   Black top and bottom bars with yellow edges, the court behind everything, tilted menu
+   cards on Home, a team box with player slots, and a player bar with level and XP.
+   Phones and tablets keep the light layout above.
+   ===================================================================================== */
+@media (max-width: 1023px) {
+  .desktop-only, .party, .top-icons, .playerbar, .topnav .wide-only { display: none !important; }
+}
+@media (min-width: 1024px) {
+  :root {
+    --g-bar: #0c0d12;      /* the game's black bars */
+    --g-card: #1d1f2a;     /* dark menu cards */
+    --g-yellow: #ffd23f;   /* the game's warm yellow */
+    --g-text: #e9eaf2;
+    --playerbar-h: 76px;
+  }
+  .mobile-only { display: none !important; }
+  body {
+    background: var(--g-bar) url("/images/art/court-bg.jpg") center top / cover fixed;
+    padding-bottom: var(--playerbar-h);
+  }
+
+  /* ----- Top bar ----- */
+  .topbar { background: var(--g-bar); border-bottom: 4px solid var(--g-yellow); }
+  .topbar-inner { max-width: none; padding: 12px 28px; gap: 26px; }
+  .brand { font-size: 34px; }
+  .topnav { margin-left: 0; gap: 4px; }
+  .topnav a { text-transform: lowercase; font-family: var(--font-head); font-weight: 600; font-size: 19px; color: var(--g-text); padding: 9px 22px; border: 0; }
+  .topnav a:hover { background: rgba(255, 255, 255, 0.08); border: 0; color: #fff; }
+  .topnav a[aria-current="page"] { background: var(--g-yellow); color: #1b1b1f; border: 0; }
+
+  /* Team box, like the game's "create party" slots */
+  .party { display: flex; align-items: center; gap: 10px; margin-left: auto; padding: 7px 14px 7px 7px; background: var(--g-card); border-radius: 999px; border: 2px solid rgba(255, 255, 255, 0.06); }
+  .party-lead { display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px; border-radius: 999px; background: #222b4d; color: #5b8cff; border: 0; font: 600 16px var(--font-head); text-decoration: none; cursor: pointer; white-space: nowrap; }
+  .party-lead:hover { background: #28335c; color: #7ea4ff; }
+  .party-lead .discord-logo { width: 20px; height: 20px; }
+  .party-lead .dot { border-color: rgba(255, 255, 255, 0.4); }
+  .slots { display: flex; gap: 8px; }
+  .slot { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.14); color: rgba(255, 255, 255, 0.35); font: 600 18px var(--font-head); text-decoration: none; overflow: hidden; background: rgba(255, 255, 255, 0.03); }
+  a.slot:hover { border-color: var(--g-yellow); color: var(--g-yellow); }
+  .slot-img { width: 100%; height: 100%; object-fit: cover; display: grid; place-items: center; background: #fff; color: var(--ink); font: 700 15px var(--font-head); }
+  .top-icons { display: flex; gap: 12px; margin-left: auto; }
+  .round-btn { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--g-card); color: #fff; border: 2px solid rgba(255, 255, 255, 0.1); cursor: pointer; }
+  .round-btn svg { width: 22px; height: 22px; fill: currentColor; }
+  .round-btn:hover { border-color: var(--g-yellow); }
+  .round-btn.danger { background: #ef3e4a; border-color: #ef3e4a; }
+  .round-btn.danger:hover { border-color: #fff; }
+
+  /* ----- Content: light "glass" sheet over the court (stat tables stay easy to read) ----- */
+  main.page { max-width: 1180px; }
+  main.page:not(:has(.home-stage)):not(:has(.pro)) {
+    margin: 24px auto; padding: 24px 28px 32px;
+    background: rgba(241, 247, 255, 0.95); border: 3px solid var(--ink); border-radius: 24px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  }
+  .pro .section-head h2 { background: var(--surface); padding: 2px 12px; border: 2px solid var(--ink); border-radius: 12px; }
+  .pro-bg { opacity: 1; }
+
+  /* ----- Home: the game's main menu ----- */
+  main.page:has(.home-stage) { max-width: none; padding: 0 0 32px; }
+  .home-stage { display: flex; align-items: center; min-height: calc(100vh - 80px - var(--playerbar-h)); padding: 24px 0 24px clamp(24px, 6vw, 120px); }
+  .game-menu { display: grid; gap: 14px; width: min(580px, 46vw); }
+  .gm-card {
+    --r: 0deg; --x: 0px;
+    display: flex; align-items: center; gap: 18px; width: calc(100% - var(--x)); margin-left: var(--x);
+    padding: 14px 24px 14px 16px; background: var(--g-card); color: #fff; text-decoration: none; text-align: left; font: inherit; cursor: pointer;
+    border: 3px solid var(--g-bar); border-radius: 22px; box-shadow: 0 7px 0 rgba(0, 0, 0, 0.28);
+    transform: rotate(var(--r)); transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .gm-card:hover, .gm-card:focus-visible { transform: rotate(var(--r)) translateX(10px) scale(1.02); box-shadow: 0 9px 0 rgba(0, 0, 0, 0.3); }
+  /* The game's cards fan out in a gentle curve, each tilted a little */
+  .game-menu > :nth-child(1) { --r: 1.6deg; --x: 0px; }
+  .game-menu > :nth-child(2) { --r: -0.6deg; --x: 42px; }
+  .game-menu > :nth-child(3) { --r: 0.8deg; --x: 34px; }
+  .game-menu > :nth-child(4) { --r: -0.5deg; --x: 54px; }
+  .game-menu > :nth-child(5) { --r: 0.6deg; --x: 72px; }
+  .game-menu > :nth-child(6) { --r: -1.6deg; --x: 92px; }
+  .gm-feature {
+    background: var(--g-yellow) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23000' stroke-opacity='.10' stroke-width='3'%3E%3Ccircle cx='50' cy='50' r='46'/%3E%3Cpath d='M50 4c-12 18-12 46 0 92M8 34c24 4 52 18 76 46M14 74c18-20 46-34 80-38'/%3E%3C/svg%3E") no-repeat right -20px center / 150px;
+    color: #1b1b1f; padding-top: 18px; padding-bottom: 18px;
+  }
+  .gm-text { display: grid; gap: 3px; min-width: 0; }
+  .gm-text b { font: 600 30px/1 var(--font-head); }
+  .gm-text small { font-size: 14px; opacity: 0.78; }
+  .gm-icon { flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; }
+  .gm-icon svg { width: 28px; height: 28px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .gm-icon .discord-logo { width: 34px; height: 34px; stroke: none; color: #5865f2; }
+  .gm-icon.sm { width: 30px; height: 30px; border-radius: 9px; }
+  .gm-icon.sm svg { width: 17px; height: 17px; fill: #ef3e4a; stroke: none; }
+  .i-white { background: #fff; }
+  .i-white svg { stroke: var(--g-card); }
+  .i-blue { background: #2f6bff; }
+  .i-green { background: #22c55e; }
+  .i-pink { background: #f472b6; }
+  .i-grey { background: #8e93a6; }
+  .gm-pill {
+    --r: -1.6deg; display: flex; align-items: center; gap: 12px; width: calc(100% - 140px); margin-left: 92px;
+    padding: 9px 18px 9px 10px; background: var(--g-yellow); color: #1b1b1f; border: 3px solid var(--g-bar); border-radius: 16px;
+    font: 600 17px var(--font-head); text-decoration: none; transform: rotate(var(--r)); transition: transform 0.12s ease;
+  }
+  .gm-pill:hover { transform: rotate(var(--r)) translateX(10px); }
+  .home-rest {
+    max-width: 1180px; margin: 0 auto; padding: 24px 28px 32px;
+    background: rgba(241, 247, 255, 0.95); border: 3px solid var(--ink); border-radius: 24px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  }
+
+  /* ----- Bottom player bar ----- */
+  .playerbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: var(--playerbar-h);
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 24px;
+    background: var(--g-bar); border-top: 4px solid var(--g-yellow); color: #fff;
+  }
+  .pb-left, .pb-right { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .pb-who { flex: none; display: block; }
+  .pb-avatar { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; object-fit: cover; background: #fff; color: var(--ink); border: 2px solid rgba(255, 255, 255, 0.25); font: 700 22px var(--font-head); }
+  .pb-id { display: grid; gap: 4px; min-width: 0; }
+  .pb-name { font: 600 18px var(--font-head); color: #fff; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  a.pb-name:hover { text-decoration: underline; }
+  .pb-xp { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #b9bccb; white-space: nowrap; }
+  .lv { background: #22c55e; color: #06240f; font-weight: 800; font-size: 12px; padding: 1px 9px; border-radius: 999px; }
+  .xpbar { width: 120px; height: 12px; border-radius: 999px; background: #2a2d39; overflow: hidden; }
+  .xpbar i { display: block; height: 100%; background: linear-gradient(90deg, #22c55e, #86efac); border-radius: 999px; }
+  .pb-gem { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; }
+  .pb-gem svg { width: 22px; height: 22px; }
+  .pb-sep { width: 2px; height: 38px; background: rgba(255, 255, 255, 0.14); }
+  .pill-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 999px; color: #fff; text-decoration: none; font: 600 17px var(--font-head); white-space: nowrap; }
+  .pill-btn svg { width: 20px; height: 20px; fill: currentColor; }
+  .pill-btn.discord { background: #5865f2; }
+  .pill-btn.wishlist { background: #1d8bff; }
+  .pill-btn:hover { filter: brightness(1.1); }
+  .dark-pill { padding: 8px 16px; border-radius: 999px; background: var(--g-card); border: 2px solid rgba(255, 255, 255, 0.16); color: #c9cbe0; font: 500 16px var(--font-head); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+  .dark-pill b { color: #fff; font-weight: 600; }
+  .dark-pill:hover { border-color: var(--g-yellow); }
+  .cta-pill { padding: 10px 28px; border-radius: 999px; background: var(--g-yellow); color: #1b1b1f; font: 700 19px var(--font-head); text-decoration: none; }
+  .cta-pill:hover { filter: brightness(1.05); }
+
+  /* Site footer sits on the court: give it a dark strip so it stays readable */
+  .footer { max-width: 1180px; margin: 0 auto 16px; padding: 12px 20px; border-radius: 14px; background: rgba(12, 13, 18, 0.78); color: var(--g-text); }
+  .footer a { color: #fff; }
+  .save-bar { bottom: calc(var(--playerbar-h) + 12px); }
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  /* Tighter top bar on smaller laptops */
+  .topnav a { padding: 8px 14px; font-size: 17px; }
+  .slots .slot:nth-child(n + 4) { display: none; }
+  .dark-pill { max-width: 220px; }
+}

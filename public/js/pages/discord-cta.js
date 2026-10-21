@@ -31,13 +31,19 @@ export function makeProfileCard({ footer = '' } = {}) {
     </section>`;
 }
 
-// For the Home page: the card for visitors who aren't signed in,
-// a short nudge for signed-in players who haven't finished their profile, otherwise nothing.
-export async function homeProfilePrompt({ hasProfile }) {
+// 'guest' (not signed in), 'new' (signed in, no profile yet) or 'player'.
+export async function profileState(players) {
   const user = await currentUser().catch(() => null);
   const discord = user ? await discordOf(user).catch(() => null) : null;
-  if (!discord) return makeProfileCard({ footer: devSignInAvailable ? '<p class="dc-note"><a href="/me" data-link>Test players (this computer only)</a></p>' : '' });
-  if (!hasProfile(user.uid)) {
+  if (!discord) return 'guest';
+  return players.some((p) => p.uid === user.uid) ? 'player' : 'new';
+}
+
+// For the Home page (phones): the card for visitors who aren't signed in,
+// a short nudge for signed-in players who haven't finished their profile, otherwise nothing.
+export function homeProfilePrompt(state) {
+  if (state === 'guest') return makeProfileCard({ footer: devSignInAvailable ? '<p class="dc-note"><a href="/me" data-link>Test players (this computer only)</a></p>' : '' });
+  if (state === 'new') {
     return `<a class="panel discord-cta slim" href="/me" data-link><div class="dc-mark">${discordLogo()}</div>
       <div class="dc-body"><h2 class="dc-title">Finish your profile!</h2><p class="dc-lead">You’re signed in. Set up your player profile in one step →</p></div></a>`;
   }

@@ -17,7 +17,9 @@ import * as eventEdit from './pages/admin/event-edit.js';
 import * as people from './pages/admin/people.js';
 import * as resultEntry from './pages/admin/result.js';
 import { NotFoundError } from './data.js';
-import { onAdminChange, currentAdmin, startDiscordSignIn } from './auth.js';
+import { onAdminChange, onUserChange, currentAdmin, startDiscordSignIn } from './auth.js';
+import { renderShell } from './shell.js';
+import * as teamsList from './pages/teams.js';
 import { setNav } from './nav.js';
 import { notice } from './ui.js';
 
@@ -31,7 +33,8 @@ const routes = [
   { path: '/event/:eventId', page: events.eventPage, section: '/events' },
   { path: '/match/:eventId/:fixtureId', page: match, section: '/fixtures' },
   { path: '/player/:playerId', page: player, section: '/stats' },
-  { path: '/team/:teamId', page: team, section: '/stats' },
+  { path: '/teams', page: teamsList, section: '/teams' },
+  { path: '/team/:teamId', page: team, section: '/teams' },
   { path: '/me', page: me, section: '/me' },
   { path: '/manage', page: manage, section: '/me' },
   { path: '/auth/discord', page: authCallback, section: '/me' },
@@ -96,6 +99,7 @@ async function show() {
     main.innerHTML = html;
     if (title) document.title = `${title} · ${SITE_NAME}`;
     page.mount?.(main);
+    renderShell(); // keeps the desktop bars (level, team, next match) up to date after saves
   } catch (err) {
     if (id !== renderId) return;
     if (err instanceof NotFoundError) {
@@ -143,6 +147,9 @@ document.addEventListener('change', (e) => {
 });
 
 window.addEventListener('popstate', show);
+
+// Desktop bars follow the player's sign-in.
+onUserChange(() => renderShell());
 
 // The "Admin" menu link appears while the admin (password) sign-in is active.
 onAdminChange(async () => {
