@@ -262,6 +262,7 @@ export function mount(el) {
       const status = root.querySelector('.migrate-status');
       const paths = allImagePaths(page.people);
       const counts = { copied: 0, already: 0, missing: 0, failed: 0 };
+      let firstError = '';
       button.disabled = true;
       for (const [i, path] of paths.entries()) {
         status.textContent = `Checking ${i + 1} of ${paths.length}…`;
@@ -271,9 +272,10 @@ export function mount(el) {
         } catch (err) {
           console.error(path, err);
           counts.failed += 1;
+          firstError ||= `${err.code ? `${err.code}: ` : ''}${err.message}`;
         }
       }
-      status.textContent = `Done: ${counts.copied} moved, ${counts.already} already in Firebase${counts.missing ? `, ${counts.missing} not found anywhere` : ''}${counts.failed ? `, ${counts.failed} failed (press again to retry)` : ''}.`;
+      status.textContent = `Done: ${counts.copied} moved, ${counts.already} already in Firebase${counts.missing ? `, ${counts.missing} not found anywhere` : ''}${counts.failed ? `, ${counts.failed} failed (press again to retry). First problem: ${firstError}` : ''}.`;
       button.disabled = false;
       return;
     }
