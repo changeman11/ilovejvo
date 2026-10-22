@@ -186,6 +186,13 @@ export function loadJoinRequest(teamId, playerId) {
   return getOne(`joinRequests/${teamId}__${playerId}`).catch(() => null);
 }
 
+// ---------- Site settings (settings/{id}: faq, rules) ----------
+
+export function loadSetting(id, { fresh = false, admin = false } = {}) {
+  if (fresh) invalidate(`setting:${id}`);
+  return cached(`setting:${id}`, admin, () => getOne(`settings/${id}`, admin));
+}
+
 // ---------- Admin inbox ----------
 
 // Pending team registrations, leave requests and profile claims.

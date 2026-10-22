@@ -4,6 +4,7 @@
 import { loadAllBundles, loadPublicEvents, loadEventBundle, loadPlayers } from '../data.js';
 import { homeProfilePrompt, profileState } from './discord-cta.js';
 import { menuCards } from '../menu.js';
+import { inAClub } from '../shell.js';
 import { characterSpot, charactersOn, startCharacters } from '../characters.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
@@ -54,10 +55,10 @@ function leaders(stats, b, keys, { limit = 3 } = {}) {
 // ---------- Home ----------
 
 // Desktop: the game-style main menu (stacked, tilted cards over the court), like just volleyball's own.
-function gameMenu(state) {
+function gameMenu(state, hasClub) {
   return `
     <section class="home-stage desktop-only" aria-label="Main menu">
-      <nav class="game-menu">${menuCards(state)}</nav>
+      <nav class="game-menu">${menuCards(state, { hasClub })}</nav>
       ${characterSpot('on-court')}
     </section>`;
 }
@@ -67,7 +68,7 @@ export const home = {
   loading: () => skeleton([220, 300]),
   async render() {
     const [bundles, players] = await Promise.all([loadAllBundles(), loadPlayers()]);
-    const state = await profileState(players);
+    const [state, hasClub] = await Promise.all([profileState(players), inAClub()]);
     const prompt = homeProfilePrompt(state);
     const items = allFixtures(bundles);
     const upcoming = items.filter(({ b, f }) => !b.results[f.id] && isUpcoming(b.event)).slice(0, 6);
@@ -79,7 +80,7 @@ export const home = {
     const { upcoming: events } = sortEvents(bundles.map((b) => b.event));
 
     return `
-      ${gameMenu(state)}
+      ${gameMenu(state, hasClub)}
       <div class="stack home-rest">
         ${prompt ? `<div class="mobile-only">${prompt}</div>` : ''}
         <section class="panel hero mobile-only">

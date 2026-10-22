@@ -59,7 +59,7 @@ export function bindAuthActions(root) {
 
 // "Signed in as" bar with admin navigation, for the top of admin pages.
 export function adminBar(user, admin, current = '') {
-  const links = [['/admin', 'Events'], ['/admin/requests', 'Requests'], ['/admin/people', 'Teams & players']];
+  const links = [['/admin', 'Events'], ['/admin/requests', 'Requests'], ['/admin/people', 'Teams & players'], ['/admin/help', 'FAQ & rules']];
   return `
     <div class="admin-bar">
       <nav class="admin-nav">${links.map(([href, label]) => `<a href="${href}" data-link${href === current ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>

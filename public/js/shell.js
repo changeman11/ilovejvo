@@ -134,15 +134,21 @@ function barHtml({ signedIn, player, team, career, lvl, next, people }) {
 
 // Club tab: shows a padlock until you're in an approved club (phones and computers).
 let hasClub = false;
-export async function updateClubLock() {
+
+// True when the signed-in player is in an approved club.
+export async function inAClub() {
   try {
     const user = await currentUser();
     const people = user ? await loadPeople() : null;
     const player = people?.players.find((p) => p.uid === user.uid);
-    hasClub = Boolean(player?.teamId && isApprovedTeam(people.teamsById[player.teamId]));
+    return Boolean(player?.teamId && isApprovedTeam(people.teamsById[player.teamId]));
   } catch {
-    hasClub = false;
+    return false;
   }
+}
+
+export async function updateClubLock() {
+  hasClub = await inAClub();
   document.documentElement.classList.toggle('no-club', !hasClub);
   drawSide();
 }

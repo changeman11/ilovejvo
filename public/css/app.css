@@ -348,6 +348,26 @@ a.event-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var
 .event-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .prose p { margin: 0 0 12px; max-width: 70ch; }
 .prose p:last-child { margin-bottom: 0; }
+.prose h2, .prose h3 { margin: 18px 0 8px; }
+.prose > :first-child { margin-top: 0; }
+.prose ul, .prose ol { margin: 0 0 12px; padding-left: 22px; max-width: 70ch; }
+.prose li + li { margin-top: 4px; }
+
+/* FAQ & rules (/help) */
+.faq-group h2 { margin: 6px 0 10px; }
+.faq details + details { border-top: 1px solid var(--line); }
+.faq summary { cursor: pointer; padding: 13px 16px; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font: 700 20px/1 var(--font-head); color: var(--blue); }
+.faq details[open] summary::after { content: "–"; }
+.faq summary:hover { background: var(--tint-sky); }
+.faq .prose { padding: 0 16px 14px; }
+.help-foot { margin-top: 16px; }
+.help-edit { display: grid; gap: 14px; }
+.help-edit textarea { width: 100%; font: 14px/1.5 ui-monospace, Consolas, monospace; }
+.help-preview details { margin-bottom: 10px; }
+.help-preview summary { font-weight: 700; }
+@media (min-width: 1100px) { .help-edit { grid-template-columns: 1fr 1fr; align-items: start; } }
 
 /* ---------- Match page ---------- */
 .match-head { text-align: center; padding: 20px 14px; }
@@ -567,6 +587,7 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 /* ---------- Footer ---------- */
 .footer { max-width: 1040px; margin: 0 auto; padding: 24px var(--gutter) 32px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; }
 .footer a { color: var(--muted); font-weight: 700; }
+.footer-links { display: flex; gap: 16px; }
 
 /* ---------- Loading ---------- */
 .skeleton { background: linear-gradient(90deg, #e4e9f4 0%, #f2f5fb 50%, #e4e9f4 100%); background-size: 200% 100%; animation: shimmer 1.2s infinite linear; border-radius: var(--radius); }
@@ -764,6 +785,18 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
   /* ----- Home: the game's main menu ----- */
   main.page:has(.home-stage) { max-width: none; padding: 0 0 32px; }
   .home-stage { display: flex; align-items: center; min-height: calc(100vh - 80px - var(--playerbar-h)); padding: 24px 0 24px clamp(24px, 6vw, 120px); }
+  body.has-reel .home-stage { min-height: calc(100vh - 80px - var(--playerbar-h) - var(--reel-h)); }
+  /* Shorter screens: slimmer cards so the whole menu fits above the bottom bars */
+  @media (max-height: 1000px) {
+    .home-stage { padding-top: 14px; padding-bottom: 14px; }
+    .home-stage .game-menu { gap: 10px; }
+    .home-stage .gm-card { padding-top: 9px; padding-bottom: 9px; }
+    .home-stage .gm-feature { padding-top: 12px; padding-bottom: 12px; }
+    .home-stage .gm-icon { width: 46px; height: 46px; border-radius: 14px; }
+    .home-stage .gm-text b { font-size: 26px; }
+    .home-stage .gm-pill { padding-top: 6px; padding-bottom: 6px; }
+    .home-stage .gm-pills { gap: 8px; }
+  }
   .game-menu { display: grid; gap: 14px; width: min(580px, 46vw); }
   .gm-card {
     --r: 0deg; --x: 0px;
@@ -807,6 +840,10 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
     font: 600 17px var(--font-head); text-decoration: none; transform: rotate(var(--r)); transition: transform 0.12s ease;
   }
   .gm-pill:hover { transform: rotate(var(--r)) translateX(10px); }
+  .gm-pills { display: grid; gap: 10px; }
+  .gm-pill.gm-help { --r: -0.8deg; background: var(--g-card); color: #fff; margin-left: 104px; width: calc(100% - 152px); }
+  .gm-pill.gm-help.on { background: var(--g-yellow); color: #1b1b1f; }
+  .gm-help .gm-icon.sm svg { fill: none; stroke: var(--g-card); stroke-width: 2.6; stroke-linecap: round; }
   .home-rest {
     max-width: 1180px; margin: 0 auto; padding: 24px 28px 32px;
     background: rgba(241, 247, 255, 0.95); border: 3px solid var(--ink); border-radius: 24px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
@@ -830,6 +867,8 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
   .game-menu.side > :nth-child(5) { --x: 24px; }
   .game-menu.side > :nth-child(6) { --x: 28px; }
   .side .gm-pill { width: calc(100% - 40px); margin-left: 30px; font-size: 14px; padding: 7px 12px 7px 8px; }
+  .side .gm-pill.gm-help { margin-left: 36px; width: calc(100% - 46px); }
+  .side .gm-pills { gap: 8px; }
   body.has-side main.page:not(:has(.home-stage)) { margin: 24px 24px 24px 314px; max-width: 1180px; }
   body.has-side .footer { margin-left: 314px; margin-right: 24px; }
   @media (min-width: 1600px) { body.has-side main.page:not(:has(.home-stage)) { margin-left: max(314px, calc(50vw - 590px)); } }

@@ -47,6 +47,13 @@ export async function deleteEvent({ uid, bundle }) {
   invalidate('event');
 }
 
+// ---------- Site settings (FAQ, rules) ----------
+
+export async function saveSetting({ uid, id, existing, data }) {
+  await commit(uid, [{ type: 'set', path: `settings/${id}`, before: existing, data }]);
+  invalidate(`setting:${id}`);
+}
+
 // ---------- Teams and players ----------
 
 // joinPlayer: a player to put on this team in the same save (e.g. the manager when a team is approved).

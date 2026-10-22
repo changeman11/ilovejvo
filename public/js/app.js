@@ -24,6 +24,8 @@ import { updateBell } from './notifications.js';
 import { updateReel } from './reel.js';
 import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
+import * as help from './pages/help.js';
+import * as helpEdit from './pages/admin/help-edit.js';
 import { setNav } from './nav.js';
 import { notice, esc, urls } from './ui.js';
 
@@ -42,12 +44,14 @@ const routes = [
   { path: '/player/:playerId', page: player, section: '/stats', up: () => ({ href: '/stats', label: 'stats' }) },
   { path: '/teams', page: teamsList, section: '/teams', up: toMenu },
   { path: '/team/:teamId', page: team, section: '/teams', up: () => ({ href: '/teams', label: 'teams' }) },
+  { path: '/help', page: help, section: '/help', up: toMenu },
   { path: '/me', page: me, section: '/me', up: toMenu },
   { path: '/club', page: club, section: '/club', up: toMenu },
   { path: '/auth/discord', page: authCallback, section: '/me' },
   { path: '/admin', page: adminHome, section: '/admin', up: toMenu },
   { path: '/admin/requests', page: requests, section: '/admin', up: toAdmin },
   { path: '/admin/people', page: people, section: '/admin', up: toAdmin },
+  { path: '/admin/help', page: helpEdit, section: '/admin', up: toAdmin },
   { path: '/admin/event/:eventId', page: eventEdit, section: '/admin', up: toAdmin },
   { path: '/admin/result/:eventId/:fixtureId', page: resultEntry, section: '/admin', up: (p) => ({ href: urls.adminEvent(p.eventId, 'fixtures'), label: 'the event’s fixtures' }) },
 ];
