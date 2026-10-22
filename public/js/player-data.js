@@ -46,6 +46,23 @@ export async function registerTeam({ uid, player, name, shortName, color, takenI
   return id;
 }
 
+// ---------- Event sign-ups (events/{id}/entries/{teamId}) ----------
+// The team's manager signs the club up, or pulls it out, until 10 minutes before the start.
+
+export async function signUpTeam({ uid, eventId, team }) {
+  await commit(uid, [{
+    type: 'set',
+    path: `events/${eventId}/entries/${team.id}`,
+    data: { teamId: team.id, managerUid: uid, createdAt: serverTimestamp() },
+  }]);
+  invalidate(`event:${eventId}`);
+}
+
+export async function withdrawTeam({ uid, eventId, entry }) {
+  await commit(uid, [{ type: 'delete', path: `events/${eventId}/entries/${entry.id}`, before: entry }]);
+  invalidate(`event:${eventId}`);
+}
+
 // ---------- Comments (teams/{id}/comments, players/{id}/comments) ----------
 // kind: 'team' | 'player'. The rules allow one post every 15 seconds per person.
 

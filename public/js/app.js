@@ -22,6 +22,7 @@ import { renderShell, setSection } from './shell.js';
 import './search.js';
 import { updateBell } from './notifications.js';
 import { updateReel } from './reel.js';
+import { syncSchedules } from './admin-sync.js';
 import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
 import * as help from './pages/help.js';
@@ -153,6 +154,7 @@ async function show() {
     renderShell(); // keeps the desktop bars (level, team, next match) up to date after saves
     updateBell({ force: ['/club', '/me'].includes(location.pathname) });
     updateReel();
+    syncSchedules().catch(() => 0); // admins only: saves schedules that just locked, finals that are ready
   } catch (err) {
     if (id !== renderId) return;
     if (err instanceof NotFoundError) {

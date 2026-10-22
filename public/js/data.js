@@ -10,6 +10,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db, adminDb } from './firebase.js';
 import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './rules/defaults.js';
+import { schedulePlan } from './rules/autofix.js';
 
 export class NotFoundError extends Error {}
 
@@ -125,7 +126,7 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
     }
     if (!event) throw new NotFoundError('That event doesn’t exist');
     const base = `events/${eventId}`;
-    const [teams, players, rosters, fixtures, results, submissions] = await Promise.all([
+    const [teams, players, rosters, fixtures, results, submissions, entries] = await Promise.all([
       loadTeams({ fresh, admin }),
       loadPlayers({ fresh, admin }),
       getAll(`${base}/rosters`, admin),
@@ -133,19 +134,29 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
       getAll(`${base}/results`, admin),
       // Players' result votes (see rules/votes.js). Missing on older events = none yet.
       getAll(`${base}/submissions`, admin).catch(() => []),
+      // Clubs that signed themselves up (rules/autofix.js).
+      getAll(`${base}/entries`, admin).catch(() => []),
     ]);
-    const teamIds = new Set(event.teamIds ?? []);
+    const season = engineSeason(event);
+    const resultsById = Object.fromEntries(results.map((r) => [r.id, r]));
+    const saved = fixtures.map((f) => ({ ...f, round: f.order ?? 0 }));
+    // The live schedule: the round robin from whoever has signed up, and finals placeholders.
+    const plan = schedulePlan({ event, season, entries, fixtures: saved, results: resultsById });
+    const teamIds = new Set(plan.teamIds);
+    season.divisions = [{ id: 'main', teamIds: plan.teamIds }];
     return {
       event,
-      season: engineSeason(event),
+      season,
       teams: teams.filter((t) => teamIds.has(t.id)),
       teamsById: Object.fromEntries(teams.map((t) => [t.id, t])),
       playersById: Object.fromEntries(players.map((p) => [p.id, p])),
       rosters: Object.fromEntries(rosters.map((r) => [r.id, r])),
-      // `round` keeps the engine's ordering for undated fixtures
-      fixtures: fixtures.map((f) => ({ ...f, round: f.order ?? 0 })),
-      results: Object.fromEntries(results.map((r) => [r.id, r])),
+      // `round` keeps the engine's ordering for undated fixtures. Worked-out fixtures have `virtual: true`.
+      fixtures: [...saved, ...plan.virtual.map((f) => ({ ...f, round: f.order ?? 0 }))],
+      results: resultsById,
       submissions,
+      entries,
+      plan,
     };
   });
 }

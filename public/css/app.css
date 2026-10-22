@@ -287,6 +287,7 @@ a.fx:hover { background: var(--surface-2); }
 .fx .meta b { color: var(--ink); font-weight: 700; }
 .day-head { padding: 10px 14px 6px; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); background: var(--tint-sky); border-top: 1px solid var(--line); }
 .fixtures > .day-head:first-child { border-top: 0; }
+.fx .side.tbc span { color: var(--muted); font-style: italic; }
 .round-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .round-head small { font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--muted); font-size: 12px; text-align: right; }
 .fixture-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }

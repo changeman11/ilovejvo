@@ -54,7 +54,7 @@ export function matchesToReport(bundles, player) {
   return bundles
     .filter((b) => b.event.status !== 'cancelled')
     .flatMap((b) => b.fixtures
-      .filter((f) => (f.homeTeamId === player.teamId || f.awayTeamId === player.teamId) && !b.results[f.id])
+      .filter((f) => !f.virtual && (f.homeTeamId === player.teamId || f.awayTeamId === player.teamId) && !b.results[f.id])
       .map((f) => ({ b, f, voted: (b.submissions ?? []).some((s) => s.id === `${f.id}__${player.id}`) })))
     .sort((x, y) => (x.f.scheduledAt ?? Infinity) - (y.f.scheduledAt ?? Infinity) || (x.f.order ?? 0) - (y.f.order ?? 0));
 }
@@ -68,6 +68,10 @@ export async function reportBlock(b, f) {
   const player = Object.values(b.playersById).find((p) => p.uid === user.uid);
   const team = player?.teamId ? b.teamsById[player.teamId] : null;
   if (!player || !isApprovedTeam(team) || (team.id !== f.homeTeamId && team.id !== f.awayTeamId)) return '';
+  // Worked-out fixtures (rules/autofix.js) can't take votes until they're saved at the lock.
+  if (f.virtual) {
+    return '<section class="panel"><p class="muted small" style="margin:0">Result reporting opens when the fixtures lock, 10 minutes before the start.</p></section>';
+  }
 
   const format = formatFor(b.season, f);
   const mine = (b.submissions ?? []).find((s) => s.id === `${f.id}__${player.id}`) ?? null;

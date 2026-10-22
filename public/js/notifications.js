@@ -5,7 +5,8 @@
 import { currentUser } from './auth.js';
 import { loadMe, isApprovedTeam, loadAllBundles } from './data.js';
 import { matchesToReport } from './pages/report.js';
-import { esc, urls, fmtDay } from './ui.js';
+import { esc, urls, fmtDay, fmtTime } from './ui.js';
+import { signupsOpen, lockTime } from './rules/autofix.js';
 
 const box = document.querySelector('[data-bell]');
 const SEEN_KEY = 'jvo.notificationsSeenAt';
@@ -14,6 +15,43 @@ let cache = { at: 0, uid: null, items: [] };
 
 const seenAt = () => { try { return Number(localStorage.getItem(SEEN_KEY) ?? 0); } catch { return 0; } };
 const markSeen = () => { try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch { /* fine */ } };
+
+const DAY = 24 * 3600 * 1000;
+const kind = (e) => (e.type === 'tournament' ? 'tournament' : 'exhibition night');
+const at = (ms) => `${fmtDay(ms)} ${fmtTime(ms)}`;
+
+// Tournament / exhibition reminders: new events, sign-ups to do (managers), sign-ups closing,
+// fixtures set, and "starts soon" for events your club is in.
+function eventReminders(bundles, me, now) {
+  const out = [];
+  const team = isApprovedTeam(me.team) ? me.team : null;
+  const manager = team && team.managerUid === me.player.uid;
+  for (const b of bundles) {
+    const e = b.event;
+    if (e.status !== 'upcoming') continue;
+    const href = urls.event(e.id);
+    const title = `<b>${esc(e.title)}</b>`;
+    const inIt = team && b.plan.teamIds.includes(team.id);
+    const open = signupsOpen(e, now);
+    const closes = lockTime(e);
+
+    if (manager && open && !inIt) {
+      out.push({ id: `ev-signup-${e.id}`, at: e.createdAt ?? now, icon: '📝', text: `Sign ${esc(team.name)} up for ${title}${closes ? `<br>Closes ${esc(at(closes))}` : ''}`, href });
+      if (closes && closes - now < DAY) {
+        out.push({ id: `ev-closing-${e.id}`, at: closes - DAY, noDate: true, icon: '⏰', text: `Last chance: sign-ups for ${title} close ${esc(at(closes))}`, href });
+      }
+    } else if (!inIt && e.createdAt && now - e.createdAt < 7 * DAY) {
+      out.push({ id: `ev-new-${e.id}`, at: e.createdAt, icon: '📣', text: `New ${kind(e)}: ${title}${e.date ? ` · ${esc(fmtDay(e.date))}` : ''}`, href });
+    }
+    if (inIt && e.fixturesLockedAt) {
+      out.push({ id: `ev-fixtures-${e.id}`, at: e.fixturesLockedAt, icon: '📋', text: `Fixtures are set for ${title}`, href });
+    }
+    if (inIt && e.date && e.date > now && e.date - now < DAY) {
+      out.push({ id: `ev-soon-${e.id}`, at: e.date - DAY, noDate: true, icon: '🏐', text: `${title} starts ${e.timeTbd ? esc(fmtDay(e.date)) : esc(at(e.date))}. Good luck!`, href });
+    }
+  }
+  return out;
+}
 
 // [{ id, at, text (HTML), href }] newest first.
 async function gather(uid) {
@@ -38,8 +76,9 @@ async function gather(uid) {
       items.push({ id: `leave-${l.id}-${l.status}`, at: l.updatedAt ?? 0, icon: '🚪', text: `Your request to leave was <b>${l.status}</b>`, href: '/club' });
     }
   }
+  const bundles = await loadAllBundles().catch(() => []);
+  items.push(...eventReminders(bundles, me, now));
   if (isApprovedTeam(me.team)) {
-    const bundles = await loadAllBundles().catch(() => []);
     for (const { b, f } of matchesToReport(bundles, me.player).filter((x) => !x.voted)) {
       if (!f.scheduledAt || f.scheduledAt > now) continue; // only matches that should have been played
       items.push({ id: `vote-${b.event.id}-${f.id}`, at: f.scheduledAt, icon: '🏐', text: `Report the result: <b>${team(f.homeTeamId)}</b> v <b>${team(f.awayTeamId)}</b>`, href: urls.match(b.event.id, f.id) });
@@ -59,7 +98,7 @@ function draw(items, open = false) {
     </button>
     <div class="bell-panel" ${open ? '' : 'hidden'} role="dialog" aria-label="Notifications">
       <b class="bell-title">Notifications</b>
-      ${items.length ? `<ul>${items.slice(0, 12).map((i) => `<li><a href="${esc(i.href)}" data-link><span class="bell-icon">${i.icon}</span><span>${i.text}${i.at ? `<small>${esc(fmtDay(i.at))}</small>` : ''}</span></a></li>`).join('')}</ul>`
+      ${items.length ? `<ul>${items.slice(0, 12).map((i) => `<li><a href="${esc(i.href)}" data-link><span class="bell-icon">${i.icon}</span><span>${i.text}${i.at && !i.noDate ? `<small>${esc(fmtDay(i.at))}</small>` : ''}</span></a></li>`).join('')}</ul>`
         : '<p class="muted small">Nothing new. Invites and club news show up here.</p>'}
     </div>`;
 }

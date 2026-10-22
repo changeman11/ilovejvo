@@ -102,6 +102,13 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7 && d.playerStats is map;
     }
+    function signupsOpen(eventId) {
+      let e = get(/databases/$(database)/documents/events/$(eventId)).data;
+      return e.published == true && e.get('signups', false) == true && e.status == 'upcoming'
+          && e.get('fixturesLockedAt', null) == null
+          && (e.get('date', null) == null || e.get('timeTbd', false) == true
+              || request.time < e.date - duration.value(10, 'm'));
+    }
     function fixtureDoc(eventId, fixtureId) { return get(/databases/$(database)/documents/events/$(eventId)/fixtures/$(fixtureId)).data; }
     // A vote as it will be after this save (so a vote and the result it completes can be saved together).
     function voteAfter(eventId, voteId) { return getAfter(/databases/$(database)/documents/events/$(eventId)/submissions/$(voteId)).data; }
@@ -166,6 +173,20 @@ service cloud.firestore {
           || (signedIn() && resource.data.uid == uid()
               && !exists(/databases/$(database)/documents/events/$(eventId)/results/$(resource.data.fixtureId)));
       }
+      // ---------- Club sign-ups (id = teamId) ----------
+      // A club's manager signs it up or pulls it out while sign-ups are open: the event is public and
+      // upcoming, sign-ups are switched on, the fixtures aren't locked, and it's more than 10 minutes
+      // before the start (an event without a start time stays open until an admin locks it).
+      match /entries/{teamId} {
+        allow read: if eventPublished(eventId) || isAdmin();
+        allow create: if signupsOpen(eventId) && managesTeam(teamId) && stampedByMe()
+          && request.resource.data.keys().hasOnly(['teamId', 'managerUid', 'createdAt', 'updatedBy', 'updatedAt'])
+          && request.resource.data.teamId == teamId && request.resource.data.managerUid == uid()
+          && request.resource.data.createdAt == request.time;
+        allow delete: if isAdmin() || (signupsOpen(eventId) && managesTeam(teamId));
+        allow create, update: if isAdmin() && stampedByMe();
+      }
+
       match /{collection}/{docId} {
         allow read: if eventPublished(eventId) || isAdmin();
         allow create, update: if isAdmin() && stampedByMe() && collection in ['fixtures', 'rosters'];

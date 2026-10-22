@@ -9,7 +9,9 @@ import {
   EVENT_TYPES, EVENT_STATUSES, validateEvent, dateFromInputs, inputsFromDate, eventDateLabel,
 } from '../../rules/events.js';
 import { roundRobin, missingGames } from '../../rules/schedule.js';
-import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture, addFixtures } from '../../admin-data.js';
+import { AUTO_MODES, FINALS_TYPES, lockTime, isLocked, schedulePlan } from '../../rules/autofix.js';
+import { syncSchedules } from '../../admin-sync.js';
+import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture, addFixtures, saveSchedule, removeEntry } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
 import { resultOf } from '../parts.js';
@@ -113,7 +115,8 @@ function teamsHtml() {
   const players = [...people.players].sort((x, y) => x.displayName.localeCompare(y.displayName));
   const rosterOf = (teamId) => new Set(b.rosters[teamId]?.playerIds ?? []);
 
-  const rosterPanels = teams.filter((t) => inEvent.has(t.id)).map((t) => {
+  const signedUp = new Map(b.entries.map((x) => [x.teamId, x]));
+  const rosterPanels = teams.filter((t) => inEvent.has(t.id) || signedUp.has(t.id)).map((t) => {
     const roster = rosterOf(t.id);
     const squad = players.filter((p) => p.teamId === t.id);
     // Squad members first, then everyone else.
@@ -129,8 +132,16 @@ function teamsHtml() {
 
   return `
     <div class="stack">
+      ${signedUp.size ? `<section class="panel flush rows">
+        <div class="section-head" style="padding:12px 16px 0"><h3>Signed up by their managers</h3></div>
+        ${[...signedUp.values()].map((x) => {
+          const t = people.teams.find((tt) => tt.id === x.teamId);
+          return `<div class="row"><span class="row-main"><b><span class="team">${teamDot(t)}${esc(t?.name ?? x.teamId)}</span></b><span class="muted small">${x.createdAt ? `${fmtDay(x.createdAt)} ${fmtTime(x.createdAt)}` : ''}</span></span>
+            <span class="row-side"><button type="button" class="btn btn-sm btn-danger" data-act="remove-entry" data-id="${esc(x.id)}">Remove</button></span></div>`;
+        }).join('')}
+      </section>` : ''}
       <section class="panel" data-teams>
-        <div class="section-head"><h3>Teams in this event</h3><a href="/admin/people" data-link>Add teams &amp; players</a></div>
+        <div class="section-head"><h3>Teams added by admins</h3><a href="/admin/people" data-link>Add teams &amp; players</a></div>
         ${teams.length ? `<div class="tick-list">${teams.map((t) => `<label class="check"><input type="checkbox" value="${esc(t.id)}" ${inEvent.has(t.id) ? 'checked' : ''}> ${teamDot(t)} ${esc(t.name)}</label>`).join('')}</div>
         <button type="button" class="btn btn-primary btn-sm" data-act="save-teams" style="margin-top:10px">Save teams</button>`
         : '<p class="muted">No teams yet. Add some under Teams &amp; players first.</p>'}
@@ -167,6 +178,38 @@ function fixtureForm(f) {
     </form>`;
 }
 
+// Sign-ups, self-adjusting fixtures and finals (rules/autofix.js).
+function scheduleSettingsHtml() {
+  const e = page.b.event;
+  const finals = e.finals ?? {};
+  const closes = lockTime(e);
+  const locked = isLocked(e);
+  let lockLine;
+  if (e.fixturesLockedAt) lockLine = `Fixtures locked ${fmtDay(e.fixturesLockedAt)} ${fmtTime(e.fixturesLockedAt)}.`;
+  else if (locked) lockLine = 'Locked: the fixtures are being saved.';
+  else if (closes) lockLine = `Sign-ups close and the fixtures lock at ${fmtDay(closes)} ${fmtTime(closes)} (10 minutes before the start).`;
+  else lockLine = 'This event has no start time, so it won’t lock by itself. Set a date and time on Details, or lock it yourself.';
+  return `
+    <form class="panel" data-form="schedule">
+      <div class="section-head"><h3>Sign-ups, fixtures &amp; finals</h3></div>
+      <label class="check"><input type="checkbox" name="signups" ${e.signups ? 'checked' : ''}> Clubs can sign themselves up on the event page${e.published ? '' : ' (once the event is published)'}</label>
+      <label class="field"><span>Fixtures</span><select name="autoFixtures">${Object.entries(AUTO_MODES).map(([k, v]) => opt(k, v, e.autoFixtures ?? 'off')).join('')}</select></label>
+      <p class="muted small" style="margin-top:-6px">Round robin fixtures follow the sign-ups (clubs joining or pulling out) until the lock, then they’re fixed.</p>
+      <div class="field-row">
+        <label class="field"><span>Finals</span><select name="finalsType">${Object.entries(FINALS_TYPES).map(([k, v]) => opt(k, v, finals.type ?? 'none')).join('')}</select></label>
+        <label class="field"><span>Semi-finals best of</span><select name="semiBestOf">${[3, 5].map((n) => opt(n, String(n), finals.semiBestOf ?? 3)).join('')}</select></label>
+        <label class="field"><span>Final best of</span><select name="finalBestOf">${[3, 5].map((n) => opt(n, String(n), finals.finalBestOf ?? 5)).join('')}</select></label>
+      </div>
+      <p class="muted small" style="margin-top:-6px">Finals seeds come from the event table once every other match has a result. Finals don’t count in the table.</p>
+      <p class="small"><b>${esc(lockLine)}</b> ${page.b.entries.length} club${page.b.entries.length === 1 ? '' : 's'} signed up.</p>
+      <div class="actions">
+        <button class="btn btn-primary btn-sm" type="submit">Save settings</button>
+        ${!e.fixturesLockedAt && e.autoFixtures && e.autoFixtures !== 'off' ? '<button class="btn btn-sm" type="button" data-act="lock-now">Lock fixtures now</button>' : ''}
+      </div>
+      <p class="form-error" role="alert" hidden></p>
+    </form>`;
+}
+
 function fixturesHtml(editId) {
   const { b } = page;
   const list = [...b.fixtures].sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
@@ -176,17 +219,19 @@ function fixturesHtml(editId) {
     const { result, check } = resultOf(b, f);
     const when = f.scheduledAt ? `${fmtDay(f.scheduledAt)} ${f.timeTbd ? '· Time TBD' : fmtTime(f.scheduledAt)}` : 'Date TBD';
     const status = check?.ok ? `<span class="tag tag-live">${check.homeSets}–${check.awaySets}</span>` : result ? '<span class="tag tag-draft">Check result</span>' : '';
+    const draft = f.virtual ? `<span class="tag tag-draft">${f.auto ? 'Draft: saves at the lock' : 'Waiting for teams'}</span>` : '';
     return `
       <div class="row">
         <span class="row-main">
-          <b><span class="team">${teamDot(home)}${esc(home?.name ?? 'TBC')}</span> v <span class="team">${esc(away?.name ?? 'TBC')}${teamDot(away)}</span></b>
+          <b><span class="team">${teamDot(home)}${esc(home?.name ?? f.homePlaceholder ?? 'TBC')}</span> v <span class="team">${esc(away?.name ?? f.awayPlaceholder ?? 'TBC')}${teamDot(away)}</span></b>
           <span class="muted small">${[f.label, when, f.bestOf ? `Best of ${f.bestOf}` : ''].filter(Boolean).map(esc).join(' · ')}</span>
         </span>
         <span class="row-side">
-          ${status}
+          ${status}${draft}
+          ${f.virtual ? '' : `
           <a class="btn btn-sm btn-primary" href="${urls.adminResult(b.event.id, f.id)}" data-link>${result ? 'Edit result' : 'Result'}</a>
           <a class="btn btn-sm" href="${urls.adminEvent(b.event.id, 'fixtures')}&edit=${encodeURIComponent(f.id)}" data-link data-keep-scroll>Edit</a>
-          <button type="button" class="btn btn-sm btn-danger" data-act="delete-fixture" data-id="${esc(f.id)}">Delete</button>
+          <button type="button" class="btn btn-sm btn-danger" data-act="delete-fixture" data-id="${esc(f.id)}">Delete</button>`}
         </span>
       </div>
       ${editId === f.id ? fixtureForm(f) : ''}`;
@@ -194,6 +239,8 @@ function fixturesHtml(editId) {
 
   return `
     <div class="stack">
+      ${scheduleSettingsHtml()}
+      ${b.plan.finalsNote ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
       <div class="event-links">
         <a class="btn btn-primary" href="${urls.adminEvent(b.event.id, 'fixtures')}&edit=new" data-link data-keep-scroll>+ Add fixture</a>
         ${b.teams.length >= 2 ? `
@@ -216,7 +263,10 @@ export async function render({ eventId }) {
   const params = new URLSearchParams(location.search);
   const isNew = eventId === 'new';
   let b = null;
-  if (!isNew) b = await loadEventBundle(eventId, { fresh: true, admin: true });
+  if (!isNew) {
+    await syncSchedules({ force: true }).catch(() => 0); // save a locked schedule / ready finals first
+    b = await loadEventBundle(eventId, { fresh: true, admin: true });
+  }
   if (!isNew && !b) throw new NotFoundError('That event doesn’t exist');
   const people = await loadPeople({ fresh: true, admin: true });
   const askedType = params.get('type');
@@ -288,6 +338,24 @@ export function mount(el) {
         console.error(err);
         form.querySelector('[type=submit]').disabled = false;
         showError(root, failMessage(err));
+      }
+    }
+
+    if (form.dataset.form === 'schedule') {
+      const val = (n) => form.querySelector(`[name=${n}]`).value;
+      const changes = {
+        signups: form.querySelector('[name=signups]').checked,
+        autoFixtures: val('autoFixtures'),
+        finals: { type: val('finalsType'), semiBestOf: Number(val('semiBestOf')), finalBestOf: Number(val('finalBestOf')) },
+      };
+      form.querySelector('[type=submit]').disabled = true;
+      try {
+        await saveEvent({ id: page.id, uid, event: payload(changes), existing: page.existing });
+        refresh();
+      } catch (err) {
+        console.error(err);
+        form.querySelector('[type=submit]').disabled = false;
+        showError(form, failMessage(err));
       }
     }
 
@@ -372,6 +440,31 @@ export function mount(el) {
         if (!window.confirm(result ? 'Delete this fixture and its result?' : 'Delete this fixture?')) return;
         button.disabled = true;
         await deleteFixture({ eventId: page.id, uid, fixture, result });
+        refresh();
+      }
+
+      if (act === 'lock-now') {
+        if (!window.confirm('Lock the fixtures now? Sign-ups close and the round robin stops changing.')) return;
+        button.disabled = true;
+        const b = page.b;
+        // Work the plan out as if the lock time had passed, then save it.
+        const plan = schedulePlan({
+          event: { ...b.event, status: 'upcoming', date: b.event.date ?? Date.now(), timeTbd: false, fixturesLockedAt: null },
+          season: b.season,
+          entries: b.entries,
+          fixtures: b.fixtures.filter((f) => !f.virtual),
+          results: b.results,
+          now: Infinity,
+        });
+        await saveSchedule({ eventId: page.id, uid, fixtures: plan.toSave, lockGroup: true, event: b.event });
+        refresh();
+      }
+
+      if (act === 'remove-entry') {
+        const entry = page.b.entries.find((x) => x.id === button.dataset.id);
+        if (!entry || !window.confirm('Take this club out of the event?')) return;
+        button.disabled = true;
+        await removeEntry({ eventId: page.id, uid, entry });
         refresh();
       }
 

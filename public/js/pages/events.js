@@ -1,15 +1,19 @@
 // Public pages: Home, the Events list and one event's page.
 // Only published events (and their fixtures/results) ever reach these.
 
-import { loadAllBundles, loadPublicEvents, loadEventBundle, loadPlayers } from '../data.js';
+import { loadAllBundles, loadPublicEvents, loadEventBundle, loadPlayers, isApprovedTeam } from '../data.js';
 import { homeProfilePrompt, profileState } from './discord-cta.js';
 import { menuCards } from '../menu.js';
 import { inAClub } from '../shell.js';
 import { characterSpot, charactersOn, startCharacters } from '../characters.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
-import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls } from '../ui.js';
-import { allFixtures, fixtureRow, fixturesByDay, resultOf, standingsTable } from './parts.js';
+import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime } from '../ui.js';
+import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable } from './parts.js';
+import { signupsOpen, lockTime } from '../rules/autofix.js';
+import { currentUser } from '../auth.js';
+import { signUpTeam, withdrawTeam } from '../player-data.js';
+import { refresh } from '../nav.js';
 import { careerStats, topPlayers, statDefsFor } from './career.js';
 
 // ---------- Shared bits ----------
@@ -160,12 +164,68 @@ export const eventsList = {
 
 // ---------- One event ----------
 
+// Club sign-ups on the event page. Managers sign up or pull out; everyone sees who's in and when it closes.
+let signupCtx = null; // { user, team, entry, eventId }
+
+async function signupBox(b) {
+  const e = b.event;
+  signupCtx = null;
+  if (!e.signups) return '';
+  const open = signupsOpen(e);
+  const closes = lockTime(e);
+  const count = b.entries.length;
+  const user = await currentUser().catch(() => null);
+  const me = user ? Object.values(b.playersById).find((p) => p.uid === user.uid) : null;
+  const team = me?.teamId ? b.teamsById[me.teamId] : null;
+  const manager = isApprovedTeam(team) && team.managerUid === user.uid;
+  const entry = team ? b.entries.find((x) => x.teamId === team.id) : null;
+  if (manager) signupCtx = { user, team, entry, eventId: e.id };
+
+  const when = closes ? `Sign-ups close ${fmtDay(closes)} ${fmtTime(closes)} (10 minutes before the start).` : 'Sign-ups stay open until the start time is set.';
+  let action = '';
+  if (!open) action = `<p class="small" style="margin:6px 0 0"><b>Sign-ups are closed.</b>${entry ? ` ${esc(team.name)} is in.` : ''}</p>`;
+  else if (manager && entry) action = `<div class="join-box"><span>✓ <b>${esc(team.name)}</b> is signed up.</span> <button class="btn btn-sm" type="button" data-act="withdraw-entry">Pull out</button></div>`;
+  else if (manager) action = `<div class="join-box"><button class="btn btn-primary" type="button" data-act="sign-up">Sign up ${esc(team.name)}</button></div>`;
+  else if (team && isApprovedTeam(team)) action = `<p class="small" style="margin:6px 0 0">${entry ? `✓ ${esc(team.name)} is signed up.` : `Ask your manager to sign ${esc(team.name)} up.`}</p>`;
+  else action = '<p class="small" style="margin:6px 0 0">Club managers can sign their club up here.</p>';
+
+  return `
+    <section class="panel signup-box">
+      <div class="section-head"><h2>Club sign-ups</h2><span class="muted small">${count} club${count === 1 ? '' : 's'} in</span></div>
+      ${open ? `<p class="muted small" style="margin:0">${esc(when)}${e.autoFixtures && e.autoFixtures !== 'off' ? ' The fixtures update as clubs sign up, then lock.' : ''}</p>` : ''}
+      ${action}
+      <p class="form-error" role="alert" hidden></p>
+    </section>`;
+}
+
 export const eventPage = {
   title: 'Event',
   loading: () => skeleton([180, 320]),
+  mount(el) {
+    if (!signupCtx) return;
+    const { user, team, entry, eventId } = signupCtx;
+    el.querySelector('.signup-box')?.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('[data-act]');
+      if (!btn) return;
+      if (btn.dataset.act === 'withdraw-entry' && !window.confirm(`Pull ${team.name} out of this event?`)) return;
+      btn.disabled = true;
+      try {
+        if (btn.dataset.act === 'sign-up') await signUpTeam({ uid: user.uid, eventId, team });
+        else await withdrawTeam({ uid: user.uid, eventId, entry });
+        refresh();
+      } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        const msg = el.querySelector('.signup-box .form-error');
+        msg.textContent = err.code === 'permission-denied' ? 'Sign-ups have closed for this event.' : 'That didn’t save. Check your connection and try again.';
+        msg.hidden = false;
+      }
+    });
+  },
   async render({ eventId }) {
-    const b = await loadEventBundle(eventId);
+    const b = await loadEventBundle(eventId, { fresh: true });
     const e = b.event;
+    const signups = await signupBox(b);
     const items = [...b.fixtures].sort((x, y) => (x.scheduledAt ?? Infinity) - (y.scheduledAt ?? Infinity) || (x.order ?? 0) - (y.order ?? 0)).map((f) => ({ b, f }));
     const stats = careerStats([b]);
     const signup = safeUrl(e.signupUrl);
@@ -187,12 +247,14 @@ export const eventPage = {
               ${stream ? `<a class="btn" href="${esc(stream)}" target="_blank" rel="noopener">▶ ${isUpcoming(e) ? 'Watch live' : 'Watch back'}</a>` : ''}
             </div>` : ''}
           </section>
+          ${signups}
 
           <div class="cols">
             <div class="stack">
               <section>
-                <div class="section-head"><h2>Fixtures &amp; results</h2></div>
-                <div class="panel flush fixtures">${items.length ? fixturesByDay(items) : '<p class="muted" style="padding:16px">Fixtures haven’t been announced yet.</p>'}</div>
+                <div class="section-head"><h2>Fixtures &amp; results</h2>${b.plan.virtual.some((f) => f.auto) ? '<span class="tag tag-draft">Draft until the lock</span>' : ''}</div>
+                <div class="panel flush fixtures">${items.length ? fixturesByRound(items) : `<p class="muted" style="padding:16px">${e.autoFixtures && e.autoFixtures !== 'off' ? 'Fixtures appear here once two clubs have signed up.' : 'Fixtures haven’t been announced yet.'}</p>`}</div>
+                ${b.plan.finalsNote ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
               </section>
               ${table ? `<section><div class="section-head"><h2>Table</h2></div><div class="panel flush">${standingsTable(table, b)}</div></section>` : ''}
             </div>

@@ -29,7 +29,9 @@ export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = n
   const { result, check } = resultOf(b, f);
   const played = Boolean(check?.ok);
   const homeWon = played && check.winner === 'home';
-  const side = (team, cls) => `<div class="side ${cls}">${cls.includes('away') ? `<span>${esc(team?.name ?? 'TBC')}</span>${teamDot(team)}` : `${teamDot(team)}<span>${esc(team?.name ?? 'TBC')}</span>`}</div>`;
+  // Finals not yet decided show "1st place", "Winner SF1"...
+  const nameOf = (team, cls) => team?.name ?? (cls.includes('away') ? f.awayPlaceholder : f.homePlaceholder) ?? 'TBC';
+  const side = (team, cls) => `<div class="side ${cls}${team ? '' : ' tbc'}">${cls.includes('away') ? `<span>${esc(nameOf(team, cls))}</span>${teamDot(team)}` : `${teamDot(team)}<span>${esc(nameOf(team, cls))}</span>`}</div>`;
 
   let mid;
   if (played) mid = `<span class="score num">${check.homeSets}<i>–</i>${check.awaySets}</span>`;
@@ -44,6 +46,7 @@ export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = n
     f.label && !(hideRound && roundName(f) === f.label.trim()) ? esc(f.label) : '',
     played && !timeOnly && f.scheduledAt ? fmtDay(f.scheduledAt) : '',
     result?.forfeit ? 'Forfeit' : '',
+    f.virtual && f.auto ? 'Draft: changes as clubs sign up' : '',
     bestOf !== 3 ? `Best of ${bestOf}` : '',
   ].filter(Boolean);
 

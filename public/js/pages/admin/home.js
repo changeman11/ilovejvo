@@ -5,6 +5,7 @@ import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents } from '../../r
 import { esc, skeleton, urls } from '../../ui.js';
 import { fixtureRow } from '../parts.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
+import { syncSchedules } from '../../admin-sync.js';
 
 export const title = 'Admin';
 
@@ -21,6 +22,7 @@ export async function render() {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
 
+  await syncSchedules({ force: true }).catch(() => 0); // save locked schedules and ready finals
   const [events, bundles] = await Promise.all([loadAllEvents(), loadAllBundles({ includeDrafts: true, fresh: true })]);
   const { upcoming, past } = sortEvents(events);
   const now = Date.now();

@@ -26,6 +26,7 @@ export async function saveEvent({ id, uid, event, existing }) {
     data: {
       ...event,
       date: ts(event.date),
+      fixturesLockedAt: event.fixturesLockedAt ? ts(event.fixturesLockedAt) : null,
       createdAt: existing?.createdAt ? ts(existing.createdAt) : serverTimestamp(),
       createdBy: existing?.createdBy ?? uid,
     },
@@ -38,7 +39,8 @@ export async function saveEvent({ id, uid, event, existing }) {
 export async function deleteEvent({ uid, bundle }) {
   const id = bundle.event.id;
   const ops = [
-    ...bundle.fixtures.map((f) => ({ type: 'delete', path: `events/${id}/fixtures/${f.id}`, before: f })),
+    ...bundle.fixtures.filter((f) => !f.virtual).map((f) => ({ type: 'delete', path: `events/${id}/fixtures/${f.id}`, before: f })),
+    ...(bundle.entries ?? []).map((e) => ({ type: 'delete', path: `events/${id}/entries/${e.id}`, before: e })),
     ...Object.values(bundle.results).map((r) => ({ type: 'delete', path: `events/${id}/results/${r.id}`, before: r })),
     ...Object.values(bundle.rosters).map((r) => ({ type: 'delete', path: `events/${id}/rosters/${r.id}`, before: r })),
     { type: 'delete', path: `events/${id}`, before: bundle.event },
@@ -121,16 +123,43 @@ export async function saveRoster({ eventId, teamId, uid, roster, existing }) {
   invalidate(`event:${eventId}`);
 }
 
+// A fixture as stored: without the fields pages add while showing it.
+export function storedFixture(fixture) {
+  const { id: _id, round: _round, virtual: _v, homePlaceholder: _hp, awayPlaceholder: _ap, ...data } = fixture;
+  return data;
+}
+
 export async function saveFixture({ eventId, id, uid, fixture, existing }) {
   const fixtureId = id ?? newId(`events/${eventId}/fixtures`);
   await commit(uid, [{
     type: 'set',
     path: `events/${eventId}/fixtures/${fixtureId}`,
-    before: existing,
-    data: { ...fixture, scheduledAt: ts(fixture.scheduledAt) },
+    before: existing?.virtual ? null : existing,
+    data: { ...storedFixture(fixture), scheduledAt: ts(fixture.scheduledAt) },
   }]);
   invalidate(`event:${eventId}`);
   return fixtureId;
+}
+
+// Takes a club that signed itself up out of an event.
+export async function removeEntry({ eventId, uid, entry }) {
+  await commit(uid, [{ type: 'delete', path: `events/${eventId}/entries/${entry.id}`, before: entry }]);
+  invalidate(`event:${eventId}`);
+}
+
+// Saves the worked-out schedule (rules/autofix.js schedulePlan().toSave) with its own ids.
+// lockGroup: also mark the round robin as fixed, so it stops following sign-ups.
+export async function saveSchedule({ eventId, uid, fixtures, lockGroup, event }) {
+  const ops = fixtures.map((f) => ({
+    type: 'set',
+    path: `events/${eventId}/fixtures/${f.id}`,
+    data: { ...storedFixture(f), scheduledAt: ts(f.scheduledAt) },
+  }));
+  if (lockGroup && !event.fixturesLockedAt) {
+    ops.push({ type: 'update', path: `events/${eventId}`, before: event, data: { fixturesLockedAt: serverTimestamp() } });
+  }
+  if (ops.length) await commit(uid, ops);
+  invalidate(`event:${eventId}`);
 }
 
 // Several new fixtures in one save (auto-generated schedules).
@@ -154,7 +183,7 @@ export async function deleteFixture({ eventId, uid, fixture, result }) {
 // Saves a result and marks the fixture completed, together.
 // swapTeams: { homeTeamId, awayTeamId } if the admin swapped home/away.
 export async function saveResult({ eventId, fixture, uid, result, existing, swapTeams = null }) {
-  const { id: _id, round: _round, ...fixtureData } = fixture;
+  const fixtureData = storedFixture(fixture);
   await commit(uid, [
     {
       type: 'set',
@@ -213,7 +242,7 @@ export async function decideClaim({ uid, claim, approve }) {
 }
 
 export async function deleteResult({ eventId, fixture, uid, existing }) {
-  const { id: _id, round: _round, ...fixtureData } = fixture;
+  const fixtureData = storedFixture(fixture);
   await commit(uid, [
     { type: 'delete', path: `events/${eventId}/results/${fixture.id}`, before: existing },
     {

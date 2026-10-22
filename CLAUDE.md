@@ -30,6 +30,18 @@
     - Players with a profile can post, up to 500 characters.
     - One post per 15 seconds, enforced through `commentLimits/{uid}` in the same save.
     - The writer, the page owner and admins can delete.
+- **Club sign-ups, self-adjusting fixtures, finals (added 2026-10-23):**
+  - **Sign-ups:** managers sign their club up on the event page, saved as `events/{e}/entries/{teamId}`. They can sign up or pull out until 10 minutes before the start, when `event.signups` is on and the event is published and upcoming. An event with no start time stays open until an admin locks it. Enforced by `signupsOpen()` in firestore.rules.
+  - **Who's in:** the event's teams are the admin-added `teamIds` plus every club that signed up.
+  - **Auto fixtures:** with `event.autoFixtures` set to `once` or `double`, the round robin is worked out live from the entrants and shown as drafts (`virtual: true`, ids `auto-r<round>-<home>-<away>`). At the lock, any admin browser saves them and sets `event.fixturesLockedAt` (`admin-sync.js`; this runs on admin pages and on every page while an admin is signed in). There is no server, so this needs an admin to be online around the start.
+  - **Finals:** `event.finals = { type: 'none'|'final'|'semis', semiBestOf, finalBestOf }`. Finals fixtures (`finals-sf1`, `finals-sf2`, `finals-final`, `stage: 'playoffs'`) show placeholders such as "1st place" or "Winner SF1". They're saved once both teams are known, and they don't count in the table.
+  - **Where it lives:** the logic is in `rules/autofix.js` (tested), settings are on the admin event page's Fixtures tab, and players can't report results on draft fixtures.
+  - **Bell reminders:**
+    - new events
+    - sign-ups to do (managers)
+    - sign-ups closing within 24 hours
+    - fixtures set
+    - your event starts within 24 hours
 - **Audit log:** written by the browser in the same batch as each admin change; rules force `by == uid` and make it append-only.
 - **Look:** light "beach day" theme in the style of the game *just volleyball* (temkosoft): ball-blue `#1438d8` header, sky background, deep navy `#18204a` outlines (not black), accents sky / teal / coral / purple, yellow `#ffe200` for small highlights only (big yellow + black areas looked like an adult site, per users, 2026-10-21). Teal wins, pink losses, outlined "sticker" panels, Fredoka headings, Graduate (jersey-style) numbers. The official logo is used with the developer's OK (`public/images/game/`, credited and linked to Steam). Avoid generic "AI dashboard" styling.
 - The match engine (`public/js/rules/`) is unchanged: Bo3 sets to 10 win by 2, a fixture can be Bo5; forfeit = 2–0, 10–0. The engine's "season" is built from an event by `engineSeason()` in `data.js`.
