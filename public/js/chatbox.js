@@ -4,7 +4,7 @@
 // - Admins see a ⚑ on messages with swearing and can delete any message.
 
 import {
-  onSnapshot, collection, query, orderBy, limit, doc, writeBatch, serverTimestamp, deleteDoc,
+  onSnapshot, collection, query, orderBy, limit, doc, writeBatch, serverTimestamp, deleteDoc, getDocsFromServer,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db, adminDatabase } from './firebase.js';
 import { loadPeople } from './data.js';
@@ -88,20 +88,48 @@ export function mountChatbox(root, opts) {
   }
 
   const q = query(collection(db, opts.path), orderBy('createdAt', 'desc'), limit(opts.show ?? 60));
-  const stopListen = onSnapshot(q, (snap) => {
-    messages = snap.docs
+  // Messages sent from this browser that the live connection hasn't delivered yet (shown straight away).
+  const sentHere = new Map();
+
+  function show(docs) {
+    const fromServer = docs
       .map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }))
-      .map((m) => ({ ...m, createdAt: m.createdAt?.toMillis?.() ?? null }))
-      .reverse();
+      .map((m) => ({ ...m, createdAt: m.createdAt?.toMillis?.() ?? null }));
+    for (const m of fromServer) sentHere.delete(m.id);
+    messages = [...fromServer, ...sentHere.values()].sort((a, b) => (a.createdAt ?? Infinity) - (b.createdAt ?? Infinity));
     if (messages.some((m) => !people.playersById[m.authorPlayerId])) {
       loadPeople({ fresh: true }).then((p) => { people = p; draw(); }).catch(() => {});
     }
     draw();
     opts.onMessages?.(messages);
-  }, (e) => {
-    console.warn('Chat:', e);
-    if (log) log.innerHTML = '<p class="muted small">The chat couldn’t load. Refresh to try again.</p>';
-  });
+  }
+
+  let stopListen = () => {};
+  let failures = 0;
+  function listen() {
+    stopListen();
+    stopListen = onSnapshot(q, (snap) => { failures = 0; show(snap.docs); }, (e) => {
+      console.warn('Chat:', e);
+      failures += 1;
+      // Try again a few times (e.g. the connection dropped), then say so.
+      if (failures <= 3) setTimeout(listen, 2000 * failures);
+      else if (log) log.innerHTML = '<p class="muted small">The chat couldn’t load. Refresh to try again.</p>';
+    });
+  }
+  listen();
+
+  // Fetches the latest messages straight from the server, and reconnects the live updates.
+  async function catchUp() {
+    try {
+      const snap = await getDocsFromServer(q);
+      show(snap.docs);
+    } catch (e) { console.warn('Chat catch-up:', e); }
+    listen();
+  }
+  // Coming back to a tab the browser froze in the background: reconnect.
+  const onVisible = () => { if (!document.hidden) catchUp(); };
+  document.addEventListener('visibilitychange', onVisible);
+
   const redrawOnFilter = () => draw();
   document.addEventListener('jvo-chat-filter', redrawOnFilter);
 
@@ -118,10 +146,18 @@ export function mountChatbox(root, opts) {
     try {
       const batch = writeBatch(db);
       if (opts.rateLimit) batch.set(doc(db, `chatLimits/${opts.user.uid}`), { lastAt: serverTimestamp() });
-      batch.set(doc(collection(db, opts.path)), { body, authorUid: opts.user.uid, authorPlayerId: opts.player.id, createdAt: serverTimestamp() });
+      const ref = doc(collection(db, opts.path));
+      batch.set(ref, { body, authorUid: opts.user.uid, authorPlayerId: opts.player.id, createdAt: serverTimestamp() });
       await batch.commit();
       form.body.value = '';
+      // Show it now, even if the live connection is slow; then make sure the live updates are working.
+      if (!messages.some((m) => m.id === ref.id)) {
+        sentHere.set(ref.id, { id: ref.id, body, authorUid: opts.user.uid, authorPlayerId: opts.player.id, createdAt: Date.now() });
+        messages = [...messages, sentHere.get(ref.id)];
+        draw();
+      }
       log.scrollTop = log.scrollHeight;
+      setTimeout(() => { if (sentHere.has(ref.id)) catchUp(); }, 3000);
     } catch (e) {
       console.error(e);
       say(e.code === 'permission-denied'
@@ -150,6 +186,9 @@ export function mountChatbox(root, opts) {
 
   return () => {
     stopListen();
+    stopListen = () => {};
+    failures = 99; // no more retries
+    document.removeEventListener('visibilitychange', onVisible);
     document.removeEventListener('jvo-chat-filter', redrawOnFilter);
   };
 }

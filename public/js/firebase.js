@@ -9,8 +9,6 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import {
   initializeFirestore,
   connectFirestoreEmulator,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   memoryLocalCache,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { firebaseConfig, useEmulators, emulatorPorts } from './config.js';
@@ -18,16 +16,11 @@ import { firebaseConfig, useEmulators, emulatorPorts } from './config.js';
 export const app = initializeApp(firebaseConfig);
 export const adminApp = initializeApp(firebaseConfig, 'admin');
 
-// Offline cache for the public site: the last data you saw still shows when you lose signal.
-// Falls back to memory-only if the browser blocks storage (e.g. some private windows).
-let localCache;
-try {
-  localCache = persistentLocalCache({ tabManager: persistentMultipleTabManager() });
-} catch {
-  localCache = memoryLocalCache();
-}
-
-export const db = initializeFirestore(app, { localCache });
+// Each tab keeps its own in-memory copy. (A shared offline copy across tabs was dropped on
+// 2026-10-23: one tab "owns" the connection, and when that tab sits frozen in the background the
+// other tabs stop getting live updates, which broke the live chat.)
+// Long polling is used automatically on networks that block the normal live connection.
+export const db = initializeFirestore(app, { localCache: memoryLocalCache(), experimentalAutoDetectLongPolling: true });
 // Admin data is always fetched fresh, so no offline copy is kept.
 export const adminDb = initializeFirestore(adminApp, { localCache: memoryLocalCache() });
 
