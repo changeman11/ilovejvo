@@ -53,7 +53,9 @@ export async function render({ eventId, fixtureId }) {
     // Admin-entered screenshot links, plus screenshots players attached to their votes.
     const voteShots = (b.submissions ?? []).filter((v) => v.fixtureId === f.id).flatMap((v) => v.screenshotPaths ?? []).map(mediaUrl);
     const shots = [...(result.screenshots ?? []).map(safeUrl), ...voteShots].filter(Boolean);
+    const statsWaiting = result.statsStatus === 'pending' && !Object.keys(result.playerStats ?? {}).length;
     body = `
+      ${statsWaiting ? notice('Stats coming soon', ' The score is in. An admin is checking the end-of-match screenshot for everyone’s stats.') : ''}
       ${boxScore(b, f.homeTeamId, result)}
       ${boxScore(b, f.awayTeamId, result)}
       ${vod || shots.length ? `<section class="panel">

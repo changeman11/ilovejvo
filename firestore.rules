@@ -123,25 +123,23 @@ service cloud.firestore {
           && d.keys().hasOnly(['fixtureId', 'playerId', 'uid', 'teamId', 'sets', 'playerStats', 'screenshotPaths', 'createdAt', 'updatedBy', 'updatedAt']);
     }
 
-    // A result published by players: it must be exactly what one home-team vote and one away-team vote
-    // agree on. Same set scores in both votes; the stat lines are the two votes' lines put together
-    // (map "diff" proves nothing was added or changed); written by one of the two voters.
+    // A SCORE published by players: exactly the set scores one home-team vote and one away-team vote
+    // agree on, written by one of the two voters. No stats or MVP: an admin adds those after checking
+    // the screenshots (statsStatus 'pending').
     function agreedResult(eventId, fixtureId) {
       let d = request.resource.data;
       let f = fixtureDoc(eventId, fixtureId);
       let h = voteAfter(eventId, d.confirmedBy[0]);
       let a = voteAfter(eventId, d.confirmedBy[1]);
       return signedIn() && stampedByMe() && eventPublished(eventId) && validResult()
-          && d.keys().hasOnly(['sets', 'playerStats', 'mvpPlayerId', 'forfeit', 'confirmedBy', 'source', 'enteredBy', 'enteredAt', 'updatedBy', 'updatedAt'])
+          && d.keys().hasOnly(['sets', 'playerStats', 'mvpPlayerId', 'forfeit', 'confirmedBy', 'source', 'statsStatus', 'enteredBy', 'enteredAt', 'updatedBy', 'updatedAt'])
           && d.confirmedBy is list && d.confirmedBy.size() == 2
           && h.fixtureId == fixtureId && a.fixtureId == fixtureId
           && h.teamId == f.homeTeamId && a.teamId == f.awayTeamId
           && (h.uid == uid() || a.uid == uid())
           && h.sets == d.sets && a.sets == d.sets
-          && d.playerStats.diff(h.playerStats).affectedKeys() == a.playerStats.keys().toSet()
-          && d.playerStats.diff(a.playerStats).affectedKeys() == h.playerStats.keys().toSet()
-          && d.forfeit == null
-          && (d.mvpPlayerId == null || d.mvpPlayerId in d.playerStats);
+          && d.playerStats.size() == 0 && d.mvpPlayerId == null
+          && d.statsStatus == 'pending' && d.forfeit == null;
     }
 
     // ---------- Events (exhibition nights, tournaments): admin-run ----------

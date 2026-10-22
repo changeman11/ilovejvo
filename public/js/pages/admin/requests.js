@@ -26,6 +26,16 @@ export async function render() {
     .filter((f) => !b.results[f.id])
     .map((f) => ({ b, f, tally: tallyVotes((b.submissions ?? []).filter((s) => s.fixtureId === f.id), f) }))
     .filter((x) => x.tally.status === 'disputed'));
+  // Scores that went live from players' votes, waiting for an admin to add the stats from screenshots.
+  const statsToCheck = bundles.flatMap((b) => b.fixtures
+    .filter((f) => b.results[f.id]?.statsStatus === 'pending')
+    .map((f) => ({ b, f, shots: (b.submissions ?? []).filter((v) => v.fixtureId === f.id).reduce((n, v) => n + (v.screenshotPaths?.length ?? 0), 0) })));
+  const statsRows = statsToCheck.map(({ b, f, shots }) => `
+    <div class="row">
+      <span class="row-main"><b>${esc(b.teamsById[f.homeTeamId]?.name ?? 'TBC')} v ${esc(b.teamsById[f.awayTeamId]?.name ?? 'TBC')}</b>
+        <span class="muted small">${esc(b.event.title)} · ${shots ? `${shots} screenshot${shots === 1 ? '' : 's'} to read` : 'no screenshot yet'}</span></span>
+      <span class="row-side"><a class="btn btn-sm btn-primary" href="${urls.adminResult(b.event.id, f.id)}" data-link>Check stats</a></span>
+    </div>`).join('');
   const disputeRows = disputes.map(({ b, f, tally }) => {
     const name = (id) => esc(b.teamsById[id]?.name ?? 'TBC');
     const says = (votes) => votes.map((v) => `${esc(b.playersById[v.playerId]?.displayName ?? v.playerId)}: ${esc(voteLabel(v.sets))}`).join(' · ');
@@ -79,8 +89,10 @@ export async function render() {
         ${adminBar(gate.user, gate.admin, '/admin/requests')}
         <div class="page-head"><div><h1>Requests</h1><p class="muted">Things players are waiting on.</p></div></div>
         <div class="stack">
-          <section><div class="section-head"><h2>Results the teams disagree on</h2></div><div class="panel flush rows">${disputeRows || empty('No disagreements. Results both teams agree on go live by themselves.')}</div>
-            <p class="muted small" style="margin-top:6px">Open one to see each team’s vote and copy the right one into the result.</p></section>
+          <section><div class="section-head"><h2>Stats to check</h2></div><div class="panel flush rows">${statsRows || empty('Nothing waiting. Matches appear here once both teams agree on the score.')}</div>
+            <p class="muted small" style="margin-top:6px">The score is already live. Open one, press “Read stats” on a screenshot, check names and numbers, then save.</p></section>
+          <section><div class="section-head"><h2>Scores the teams disagree on</h2></div><div class="panel flush rows">${disputeRows || empty('No disagreements. Scores both teams agree on go live by themselves.')}</div>
+            <p class="muted small" style="margin-top:6px">Open one to see each team’s vote and screenshots, then enter the right score.</p></section>
           <section><div class="section-head"><h2>New teams</h2></div><div class="panel flush rows">${teams || empty('No team registrations waiting.')}</div>
             <p class="muted small" style="margin-top:6px">Approving makes the person who registered it the manager.</p></section>
           <section><div class="section-head"><h2>Leave requests</h2></div><div class="panel flush rows">${leaves || empty('No leave requests waiting.')}</div>

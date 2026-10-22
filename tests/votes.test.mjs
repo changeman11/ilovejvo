@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tallyVotes, resultFromVotes, sameSets, ownTeamLines, voteLabel } from '../public/js/rules/votes.js';
+import { tallyVotes, resultFromVotes, sameSets, ownTeamLines, voteLabel, mvpFor } from '../public/js/rules/votes.js';
 import { DEFAULT_FORMAT } from '../public/js/rules/defaults.js';
 
 const fixture = { id: 'f1', homeTeamId: 'H', awayTeamId: 'A' };
@@ -33,19 +33,21 @@ test('votes from teams not in the match are ignored', () => {
   assert.equal(tallyVotes([sub('x', 'Z', S21, 1), sub('h1', 'H', S21, 2)], fixture).status, 'waiting');
 });
 
-test('agreed result combines each team’s own stat lines and suggests the MVP', () => {
-  const home = sub('h1', 'H', S21, 1, {
-    hp1: { teamId: 'H', pts: 12 }, hp2: { teamId: 'H', pts: 5 },
-    ap1: { teamId: 'A', pts: 99 }, // a home voter can't vouch for the away team
-  });
-  const away = sub('a1', 'A', S21, 2, { ap1: { teamId: 'A', pts: 9 } });
+test('agreed votes publish the score only; stats wait for an admin', () => {
+  const home = sub('h1', 'H', S21, 1, { hp1: { teamId: 'H', pts: 99 } }); // stats in a vote are never published
+  const away = sub('a1', 'A', S21, 2);
   const r = resultFromVotes({ home, away }, fixture, DEFAULT_FORMAT);
   assert.deepEqual(r.sets, S21);
-  assert.deepEqual(Object.keys(r.playerStats).sort(), ['ap1', 'hp1', 'hp2']);
-  assert.equal(r.playerStats.ap1.pts, 9);
-  assert.equal(r.mvpPlayerId, 'hp1', 'top scorer on the winning (home) team');
+  assert.deepEqual(r.playerStats, {});
+  assert.equal(r.mvpPlayerId, null);
+  assert.equal(r.statsStatus, 'pending');
   assert.deepEqual(r.confirmedBy, ['h1', 'a1']);
   assert.equal(r.forfeit, null);
+});
+
+test('MVP once an admin has added the stats', () => {
+  const r = { sets: S21, playerStats: { hp1: { teamId: 'H', pts: 12 }, hp2: { teamId: 'H', pts: 5 }, ap1: { teamId: 'A', pts: 20 } } };
+  assert.equal(mvpFor(r, fixture, DEFAULT_FORMAT), 'hp1', 'top scorer on the winning (home) team');
 });
 
 test('invalid scores never become a result', () => {

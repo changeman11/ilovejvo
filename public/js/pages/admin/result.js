@@ -8,7 +8,9 @@ import { formatFor } from '../../rules/season.js';
 import { forfeitSets, visibleSetCount, cleanStatLine, suggestMvp, reviewResult } from '../../rules/results.js';
 import { voteLabel } from '../../rules/votes.js';
 import { shotThumbs } from '../report.js';
-import { saveResult, deleteResult } from '../../admin-data.js';
+import { saveResult, deleteResult, rememberGameNames } from '../../admin-data.js';
+import { matchNames } from '../../rules/endscreen.js';
+import { mediaUrl, oldMediaUrl } from '../../media.js';
 import { navigate } from '../../nav.js';
 import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
 import { statHeads } from '../parts.js';
@@ -179,6 +181,143 @@ function votesPanel() {
     </section>`;
 }
 
+// ---------- Reading stats from end-of-match screenshots ----------
+// page.reading: { url, rows: [{ side, nameText, name, playerId, stats: { pts: { value, sure } | null } }] }
+// page.aliases: [{ playerId, name }] in-game names to remember on save.
+
+// Players this match could involve: both squads, both event rosters, anyone already entered.
+function candidatePlayers() {
+  const { b, state: s } = page;
+  const ids = new Set();
+  for (const teamId of [s.homeId, s.awayId]) {
+    for (const p of Object.values(b.playersById)) if (p.teamId === teamId) ids.add(p.id);
+    for (const pid of b.rosters[teamId]?.playerIds ?? []) ids.add(pid);
+    for (const r of s.players[teamId]) ids.add(r.pid);
+  }
+  return [...ids].map((id) => b.playersById[id]).filter(Boolean);
+}
+
+const teamOfPlayer = (pid) => {
+  const s = page.state;
+  for (const teamId of [s.homeId, s.awayId]) {
+    if (s.players[teamId].some((r) => r.pid === pid) || page.b.rosters[teamId]?.playerIds?.includes(pid) || page.b.playersById[pid]?.teamId === teamId) return teamId;
+  }
+  return null;
+};
+
+function screenshotsPanel() {
+  const shots = fixtureVotes().flatMap((v) => (v.screenshotPaths ?? []).map((p) => ({ url: mediaUrl(p), who: page.b.playersById[v.playerId]?.displayName ?? v.playerId })));
+  const r = page.reading;
+  const players = candidatePlayers().sort((x, y) => x.displayName.localeCompare(y.displayName));
+  const defs = statDefs();
+  const cell = (row, i, d) => {
+    const c = row.stats[d.key];
+    if (c === null || c === undefined) return `<td><input type="number" min="0" inputmode="numeric" data-read-stat="${d.key}" data-row="${i}" value="" class="unread" title="Not on the screenshot (cut off)" placeholder="?"></td>`;
+    return `<td><input type="number" min="0" inputmode="numeric" data-read-stat="${d.key}" data-row="${i}" value="${c.value}" class="${c.sure ? '' : 'unsure'}" ${c.sure ? '' : 'title="Check this one"'}></td>`;
+  };
+  return `
+    <section class="panel shots-panel">
+      <h3 style="margin-bottom:6px">Stats from screenshots</h3>
+      <p class="muted small" style="margin-bottom:10px">Read a screenshot, check the names and numbers against it, then “Use these stats”. Yellow = check this number; “?” = not on the screenshot.</p>
+      <div class="vote-shots read-shots">
+        ${shots.map((s) => `<figure><a href="${esc(s.url)}" target="_blank" rel="noopener"><img src="${esc(s.url)}" alt="Screenshot from ${esc(s.who)}"></a>
+          <figcaption><button type="button" class="btn btn-sm btn-primary" data-act="read-shot" data-url="${esc(s.url)}">Read stats</button> <span class="muted small">from ${esc(s.who)}</span></figcaption></figure>`).join('')}
+        <figure class="upload-shot"><label class="btn btn-sm">Read a screenshot from this computer…<input type="file" accept="image/*" data-read-file hidden></label></figure>
+      </div>
+      <p class="small read-status" aria-live="polite">${esc(r?.message ?? '')}</p>
+      ${r ? `
+      <div class="read-view">
+        <a href="${esc(r.url)}" target="_blank" rel="noopener" class="read-view-shot"><img src="${esc(r.url)}" alt="The screenshot being read"></a>
+        <div class="table-wrap"><table class="data entry read-table">
+          <thead><tr><th class="first">On screen → player</th>${defs.map((d) => `<th>${esc(d.label)}</th>`).join('')}</tr></thead>
+          <tbody>${r.rows.map((row, i) => `
+            <tr>
+              <td class="first">
+                <span class="small"><b>${esc(row.name || '?')}</b> <span class="muted">(${row.side})</span></span>
+                <select data-assign="${i}"><option value="">Not one of ours / bot</option>${players.map((p) => `<option value="${esc(p.id)}"${row.playerId === p.id ? ' selected' : ''}>${esc(p.displayName)}${b_teamTag(p.id)}</option>`).join('')}</select>
+              </td>
+              ${defs.map((d) => cell(row, i, d)).join('')}
+            </tr>`).join('')}</tbody>
+        </table></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+          <button type="button" class="btn btn-primary" data-act="use-reading">Use these stats</button>
+          <button type="button" class="link-btn" data-act="clear-reading">Discard</button>
+        </div>
+      </div>` : ''}
+    </section>`;
+}
+const b_teamTag = (pid) => {
+  const t = teamOfPlayer(pid);
+  return t ? ` · ${page.b.teamsById[t]?.shortName ?? ''}` : '';
+};
+
+async function readShot(root, source) {
+  const status = root.querySelector('.read-status');
+  const { readEndScreen } = await import('../../ocr.js');
+  let blob = source;
+  let url = typeof source === 'string' ? source : URL.createObjectURL(source);
+  try {
+    if (typeof source === 'string') {
+      // Older screenshots may still be on the Cloudflare Worker.
+      let res = await fetch(source);
+      if (!res.ok && source.includes('/o/')) {
+        url = oldMediaUrl(decodeURIComponent(source.split('/o/')[1].split('?')[0]));
+        res = await fetch(url);
+      }
+      if (!res.ok) throw new Error('Couldn’t load that screenshot.');
+      blob = await res.blob();
+    }
+    const out = await readEndScreen(blob, { onProgress: (t) => { status.textContent = t; } });
+    const rows = out.panels.flatMap((panel, pi) => panel.rows.map((row) => ({ ...row, side: pi === 0 ? 'left' : 'right' })));
+    const candidates = candidatePlayers().map((p) => ({ id: p.id, names: [p.displayName, ...(p.gameNames ?? [])] }));
+    const matched = matchNames(rows.map((r) => r.name), candidates);
+    rows.forEach((r, i) => { r.playerId = matched[i].playerId; });
+    const found = rows.filter((r) => r.playerId).length;
+    page.reading = { url, rows, message: `Read ${rows.length} players; ${found} matched by name automatically. Check every name and number against the screenshot.` };
+  } catch (err) {
+    console.error(err);
+    status.textContent = err.message?.startsWith('Couldn’t find') ? err.message : 'Couldn’t read that screenshot. Try a full-screen PNG of the end-of-match screen.';
+    return;
+  }
+  redraw(root);
+  root.querySelector('.read-view')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+// Copies the checked reading into the result form (and remembers new in-game names).
+function useReading(root) {
+  const s = page.state;
+  const r = page.reading;
+  const keys = statKeys();
+  root.querySelectorAll('[data-assign]').forEach((sel) => { r.rows[Number(sel.dataset.assign)].playerId = sel.value || null; });
+  const unplaced = [];
+  page.aliases = [];
+  for (const [i, row] of r.rows.entries()) {
+    if (!row.playerId) continue;
+    const teamId = teamOfPlayer(row.playerId);
+    if (!teamId) { unplaced.push(page.b.playersById[row.playerId]?.displayName ?? row.playerId); continue; }
+    const line = Object.fromEntries(keys.map((k) => [k, root.querySelector(`[data-read-stat="${k}"][data-row="${i}"]`)?.value ?? '']));
+    const list = s.players[teamId];
+    const existing = list.find((x) => x.pid === row.playerId);
+    if (existing) Object.assign(existing, { played: true, line });
+    else list.push({ pid: row.playerId, played: true, line });
+    const p = page.b.playersById[row.playerId];
+    const known = [p?.displayName, ...(p?.gameNames ?? [])].some((n) => n && n.toLowerCase() === row.name.toLowerCase());
+    // Remember the on-screen name (3+ letters, so short misreadings like "Ab" aren't kept).
+    if (row.name?.length >= 3 && !known) page.aliases.push({ playerId: row.playerId, name: row.name });
+  }
+  // Players not in the reading didn't play.
+  const read = new Set(r.rows.map((x) => x.playerId).filter(Boolean));
+  for (const teamId of [s.homeId, s.awayId]) for (const x of s.players[teamId]) if (!read.has(x.pid)) x.played = false;
+  page.reading = null;
+  redraw(root);
+  if (unplaced.length) showError(root, `${unplaced.join(', ')} isn’t on either team for this match. Add them under the right team below.`);
+  const check = checkResult(draftResult().result.sets, page.format);
+  if (check.ok && !s.mvp) {
+    s.mvp = suggestMvp(draftResult().result.playerStats, check.winner === 'home' ? s.homeId : s.awayId) ?? '';
+    updateLive(root);
+  }
+}
+
 // Fills the form from a vote (scores in the fixture's home/away order, flipped if the admin swapped).
 function useVote(vote) {
   const { fixture, format } = page;
@@ -224,6 +363,7 @@ function formHtml() {
       ${swapped ? '<p class="small" style="margin-top:8px;font-weight:700">Swapped: the fixture will be saved this way round.</p>' : ''}
     </section>
     ${votesPanel()}
+    ${s.mode === 'played' ? screenshotsPanel() : ''}
 
     <section class="panel">
       <div class="segmented" role="radiogroup" aria-label="Result type">
@@ -397,6 +537,11 @@ export function mount(el) {
       redraw(root);
       return;
     }
+    if (e.target.matches('[data-read-file]') && e.target.files?.[0]) {
+      readShot(root, e.target.files[0]);
+      return;
+    }
+    if (e.target.closest('.read-table')) return; // the reading table isn't part of the result until "Use"
     const add = e.target.closest('[data-add-player]');
     if (add && add.value) {
       readForm(root);
@@ -413,6 +558,19 @@ export function mount(el) {
     if (!button) return;
     const s = page.state;
     readForm(root);
+
+    if (button.dataset.act === 'read-shot') {
+      button.disabled = true;
+      await readShot(root, button.dataset.url);
+      button.disabled = false;
+      return;
+    }
+    if (button.dataset.act === 'use-reading') return useReading(root);
+    if (button.dataset.act === 'clear-reading') {
+      page.reading = null;
+      redraw(root);
+      return;
+    }
 
     if (button.dataset.act === 'use-vote') {
       const vote = fixtureVotes().find((v) => v.id === button.dataset.id);
@@ -442,15 +600,23 @@ export function mount(el) {
       button.disabled = true;
       button.textContent = 'Saving…';
       try {
-        const { fixture } = page;
+        const { fixture, existing } = page;
+        // Keep how the score was confirmed (players' votes), and mark stats as checked once there are some.
+        const keep = existing?.source === 'votes' ? { source: 'votes', confirmedBy: existing.confirmedBy ?? [] } : {};
+        const hasStats = Object.keys(result.playerStats ?? {}).length > 0;
         await saveResult({
           eventId: page.eventId,
           fixture,
           uid: page.user.uid,
-          result,
-          existing: page.existing,
+          result: { ...keep, ...result, statsStatus: hasStats || result.forfeit ? 'reviewed' : (existing?.statsStatus ?? null) },
+          existing,
           swapTeams: s.homeId !== fixture.homeTeamId ? { homeTeamId: s.homeId, awayTeamId: s.awayId } : null,
         });
+        // Remember in-game names read from screenshots, so next time they match by themselves.
+        if (page.aliases?.length) {
+          await rememberGameNames({ uid: page.user.uid, aliases: page.aliases, playersById: page.b.playersById }).catch((err) => console.warn('Couldn’t save in-game names', err));
+          page.aliases = [];
+        }
         navigate(urls.match(page.eventId, fixture.id));
       } catch (err) {
         console.error(err);

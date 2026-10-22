@@ -10,3 +10,6 @@ serviceAccount*.json
 
 # Cloudflare Worker local test data and cache (never commit)
 worker/.wrangler/
+
+# Local test copies (not deployed)
+public/dev/

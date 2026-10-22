@@ -523,6 +523,16 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 .vote-shots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .vote-shots img { width: 96px; height: 54px; object-fit: cover; border: 2px solid var(--ink); border-radius: 6px; background: var(--surface-2); }
 .vote-shots a:hover img { border-color: var(--blue); }
+.report-steps { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 4px; }
+.read-shots { gap: 12px; }
+.read-shots figure { margin: 0; display: grid; gap: 4px; justify-items: start; }
+.read-shots img { width: 200px; height: 112px; }
+.read-view { display: grid; gap: 12px; margin-top: 12px; }
+.read-view-shot img { width: 100%; max-height: 420px; object-fit: contain; border: 2px solid var(--ink); border-radius: 8px; background: #111; }
+.read-table select { margin-top: 4px; min-height: 34px; padding: 4px 8px; font-size: 13px; }
+.read-table td.first { min-width: 190px; white-space: normal; }
+.read-table input.unsure { background: var(--tint-yellow); border-color: #c79a00; }
+.read-table input.unread { background: var(--tint-coral); }
 .report-flash { margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; background: var(--tint-teal); border: 2px solid var(--teal); font-weight: 700; }
 
 /* ---------- Back button (every page except Home) ---------- */

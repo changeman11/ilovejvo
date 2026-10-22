@@ -1,7 +1,9 @@
 // Result votes: after a match, any player on either team submits the set scores (their vote on
-// who won and by how much) plus their own team's stat lines. When a player from each team has
-// submitted the SAME set scores, the result is agreed and goes live; the two teams' stat lines are
-// combined. Pure functions, no Firebase. firestore.rules checks the same agreement on save.
+// who won and by how much) plus end-of-match screenshots. When a player from each team has
+// submitted the SAME set scores, the SCORE goes live straight away (so tournaments keep moving).
+// Player stats come later: an admin reads them from the screenshots and checks them
+// (statsStatus 'pending' -> 'reviewed'). Pure functions, no Firebase. firestore.rules checks the
+// same agreement on save.
 
 import { checkResult } from './match.js';
 import { suggestMvp } from './results.js';
@@ -34,25 +36,28 @@ export function tallyVotes(subs, fixture) {
   return { status: 'disputed', home, away, pair: null };
 }
 
-// The result to publish for an agreed pair: their scores, both teams' stat lines, the suggested MVP.
-// Returns null if the pair can't be combined (e.g. the scores don't make a valid match).
+// The score to publish for an agreed pair. Stats and MVP are added by an admin later.
+// Returns null if the scores don't make a valid match.
 export function resultFromVotes(pair, fixture, format) {
   if (!pair || !sameSets(pair.home.sets, pair.away.sets)) return null;
   const sets = pair.home.sets.map((s) => ({ home: Number(s.home), away: Number(s.away) }));
-  const check = checkResult(sets, format);
-  if (!check.ok) return null;
-  const homeLines = ownTeamLines(pair.home.playerStats, fixture.homeTeamId);
-  const awayLines = ownTeamLines(pair.away.playerStats, fixture.awayTeamId);
-  const playerStats = { ...homeLines, ...awayLines };
-  const winnerTeamId = check.winner === 'home' ? fixture.homeTeamId : fixture.awayTeamId;
+  if (!checkResult(sets, format).ok) return null;
   return {
     sets,
-    playerStats,
-    mvpPlayerId: suggestMvp(playerStats, winnerTeamId),
+    playerStats: {},
+    mvpPlayerId: null,
     forfeit: null,
     confirmedBy: [pair.home.id, pair.away.id],
     source: 'votes',
+    statsStatus: 'pending',
   };
+}
+
+// The MVP for stats an admin has entered (top scorer on the winning team).
+export function mvpFor(result, fixture, format) {
+  const check = checkResult(result.sets, format);
+  if (!check.ok) return null;
+  return suggestMvp(result.playerStats, check.winner === 'home' ? fixture.homeTeamId : fixture.awayTeamId);
 }
 
 // Describes one vote for display, e.g. "2–1 (10–7, 8–10, 12–10)".

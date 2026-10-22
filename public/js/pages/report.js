@@ -76,19 +76,6 @@ export async function reportBlock(b, f) {
   const home = b.teamsById[f.homeTeamId];
   const away = b.teamsById[f.awayTeamId];
   const other = team.id === f.homeTeamId ? away : home;
-  const defs = b.season.stats ?? [];
-  // Rows: everyone on the team now, plus anyone already in my vote.
-  const ids = new Set(Object.values(b.playersById).filter((p) => p.teamId === team.id).map((p) => p.id));
-  for (const pid of Object.keys(mine?.playerStats ?? {})) ids.add(pid);
-  const rows = [...ids].map((pid) => {
-    const line = mine?.playerStats?.[pid];
-    const on = mine ? Boolean(line) : true;
-    const name = b.playersById[pid]?.displayName ?? pid;
-    return `<tr data-pid="${esc(pid)}" class="${on ? '' : 'off'}">
-      <td class="first"><label class="played-toggle"><input type="checkbox" data-played ${on ? 'checked' : ''}> ${esc(name)}</label></td>
-      ${defs.map((d) => `<td><input type="number" inputmode="numeric" min="0" data-stat="${esc(d.key)}" value="${esc(line?.[d.key] ?? '')}" aria-label="${esc(name)} ${esc(d.name)}"></td>`).join('')}
-    </tr>`;
-  }).join('');
   const setRows = Array.from({ length: format.bestOf }, (_, i) => {
     const s = mine?.sets?.[i];
     return `<div class="set-row"><span>Set ${i + 1}</span>
@@ -100,26 +87,22 @@ export async function reportBlock(b, f) {
     <form class="panel report" data-form="vote" novalidate>
       <h2 class="pro-h">${mine ? 'Your vote' : 'Report the result'}</h2>
       ${flash ? `<p class="report-flash">${esc(flash)}</p>` : ''}
-      <p class="muted small" style="margin-bottom:12px">Enter the set scores from the end-of-match screen and your team’s stats.
-        When a player from <b>${esc(other?.name ?? 'the other team')}</b> enters the same scores, the result goes live.</p>
+      <ol class="report-steps muted small">
+        <li><b>Set scores:</b> when a player from <b>${esc(other?.name ?? 'the other team')}</b> enters the same, the score goes live straight away.</li>
+        <li><b>Screenshot</b> of the end-of-match stats screen: an admin reads everyone’s stats from it, so nobody has to type them.</li>
+      </ol>
       <div class="sets-entry">
         <div class="set-row set-head"><span></span><span>${esc(home?.shortName ?? 'Home')}</span><span>${esc(away?.shortName ?? 'Away')}</span></div>
         ${setRows}
       </div>
       <p class="muted small" style="margin:6px 0 14px">Leave unplayed sets empty.</p>
-      <h3 style="margin-bottom:6px">${teamDot(team)} ${esc(team.name)} stats</h3>
-      <p class="muted small" style="margin-bottom:8px">Untick anyone who didn’t play. Blank boxes count as 0.</p>
-      <div class="table-wrap"><table class="data entry">
-        <thead><tr><th class="first">Player</th>${defs.map((d) => `<th title="${esc(d.name)}">${esc(d.label)}</th>`).join('')}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>
-      <div class="field" style="margin-top:14px">
-        <span>Screenshot of the end-of-match screen (recommended, up to ${MAX_SHOTS})</span>
+      <div class="field">
+        <span>End-of-match screenshot (up to ${MAX_SHOTS})</span>
         ${mine?.screenshotPaths?.length ? `<div class="vote-shots">${shotThumbs(mine.screenshotPaths)}</div>` : ''}
-        <label class="btn btn-sm" style="justify-self:start">${mine?.screenshotPaths?.length ? 'Replace screenshots…' : 'Add screenshots…'}
+        <label class="btn btn-sm" style="justify-self:start">${mine?.screenshotPaths?.length ? 'Replace screenshots…' : 'Add screenshot…'}
           <input type="file" name="shots" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden></label>
         <span class="muted small" data-shots-picked></span>
-        <span class="muted small">It’s proof if the teams don’t agree.</span>
+        <span class="muted small">Full screen, not cropped (press F12 in Steam). Without one, this match’s stats can’t be counted.</span>
       </div>
       <div class="actions" style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary" type="submit">${mine ? 'Update my vote' : 'Submit my vote'}</button>
@@ -144,7 +127,6 @@ export function mountReport(root) {
   if (!form || !ctx) return;
   flash = '';
   form.addEventListener('change', (e) => {
-    if (e.target.matches('[data-played]')) e.target.closest('tr').classList.toggle('off', !e.target.checked);
     if (e.target.matches('[name=shots]')) {
       const n = e.target.files.length;
       form.querySelector('[data-shots-picked]').textContent = n > MAX_SHOTS
@@ -161,15 +143,13 @@ export function mountReport(root) {
     const sets = readSets(form);
     const check = checkResult(sets, format);
     if (!check.ok) return showError(`Check the scores: ${check.errors[0]}.`);
-    const keys = (b.season.stats ?? []).map((d) => d.key);
-    const playerStats = {};
-    for (const tr of form.querySelectorAll('tbody tr')) {
-      if (!tr.querySelector('[data-played]').checked) continue;
-      const raw = Object.fromEntries([...tr.querySelectorAll('[data-stat]')].map((i) => [i.dataset.stat, i.value]));
-      playerStats[tr.dataset.pid] = { teamId: team.id, ...cleanStatLine(raw, keys) };
+    const files = [...(form.querySelector('[name=shots]')?.files ?? [])].slice(0, MAX_SHOTS);
+    if (!files.length && !mine?.screenshotPaths?.length) {
+      if (!window.confirm('No screenshot? The score can still go live, but this match’s stats can’t be counted until someone uploads one. Send without it?')) return;
     }
+    const playerStats = {}; // stats come from the screenshot, read by an admin
 
-    // Does my vote agree with a vote from the other team? Then publish the result in the same save.
+    // Does my vote agree with a vote from the other team? Then publish the SCORE in the same save.
     const myVote = { id: `${f.id}__${player.id}`, teamId: team.id, playerId: player.id, sets, playerStats, updatedAt: Date.now() };
     const oppTeam = team.id === f.homeTeamId ? f.awayTeamId : f.homeTeamId;
     const match = (b.submissions ?? [])
@@ -184,7 +164,6 @@ export function mountReport(root) {
     button.textContent = 'Saving…';
     try {
       // Screenshots: newly picked ones replace the old; otherwise keep what the vote had.
-      const files = [...(form.querySelector('[name=shots]')?.files ?? [])].slice(0, MAX_SHOTS);
       let screenshotPaths = mine?.screenshotPaths ?? [];
       if (files.length) {
         button.textContent = 'Uploading screenshots…';
@@ -200,7 +179,7 @@ export function mountReport(root) {
       const others = tallyVotes([...(b.submissions ?? []).filter((s) => s.fixtureId === f.id && s.id !== myVote.id), myVote], f);
       flash = agreed ? '' : others.status === 'disputed'
         ? 'Saved. Your scores don’t match the other team’s vote yet. Double-check them, or an admin will decide.'
-        : 'Saved. The result goes live as soon as a player from the other team enters the same scores.';
+        : 'Saved. The score goes live as soon as a player from the other team enters the same scores.';
       refresh();
     } catch (err) {
       console.error(err);

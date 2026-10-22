@@ -71,6 +71,24 @@ export async function deletePlayer({ id, uid, existing }) {
   invalidate();
 }
 
+// In-game names an admin matched to players from end-of-match screenshots (e.g. after a Steam
+// name change). Stored on the player as `gameNames` so the next screenshot matches by itself.
+export async function rememberGameNames({ uid, aliases, playersById }) {
+  const byPlayer = new Map();
+  for (const { playerId, name } of aliases) {
+    if (!byPlayer.has(playerId)) byPlayer.set(playerId, new Set(playersById[playerId]?.gameNames ?? []));
+    byPlayer.get(playerId).add(name);
+  }
+  const ops = [...byPlayer.entries()].map(([playerId, names]) => ({
+    type: 'update',
+    path: `players/${playerId}`,
+    before: playersById[playerId],
+    data: { gameNames: [...names].slice(-10) },
+  }));
+  if (ops.length) await commit(uid, ops);
+  invalidate();
+}
+
 // ---------- Profile moderation ----------
 
 // Takes down one uploaded image (logo, picture, banner or background) and deletes the file.
