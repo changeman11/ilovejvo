@@ -203,6 +203,16 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/offers/$(request.resource.data.joinOfferId)).data.status == 'accepted'
             && getAfter(/databases/$(database)/documents/offers/$(request.resource.data.joinOfferId)).data.playerId == playerId
             && getAfter(/databases/$(database)/documents/offers/$(request.resource.data.joinOfferId)).data.teamId == request.resource.data.teamId)
+        // A manager adds a free agent to their team, only by accepting that player's pending
+        // join request in the same save.
+        || (signedIn() && stampedByMe()
+            && resource.data.get('teamId', null) == null
+            && managesTeam(request.resource.data.teamId)
+            && changedOnly(['teamId', 'joinRequestId', 'updatedBy', 'updatedAt'])
+            && get(/databases/$(database)/documents/joinRequests/$(request.resource.data.joinRequestId)).data.status == 'pending'
+            && getAfter(/databases/$(database)/documents/joinRequests/$(request.resource.data.joinRequestId)).data.status == 'accepted'
+            && getAfter(/databases/$(database)/documents/joinRequests/$(request.resource.data.joinRequestId)).data.playerId == playerId
+            && getAfter(/databases/$(database)/documents/joinRequests/$(request.resource.data.joinRequestId)).data.teamId == request.resource.data.teamId)
         // A manager releases someone (not themselves) from their own team.
         || (signedIn() && stampedByMe()
             && resource.data.get('teamId', null) != null
@@ -240,6 +250,35 @@ service cloud.firestore {
             && stampedByMe() && validTeamProfile(teamId)
             && changedOnly(['tagline', 'bio', 'theme', 'showcase', 'socials', 'logoPath', 'bannerPath', 'backgroundPath',
                             'updatedBy', 'updatedAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Join requests (free agent -> team) ----------
+    // One per player per team: id "<teamId>__<playerId>". The player asks; the team's manager accepts
+    // (adding them in the same save, see players) or declines; the player can withdraw.
+    match /joinRequests/{reqId} {
+      allow read: if isAdmin();
+      allow read: if signedIn() && resource.data.uid == uid();
+      allow read: if managesTeam(resource.data.teamId);
+
+      allow create, update: if signedIn() && stampedByMe()
+        && reqId == request.resource.data.teamId + '__' + request.resource.data.playerId
+        && request.resource.data.uid == uid()
+        && ownsPlayer(request.resource.data.playerId)
+        && playerDoc(request.resource.data.playerId).get('teamId', null) == null
+        && teamDoc(request.resource.data.teamId).get('status', 'approved') == 'approved'
+        && request.resource.data.status == 'pending'
+        && (resource == null || resource.data.status != 'pending')
+        && (!('message' in request.resource.data) || (request.resource.data.message is string && request.resource.data.message.size() <= 300))
+        && request.resource.data.keys().hasOnly(['teamId', 'playerId', 'uid', 'message', 'status', 'createdAt', 'updatedBy', 'updatedAt']);
+
+      allow update: if signedIn() && stampedByMe() && resource.data.status == 'pending' && (
+        (resource.data.uid == uid() && request.resource.data.status == 'withdrawn'
+          && changedOnly(['status', 'updatedBy', 'updatedAt']))
+        || (managesTeam(resource.data.teamId) && request.resource.data.status in ['accepted', 'declined']
+          && changedOnly(['status', 'updatedBy', 'updatedAt']))
+        || (isAdmin() && changedOnly(['status', 'updatedBy', 'updatedAt'])));
 
       allow delete: if isAdmin();
     }

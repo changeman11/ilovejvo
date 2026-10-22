@@ -29,7 +29,7 @@ function drawSide() {
   const show = desktop.matches && currentSection !== '/';
   document.body.classList.toggle('has-side', show);
   side.hidden = !show;
-  if (show) side.innerHTML = `<nav class="game-menu side">${menuCards(menuState, { active: currentSection ?? '' })}</nav>`;
+  if (show) side.innerHTML = `<nav class="game-menu side">${menuCards(menuState, { active: currentSection ?? '', hasClub })}</nav>`;
 }
 
 // Called by app.js as soon as the address changes, so the right card lights up straight away.
@@ -79,16 +79,16 @@ function partyHtml({ signedIn, player, team, squad }) {
     lead = '<a class="party-lead" href="/me" data-link>finish profile</a>';
     slots = Array.from({ length: SLOTS }, () => slot(plus, '/me', 'Make your profile first'));
   } else if (!team) {
-    lead = '<a class="party-lead" href="/me" data-link>find a team</a>';
+    lead = '<a class="party-lead" href="/club" data-link>find a club</a>';
     slots = [slot(avatarImg(player, 'slot-img'), urls.player(player.id), player.displayName),
-      ...Array.from({ length: SLOTS - 1 }, () => slot(plus, '/me', 'Register a team or accept an offer'))];
+      ...Array.from({ length: SLOTS - 1 }, () => slot(plus, '/club', 'Join or start a club'))];
   } else {
     const isManager = team.managerUid === player.uid;
-    lead = `<a class="party-lead" href="${urls.team(team.id)}" data-link>${teamDot(team)}<span>${esc((team.shortName ?? team.name).toLowerCase())}</span></a>`;
+    lead = `<a class="party-lead" href="/club" data-link title="Club hub">${teamDot(team)}<span>${esc((team.shortName ?? team.name).toLowerCase())}</span></a>`;
     const shown = [...squad].sort((a, b) => (b.id === player.id) - (a.id === player.id)).slice(0, SLOTS);
     slots = [
       ...shown.map((p) => slot(avatarImg(p, 'slot-img'), urls.player(p.id), p.displayName)),
-      ...Array.from({ length: SLOTS - shown.length }, () => slot(plus, isManager ? '/manage' : null, isManager ? 'Sign a player' : 'Open spot')),
+      ...Array.from({ length: SLOTS - shown.length }, () => slot(plus, isManager ? '/club?tab=invite' : null, isManager ? 'Invite a player' : 'Open spot')),
     ];
   }
   return `${lead}<div class="slots">${slots.join('')}</div>`;
@@ -125,15 +125,31 @@ function barHtml({ signedIn, player, team, career, lvl, next, people }) {
   }
   const when = next ? (next.f.scheduledAt ? `${fmtDay(next.f.scheduledAt)}${next.f.timeTbd ? '' : ` ${fmtTime(next.f.scheduledAt)}`}` : 'date tbd') : '';
   const pills = `
-    ${team ? `<a class="dark-pill" href="${urls.team(team.id)}" data-link>team: <b>${esc(team.name.toLowerCase())}</b></a>` : ''}
+    ${team ? `<a class="dark-pill" href="/club" data-link>team: <b>${esc(team.name.toLowerCase())}</b></a>` : ''}
     ${next ? `<a class="dark-pill" href="${urls.match(next.b.event.id, next.f.id)}" data-link>next: <b>v ${esc((opponent?.name ?? 'tbc').toLowerCase())} · ${esc(when.toLowerCase())}</b></a>` : ''}
     <a class="cta-pill" href="/fixtures" data-link>fixtures</a>`;
 
   return `<div class="pb-left">${who}<span class="pb-sep" aria-hidden="true"></span>${buttons}</div><div class="pb-right">${pills}</div>`;
 }
 
+// Club tab: shows a padlock until you're in an approved club (phones and computers).
+let hasClub = false;
+export async function updateClubLock() {
+  try {
+    const user = await currentUser();
+    const people = user ? await loadPeople() : null;
+    const player = people?.players.find((p) => p.uid === user.uid);
+    hasClub = Boolean(player?.teamId && isApprovedTeam(people.teamsById[player.teamId]));
+  } catch {
+    hasClub = false;
+  }
+  document.documentElement.classList.toggle('no-club', !hasClub);
+  drawSide();
+}
+
 // Draws (or redraws) the frame. Cheap: all data comes from the page cache.
 export function renderShell() {
+  updateClubLock();
   if (!desktop.matches || !bar) return Promise.resolve();
   rendering ??= gather()
     .then((s) => {

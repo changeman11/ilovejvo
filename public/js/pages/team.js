@@ -1,7 +1,12 @@
 // Team profile (Steam style): banner, logo, level, badges, showcase stats, squad,
 // record, upcoming fixtures and recent results. Everything is worked out from results.
 
-import { loadAllBundles, loadPeople, NotFoundError, isApprovedTeam } from '../data.js';
+import { loadAllBundles, loadPeople, NotFoundError, isApprovedTeam, loadJoinRequest } from '../data.js';
+import { currentUser } from '../auth.js';
+import { requestToJoin, withdrawJoinRequest } from '../player-data.js';
+import { refresh } from '../nav.js';
+
+let joinCtx = null; // { user, me, team, req } when the visitor can ask to join
 import { esc, skeleton, avatarImg, urls } from '../ui.js';
 import { mediaUrl } from '../media.js';
 import { seasonMatches } from '../rules/season.js';
@@ -21,6 +26,19 @@ export async function render({ teamId }) {
   const [bundles, people] = await Promise.all([loadAllBundles(), loadPeople()]);
   const team = people.teamsById[teamId];
   if (!isApprovedTeam(team)) throw new NotFoundError('That team doesn’t exist');
+
+  // Signed-in free agents can ask to join (the manager accepts in their Club hub).
+  joinCtx = null;
+  let joinBlock = '';
+  const user = await currentUser().catch(() => null);
+  const me = user ? people.players.find((p) => p.uid === user.uid) : null;
+  if (me && !me.teamId) {
+    const req = await loadJoinRequest(teamId, me.id);
+    joinCtx = { user, me, team, req };
+    joinBlock = req?.status === 'pending'
+      ? `<div class="join-box"><span>✓ You’ve asked to join. The manager will see it in their Club hub.</span> <button class="btn btn-sm" data-act="withdraw-join">Withdraw</button></div>`
+      : `<form class="join-box" data-form="join"><input type="text" name="message" maxlength="300" placeholder="Say hi to the manager (optional)"><button class="btn btn-primary" type="submit">Request to join</button>${req?.status === 'declined' ? '<span class="muted small">Your last request was declined.</span>' : ''}</form>`;
+  }
 
   const defs = statDefsFor(bundles);
   const keys = defs.map((d) => d.key);
@@ -52,6 +70,7 @@ export async function render({ teamId }) {
   const sub = `${esc(team.shortName ?? '')}${squad.length ? ` · ${squad.length} player${squad.length === 1 ? '' : 's'}` : ''}`;
 
   const main = `
+    ${joinBlock ? `<section class="panel">${joinBlock}<p class="form-error" role="alert" hidden></p></section>` : ''}
     ${showcaseTiles('team', team.showcase, defs, { ...rec, totals, level: lvl.level })}
     ${aboutBlock(team.bio)}
     <section>
@@ -83,4 +102,30 @@ export async function render({ teamId }) {
     title: team.name,
     html: profileShell({ doc: team, fallbackTheme: team.colors?.primary, mark: logo, name: team.name, sub, lvl, main, side }),
   };
+}
+
+export function mount(el) {
+  if (!joinCtx) return;
+  const { user, me, team, req } = joinCtx;
+  const box = el.querySelector('.join-box');
+  const fail = (err) => {
+    console.error(err);
+    const e = box?.parentElement.querySelector('.form-error');
+    if (e) { e.textContent = 'That couldn’t be sent. Refresh and try again.'; e.hidden = false; }
+  };
+  el.querySelector('form[data-form="join"]')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    e.target.querySelector('[type=submit]').disabled = true;
+    try {
+      await requestToJoin({ uid: user.uid, player: me, team, message: e.target.message.value.trim(), existing: req });
+      refresh();
+    } catch (err) { fail(err); }
+  });
+  el.querySelector('[data-act="withdraw-join"]')?.addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try {
+      await withdrawJoinRequest({ uid: user.uid, request: req });
+      refresh();
+    } catch (err) { fail(err); }
+  });
 }

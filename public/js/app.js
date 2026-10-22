@@ -9,7 +9,7 @@ import * as match from './pages/match.js';
 import * as player from './pages/player.js';
 import * as team from './pages/team.js';
 import * as me from './pages/me.js';
-import * as manage from './pages/manage.js';
+import * as club from './pages/club.js';
 import * as authCallback from './pages/auth-callback.js';
 import * as requests from './pages/admin/requests.js';
 import * as adminHome from './pages/admin/home.js';
@@ -41,7 +41,7 @@ const routes = [
   { path: '/teams', page: teamsList, section: '/teams', up: toMenu },
   { path: '/team/:teamId', page: team, section: '/teams', up: () => ({ href: '/teams', label: 'teams' }) },
   { path: '/me', page: me, section: '/me', up: toMenu },
-  { path: '/manage', page: manage, section: '/me', up: () => ({ href: '/me', label: 'me' }) },
+  { path: '/club', page: club, section: '/club', up: toMenu },
   { path: '/auth/discord', page: authCallback, section: '/me' },
   { path: '/admin', page: adminHome, section: '/admin', up: toMenu },
   { path: '/admin/requests', page: requests, section: '/admin', up: toAdmin },
@@ -88,7 +88,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Old addresses from earlier versions of the site.
-const redirects = { '/exhibitions': '/events?type=exhibition', '/tournaments': '/events?type=tournament' };
+const redirects = { '/exhibitions': '/events?type=exhibition', '/tournaments': '/events?type=tournament', '/manage': '/club' };
 
 const notFound = {
   title: 'Not found',

@@ -133,6 +133,29 @@ function registerTeamBlock(me) {
     </section>`;
 }
 
+// Your club at a glance; everything club-related lives in the Club hub.
+function clubCard(me, onTeam) {
+  const invites = me.offers.filter((o) => o.status === 'pending').length;
+  if (onTeam) {
+    const t = me.team;
+    const isManager = t.managerUid === page.user.uid;
+    const requests = (me.teamJoinRequests ?? []).filter((r) => r.status === 'pending').length;
+    return `
+      <a class="panel club-card" href="/club" data-link>
+        ${teamDot(t, 'xl')}
+        <span><b>${esc(t.name)}</b><span class="muted small" style="display:block">${isManager ? 'You’re the manager' : 'You’re in the squad'}${requests ? ` · ${requests} join request${requests === 1 ? '' : 's'}` : ''}</span></span>
+        <span class="btn btn-primary btn-sm">Club hub →</span>
+      </a>`;
+  }
+  return `
+    <a class="panel club-card locked" href="/club" data-link>
+      <span class="club-lock-mark"><svg class="lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+      <span><b>${me.pendingTeam ? `${esc(me.pendingTeam.name)} is waiting for approval` : 'No club yet'}</b>
+        <span class="muted small" style="display:block">${invites ? `${invites} invite${invites === 1 ? '' : 's'} waiting · ` : ''}accept invites, ask to join, or start a club</span></span>
+      <span class="btn btn-primary btn-sm">Club hub →</span>
+    </a>`;
+}
+
 function teamBlock(me) {
   const t = me.team;
   const isManager = t.managerUid === page.user.uid;
@@ -241,7 +264,8 @@ export async function render() {
       ${profileHead(me, discord)}
       <div class="cols">
         <div class="stack">
-          ${onTeam ? `${reportBlock}${teamBlock(me)}` : `${offersBlock(me)}${registerTeamBlock(me)}`}
+          ${clubCard(me, onTeam)}
+          ${reportBlock}
         </div>
         <div class="stack">${editProfileForm(me.player, onTeam ? me.team : null)}</div>
       </div>`;

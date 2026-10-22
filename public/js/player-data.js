@@ -52,6 +52,29 @@ export async function updateTeam({ uid, team, changes }) {
   invalidate();
 }
 
+// ---------- Join requests (free agent -> team; the manager decides) ----------
+
+export async function requestToJoin({ uid, player, team, message = '', existing = null }) {
+  await commit(uid, [{
+    type: 'set',
+    path: `joinRequests/${team.id}__${player.id}`,
+    before: existing,
+    data: { teamId: team.id, playerId: player.id, uid, message: message.slice(0, 300), status: 'pending', createdAt: serverTimestamp() },
+  }]);
+}
+
+export async function withdrawJoinRequest({ uid, request }) {
+  await commit(uid, [{ type: 'update', path: `joinRequests/${request.id}`, before: request, data: { status: 'withdrawn' } }]);
+}
+
+// Manager answers a join request. Accepting puts the player on the team in the same save.
+export async function answerJoinRequest({ uid, request, player, accept }) {
+  const ops = [{ type: 'update', path: `joinRequests/${request.id}`, before: request, data: { status: accept ? 'accepted' : 'declined' } }];
+  if (accept) ops.push({ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: request.teamId, joinRequestId: request.id } });
+  await commit(uid, ops);
+  invalidate();
+}
+
 // Manager -> free agent.
 export async function sendOffer({ uid, team, player }) {
   await commit(uid, [{

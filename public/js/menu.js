@@ -11,13 +11,15 @@ const ICONS = {
   teams: '<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2.5 19a5.5 5.5 0 0 1 11 0M12 19a4.5 4.5 0 0 1 9.5 0"/>',
   me: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   heart: '<path d="M12 20s-7-4.3-9-8.7C1.6 8 3.6 4.6 7 4.6c2 0 3.3 1.1 5 3 1.7-1.9 3-3 5-3 3.4 0 5.4 3.4 4 6.7-2 4.4-9 8.7-9 8.7z"/>',
+  club: '<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6z"/>',
+  lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
 };
 const icon = (name, cls) => `<span class="gm-icon ${cls}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg></span>`;
 const discordIcon = () => `<span class="gm-icon i-white">${discordLogo()}</span>`;
 
 // state: 'guest' | 'new' | 'player'. active: the current section ('/fixtures', ...), or null on Home.
 // On Home the profile card is the yellow "featured" one; elsewhere the current page's card is yellow.
-export function menuCards(state, { active = null } = {}) {
+export function menuCards(state, { active = null, hasClub = false } = {}) {
   const onHome = active === null;
   const card = ({ href, iconHtml, title, sub, section, signIn = false }) => {
     const on = onHome ? section === '/me' : active === section;
@@ -34,9 +36,10 @@ export function menuCards(state, { active = null } = {}) {
       : card({ href: '/me', iconHtml: icon('me', 'i-white'), title: 'my profile', sub: 'customise banners, gifs &amp; badges', section: '/me' });
   return `
     ${profile}
+    ${card({ href: '/club', iconHtml: icon(hasClub ? 'club' : 'lock', hasClub ? 'i-orange' : 'i-grey'), title: 'club hub', sub: hasClub ? 'your squad, invites &amp; club page' : 'locked · join or start a club', section: '/club' })}
     ${card({ href: '/fixtures', iconHtml: icon('fixtures', 'i-blue'), title: 'fixtures', sub: 'upcoming matches &amp; results', section: '/fixtures' })}
     ${card({ href: '/stats', iconHtml: icon('stats', 'i-green'), title: 'stats', sub: 'leaderboards &amp; player stats', section: '/stats' })}
     ${card({ href: '/events', iconHtml: icon('events', 'i-pink'), title: 'events', sub: 'exhibition nights &amp; tournaments', section: '/events' })}
-    ${card({ href: '/teams', iconHtml: icon('teams', 'i-grey'), title: 'teams', sub: 'every team in jvo', section: '/teams' })}
+    ${card({ href: '/teams', iconHtml: icon('teams', 'i-purple'), title: 'teams &amp; players', sub: 'every club and player in jvo', section: '/teams' })}
     <a class="gm-pill" href="${steamUrl}" target="_blank" rel="noopener">${icon('heart', 'i-white sm')}<span>get just volleyball on steam</span></a>`;
 }

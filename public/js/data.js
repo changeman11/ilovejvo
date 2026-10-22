@@ -163,17 +163,27 @@ export async function loadAllBundles({ includeDrafts = false, fresh = false } = 
 
 // Everything the "Me" page needs for a signed-in player.
 export async function loadMe(uid) {
-  const [people, offers, leaves, claim, sentOffers] = await Promise.all([
+  const [people, offers, leaves, claim, sentOffers, myJoinRequests] = await Promise.all([
     loadPeople({ fresh: true }),
     queryAll('offers', 'playerUid', uid),
     queryAll('leaveRequests', 'uid', uid),
     getOne(`claims/${uid}`),
     queryAll('offers', 'fromUid', uid),
+    queryAll('joinRequests', 'uid', uid).catch(() => []),
   ]);
   const player = people.players.find((p) => p.uid === uid) ?? null;
   const team = player?.teamId ? people.teamsById[player.teamId] ?? null : null;
   const pendingTeam = people.teams.find((t) => t.managerUid === uid && t.status === 'pending') ?? null;
-  return { ...people, player, team, pendingTeam, offers, sentOffers, leaves, claim };
+  // Managers also see who's asked to join their team.
+  const teamJoinRequests = team && team.managerUid === uid && isApprovedTeam(team)
+    ? await queryAll('joinRequests', 'teamId', team.id).catch(() => [])
+    : [];
+  return { ...people, player, team, pendingTeam, offers, sentOffers, leaves, claim, myJoinRequests, teamJoinRequests };
+}
+
+// A player's join request to one team (id "<teamId>__<playerId>"), or null. Only they can read it.
+export function loadJoinRequest(teamId, playerId) {
+  return getOne(`joinRequests/${teamId}__${playerId}`).catch(() => null);
 }
 
 // ---------- Admin inbox ----------
