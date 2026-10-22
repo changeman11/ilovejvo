@@ -21,6 +21,7 @@ import { onAdminChange, onUserChange, currentAdmin, startDiscordSignIn } from '.
 import { renderShell, setSection } from './shell.js';
 import './search.js';
 import { updateBell } from './notifications.js';
+import { updateReel } from './reel.js';
 import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
 import { setNav } from './nav.js';
@@ -147,6 +148,7 @@ async function show() {
     page.mount?.(main);
     renderShell(); // keeps the desktop bars (level, team, next match) up to date after saves
     updateBell({ force: ['/club', '/me'].includes(location.pathname) });
+    updateReel();
   } catch (err) {
     if (id !== renderId) return;
     if (err instanceof NotFoundError) {
