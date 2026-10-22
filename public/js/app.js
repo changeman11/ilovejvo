@@ -23,6 +23,7 @@ import './search.js';
 import { updateBell } from './notifications.js';
 import { updateReel } from './reel.js';
 import { syncSchedules } from './admin-sync.js';
+import { stopLive } from './live.js';
 import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
 import * as help from './pages/help.js';
@@ -125,12 +126,13 @@ const SITE_NAME = 'I<3JVO';
 const main = document.getElementById('main');
 let renderId = 0;
 
-async function show() {
+async function show({ quiet = false } = {}) {
   const path = location.pathname.replace(/\/+$/, '') || '/';
   if (redirects[path]) {
     history.replaceState(history.state, '', redirects[path]);
     return show();
   }
+  stopLive(); // the page being left stops watching for changes
   const route = matchRoute(path);
   const { page, params, section } = route;
   const id = ++renderId;
@@ -143,7 +145,7 @@ async function show() {
 
   document.title = page === events.home ? SITE_NAME : `${page.title} · ${SITE_NAME}`;
   const back = backBar(route, params);
-  main.innerHTML = back + page.loading();
+  if (!quiet) main.innerHTML = back + page.loading();
   try {
     const out = await page.render(params);
     if (id !== renderId) return; // the user already moved on
@@ -176,7 +178,7 @@ function navigate(href, { keepScroll = false, replace = false } = {}) {
   show();
 }
 
-setNav({ navigate, refresh: show });
+setNav({ navigate, refresh: () => show(), refreshQuietly: () => show({ quiet: true }) });
 
 // "Sign in with Discord" buttons anywhere on the site. Comes back to the Me page.
 document.addEventListener('click', (e) => {

@@ -141,6 +141,19 @@ export async function saveFixture({ eventId, id, uid, fixture, existing }) {
   return fixtureId;
 }
 
+// "Clear fixtures": deletes the given fixtures (ones without a result), any result votes on them,
+// and unlocks the schedule so the automatic fixtures are worked out again from the current teams.
+export async function clearFixtures({ eventId, uid, fixtures, event, submissions = [] }) {
+  const ids = new Set(fixtures.map((f) => f.id));
+  const ops = [
+    ...submissions.filter((s) => ids.has(s.fixtureId)).map((s) => ({ type: 'delete', path: `events/${eventId}/submissions/${s.id}`, before: s })),
+    ...fixtures.map((f) => ({ type: 'delete', path: `events/${eventId}/fixtures/${f.id}`, before: f })),
+  ];
+  if (event.fixturesLockedAt) ops.push({ type: 'update', path: `events/${eventId}`, before: event, data: { fixturesLockedAt: null } });
+  if (ops.length) await commit(uid, ops);
+  invalidate(`event:${eventId}`);
+}
+
 // Takes a club that signed itself up out of an event.
 export async function removeEntry({ eventId, uid, entry }) {
   await commit(uid, [{ type: 'delete', path: `events/${eventId}/entries/${entry.id}`, before: entry }]);

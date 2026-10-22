@@ -35,7 +35,8 @@
   - **Who's in:** the event's teams are the admin-added `teamIds` plus every club that signed up.
   - **Auto fixtures:** with `event.autoFixtures` set to `once` or `double`, the round robin is worked out live from the entrants and shown as drafts (`virtual: true`, ids `auto-r<round>-<home>-<away>`). At the lock, any admin browser saves them and sets `event.fixturesLockedAt` (`admin-sync.js`; this runs on admin pages and on every page while an admin is signed in). There is no server, so this needs an admin to be online around the start.
   - **Finals:** `event.finals = { type: 'none'|'final'|'semis', semiBestOf, finalBestOf }`. Finals fixtures (`finals-sf1`, `finals-sf2`, `finals-final`, `stage: 'playoffs'`) show placeholders such as "1st place" or "Winner SF1". They're saved once both teams are known, and they don't count in the table.
-  - **Where it lives:** the logic is in `rules/autofix.js` (tested), settings are on the admin event page's Fixtures tab, and players can't report results on draft fixtures.
+  - **Where it lives:** the logic is in `rules/autofix.js` (tested). The rules are set in the "Rule config" section of the event form (Details tab; new events default to round robin + club sign-ups). The Fixtures tab shows the status, "Lock fixtures now" and "Clear fixtures" (deletes fixtures without results and their votes, and unlocks so the schedule rebuilds). Players can't report results on draft fixtures.
+  - **Live:** `js/live.js` watches an event's settings, sign-ups, fixtures and results (Firestore listeners) and quietly redraws the event page, the Fixtures page and the admin Fixtures/Teams tabs when they change.
   - **Bell reminders:**
     - new events
     - sign-ups to do (managers)

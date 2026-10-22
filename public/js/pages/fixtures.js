@@ -3,10 +3,16 @@
 
 import { loadAllBundles, loadPeople, isApprovedTeam } from '../data.js';
 import { currentUser } from '../auth.js';
+import { watchEvent } from '../live.js';
 import { esc, skeleton, notice, pageTitle } from '../ui.js';
 import { allFixtures, fixturesByRound, resultOf } from './parts.js';
 
 export const title = 'Fixtures';
+
+let liveIds = [];
+export function mount() {
+  for (const id of liveIds) watchEvent(id);
+}
 
 export function loading() {
   return skeleton([60, 44, 360]);
@@ -25,6 +31,8 @@ export async function render() {
   const params = new URLSearchParams(location.search);
   const view = params.get('view') === 'results' ? 'results' : 'upcoming';
   const [bundles, mine] = await Promise.all([loadAllBundles(), myTeamId()]);
+  // Upcoming events with sign-ups or auto fixtures update live (see mount).
+  liveIds = bundles.filter((b) => b.event.status === 'upcoming' && (b.event.signups || (b.event.autoFixtures ?? 'off') !== 'off')).map((b) => b.event.id);
   const eventId = bundles.some((b) => b.event.id === params.get('event')) ? params.get('event') : null;
   const inEvents = eventId ? bundles.filter((b) => b.event.id === eventId) : bundles;
 

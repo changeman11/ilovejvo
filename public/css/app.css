@@ -287,6 +287,9 @@ a.fx:hover { background: var(--surface-2); }
 .fx .meta b { color: var(--ink); font-weight: 700; }
 .day-head { padding: 10px 14px 6px; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); background: var(--tint-sky); border-top: 1px solid var(--line); }
 .fixtures > .day-head:first-child { border-top: 0; }
+.live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); margin-right: 4px; vertical-align: middle; animation: live-pulse 1.6s ease-in-out infinite; }
+@keyframes live-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 .fx .side.tbc span { color: var(--muted); font-style: italic; }
 .round-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .round-head small { font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--muted); font-size: 12px; text-align: right; }

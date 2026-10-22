@@ -12,3 +12,5 @@ export function setNav(next) {
 
 export const navigate = (href, options) => impl.navigate(href, options);
 export const refresh = () => impl.refresh();
+// Redraws the current page without the loading placeholder (for live updates).
+export const refreshQuietly = () => (impl.refreshQuietly ?? impl.refresh)();

@@ -14,6 +14,7 @@ import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser } from '../auth.js';
 import { signUpTeam, withdrawTeam } from '../player-data.js';
 import { refresh } from '../nav.js';
+import { watchEvent } from '../live.js';
 import { careerStats, topPlayers, statDefsFor } from './career.js';
 
 // ---------- Shared bits ----------
@@ -166,6 +167,7 @@ export const eventsList = {
 
 // Club sign-ups on the event page. Managers sign up or pull out; everyone sees who's in and when it closes.
 let signupCtx = null; // { user, team, entry, eventId }
+let shownEventId = null;
 
 async function signupBox(b) {
   const e = b.event;
@@ -202,6 +204,8 @@ export const eventPage = {
   title: 'Event',
   loading: () => skeleton([180, 320]),
   mount(el) {
+    // Clubs joining or leaving, new fixtures and results show up straight away.
+    if (shownEventId) watchEvent(shownEventId);
     if (!signupCtx) return;
     const { user, team, entry, eventId } = signupCtx;
     el.querySelector('.signup-box')?.addEventListener('click', async (ev) => {
@@ -225,6 +229,7 @@ export const eventPage = {
   async render({ eventId }) {
     const b = await loadEventBundle(eventId, { fresh: true });
     const e = b.event;
+    shownEventId = e.id;
     const signups = await signupBox(b);
     const items = [...b.fixtures].sort((x, y) => (x.scheduledAt ?? Infinity) - (y.scheduledAt ?? Infinity) || (x.order ?? 0) - (y.order ?? 0)).map((f) => ({ b, f }));
     const stats = careerStats([b]);
