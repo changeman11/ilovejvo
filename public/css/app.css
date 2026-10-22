@@ -550,12 +550,17 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 .char-spot { position: relative; pointer-events: none; }
 .char-spot img { position: absolute; left: 50%; bottom: 0; height: 100%; width: auto; max-width: none; transform: translateX(-50%) translateY(8px); opacity: 0; transition: opacity 0.6s ease, transform 0.6s ease; }
 .char-spot img.on { opacity: 1; transform: translateX(-50%); }
+/* The game's volleyball, in front of their left foot (hidden for pictures that already have one) */
+.char-spot .char-ball { left: 6%; bottom: -4%; height: 27%; transform: none; opacity: 1; z-index: 2; filter: drop-shadow(0 6px 4px rgba(0, 0, 0, 0.25)); }
+.char-spot.own-ball .char-ball { opacity: 0; }
 /* A soft shadow on the grass under their feet */
 .char-spot::after { content: ''; position: absolute; left: 50%; bottom: -2%; width: 46%; height: 7%; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.35), transparent); z-index: -1; }
 @media (prefers-reduced-motion: reduce) { .char-spot img { transition: none; } }
 /* Phones: the banner shows the empty court with a character standing on it */
 .hero-art.with-chars { aspect-ratio: 4 / 3; overflow: visible; background: url("/images/art/court-empty.jpg") 62% 70% / cover; border-radius: var(--radius); }
-.hero-art.with-chars .char-spot.in-banner { position: absolute; left: 50%; bottom: 8%; height: 82%; width: 60%; transform: translateX(-30%); }
+.hero-art.with-chars .char-spot.in-banner { position: absolute; left: 50%; bottom: 6%; height: 94%; width: 72%; transform: translateX(-40%); }
+/* In the phone banner the logo sticker sits bottom-left, so the ball goes on their right */
+.char-spot.in-banner .char-ball { left: auto; right: 0; height: 30%; }
 
 /* ---------- Teams list ---------- */
 .team-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
@@ -641,7 +646,7 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
 
   /* Characters switched on: the empty court, with a character standing on it on Home */
   html.chars-on body { background-image: url("/images/art/court-empty.jpg?v=1"); }
-  .char-spot.on-court { position: fixed; z-index: 0; right: 18vw; bottom: calc(var(--playerbar-h) + 7vh); height: min(60vh, 560px); width: min(40vw, 520px); }
+  .char-spot.on-court { position: fixed; z-index: 0; right: 14vw; bottom: calc(var(--playerbar-h) + 5vh); height: min(72vh, 680px); width: min(48vw, 640px); }
   .home-rest, .game-menu { position: relative; z-index: 1; }
 
   /* ----- Home: the game's main menu ----- */

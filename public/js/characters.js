@@ -13,10 +13,14 @@ if (cyclingCharacters) document.documentElement.classList.add('chars-on');
 
 export const charactersOn = cyclingCharacters;
 
-// Markup for a spot where characters appear: two stacked pictures that cross-fade.
+// Markup for a spot where characters appear: two stacked pictures that cross-fade, and the
+// game's volleyball at their feet.
 export const characterSpot = (cls) => (cyclingCharacters
-  ? `<div class="char-spot ${cls}" data-char-spot aria-hidden="true"><img alt="" decoding="async"><img alt="" decoding="async"></div>`
+  ? `<div class="char-spot ${cls}" data-char-spot aria-hidden="true"><img alt="" decoding="async"><img alt="" decoding="async"><img class="char-ball" src="/images/art/ball.png" alt="" decoding="async"></div>`
   : '');
+
+// Pictures that already show a ball (named "...ball...") don't get a second one.
+const hasOwnBall = (name) => /ball/i.test(name);
 
 let list = null;
 async function loadList() {
@@ -47,11 +51,12 @@ export async function startCharacters(root) {
   if (!names.length) return;
   let i = 0;
   const show = (spot, name) => {
-    const [a, b] = spot.querySelectorAll('img');
+    const [a, b] = spot.querySelectorAll('img:not(.char-ball)');
     const [front, back] = a.classList.contains('on') ? [a, b] : [b, a];
     back.onload = () => {
       back.classList.add('on');
       front.classList.remove('on');
+      spot.classList.toggle('own-ball', hasOwnBall(name));
     };
     back.src = `${DIR}${name}`;
   };
