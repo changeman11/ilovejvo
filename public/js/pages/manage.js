@@ -76,8 +76,8 @@ export async function render() {
                 </div>
               </div>
             </section>
-            <section>
-              <div class="section-head"><h2>Team profile</h2><a href="${urls.team(team.id)}" data-link>View it</a></div>
+            <section id="team-profile">
+              <div class="section-head"><h2>Team page</h2><a href="${urls.team(team.id)}" data-link>View it</a></div>
               <form class="panel" data-form="team" novalidate>
                 <div class="field-row">
                   <label class="field"><span>Name</span><input type="text" name="name" maxlength="60" value="${esc(team.name)}"></label>
@@ -101,6 +101,8 @@ export function mount(el) {
   const root = el.querySelector('.manage-root');
   if (!root || !page) return;
   bindImagePreviews(root);
+  // "Customise team page" links here with #team-profile.
+  if (location.hash === '#team-profile') root.querySelector('#team-profile')?.scrollIntoView({ block: 'start' });
   const { user, me, team } = page;
   const showError = (msg) => {
     const box = root.querySelector('[data-global]');

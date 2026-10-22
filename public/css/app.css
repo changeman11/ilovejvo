@@ -523,6 +523,9 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 .vote-shots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .vote-shots img { width: 96px; height: 54px; object-fit: cover; border: 2px solid var(--ink); border-radius: 6px; background: var(--surface-2); }
 .vote-shots a:hover img { border-color: var(--blue); }
+.team-extras { margin: 6px 0 12px; border-top: 2px solid var(--line); padding-top: 10px; }
+.team-extras > summary { cursor: pointer; font: 600 17px var(--font-head); }
+#team-profile { scroll-margin-top: 90px; }
 .report-steps { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 4px; }
 .read-shots { gap: 12px; }
 .read-shots figure { margin: 0; display: grid; gap: 4px; justify-items: start; }

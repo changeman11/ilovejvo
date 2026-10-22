@@ -95,8 +95,20 @@ function offersBlock(me) {
 
 function registerTeamBlock(me) {
   if (me.pendingTeam) {
+    // While waiting, the person who registered it can build the team's page.
+    const t = me.pendingTeam;
     return `<section><div class="section-head"><h2>Your team registration</h2></div>
-      ${notice(`${me.pendingTeam.name} is waiting for approval`, ' An admin will look at it soon. You become its manager once it’s approved.')}</section>`;
+      ${notice(`${t.name} is waiting for approval`, ' An admin will look at it soon. You become its manager once it’s approved. Meanwhile you can set up its page below.')}</section>
+      <section>
+        <div class="section-head"><h2>${esc(t.name)} team page</h2></div>
+        <form class="panel" data-form="pending-team" novalidate>
+          ${customiseFields('team', t, DEFAULT_STATS, t.colors?.primary)}
+          <div class="save-bar">
+            <button class="btn btn-primary" type="submit">Save team page</button>
+            <p class="form-error" role="alert" hidden style="margin:0"></p>
+          </div>
+        </form>
+      </section>`;
   }
   return `
     <section>
@@ -107,18 +119,16 @@ function registerTeamBlock(me) {
           <label class="field"><span>Team name</span><input type="text" name="name" maxlength="60"></label>
           <label class="field"><span>Short name</span><input type="text" name="shortName" maxlength="5" placeholder="e.g. TAS"></label>
         </div>
-        <label class="field"><span>Colour</span><input type="color" name="color" value="#19c9b1" class="color-input"></label>
-        ${uploadsReady ? `
-        <div class="field">
-          <span>Logo (optional, GIFs welcome, up to ${MEDIA.logo.maxMb} MB)</span>
-          <div class="img-field">
-            <div class="img-preview img-logo" data-preview="logo"><span class="muted small">None yet</span></div>
-            <div class="img-actions"><label class="btn btn-sm">Choose…<input type="file" name="file-logo" accept="image/png,image/jpeg,image/webp,image/gif" hidden></label></div>
-          </div>
-        </div>` : ''}
-        <p class="muted small" style="margin-bottom:10px">You can add a banner, bio and more once it’s approved.</p>
-        <button class="btn btn-primary" type="submit">Send for approval</button>
-        <p class="form-error" role="alert" hidden></p>
+        <label class="field"><span>Team colour (the dot next to its name)</span><input type="color" name="color" value="#19c9b1" class="color-input"></label>
+        <details class="team-extras" open>
+          <summary>Make your team page (optional)</summary>
+          <p class="muted small" style="margin:6px 0 4px">Logo, banner, page background (GIFs welcome), bio, links and more. You can change all of it later.</p>
+          ${customiseFields('team', {}, DEFAULT_STATS, '#19c9b1')}
+        </details>
+        <div class="save-bar">
+          <button class="btn btn-primary" type="submit">Send for approval</button>
+          <p class="form-error" role="alert" hidden style="margin:0"></p>
+        </div>
       </form>
     </section>`;
 }
@@ -134,7 +144,10 @@ function teamBlock(me) {
       <div class="panel">
         <h3>${teamLink(t, { size: 'lg' })}</h3>
         <p class="muted small" style="margin:4px 0 12px">${isManager ? 'You’re the manager.' : 'You’re in the squad.'}</p>
-        ${isManager ? '<a class="btn btn-primary" href="/manage" data-link>Manage team</a>' : ''}
+        ${isManager ? `<div class="event-links">
+          <a class="btn btn-primary" href="/manage#team-profile" data-link>Customise team page</a>
+          <a class="btn" href="/manage" data-link>Manage squad &amp; offers</a>
+        </div>` : ''}
       </div>
     </section>
     <section>
@@ -325,24 +338,38 @@ export function mount(el) {
         const name = val('name');
         if (!name) return showError(form, 'Give your team a name.');
         if (me.teams.some((t) => t.name.toLowerCase() === name.toLowerCase())) return showError(form, 'That team name is taken.');
-        // Check the logo before registering, so a bad file doesn't leave a team without it.
-        const file = form.querySelector('[name="file-logo"]')?.files?.[0];
-        const logo = file ? await prepareImage(file, 'logo') : null;
+        // Check chosen pictures first, so a bad file is caught before the team is registered.
+        for (const input of form.querySelectorAll('input[type=file][name^="file-"]')) {
+          if (input.files?.[0]) await prepareImage(input.files[0], input.name.slice(5));
+        }
         button.disabled = true;
+        button.textContent = 'Sending…';
+        const color = form.querySelector('[name=color]').value;
         const teamId = await registerTeam({
           uid: user.uid, player: me.player, name,
           shortName: (val('shortName') || name.replace(/[^A-Za-z0-9]/g, '').slice(0, 3)).toUpperCase(),
-          color: form.querySelector('[name=color]').value, takenIds: new Set(me.teams.map((t) => t.id)),
+          color, takenIds: new Set(me.teams.map((t) => t.id)),
         });
-        if (logo) {
-          try {
-            const logoPath = await uploadImage({ owner: 'teams', id: teamId, kind: 'logo', image: logo });
-            await updateTeam({ uid: user.uid, team: { id: teamId }, changes: { logoPath } });
-          } catch (err) {
-            console.error(err);
-            window.alert('Your team was sent for approval, but the logo didn’t upload. You can add it after it’s approved.');
-          }
+        // Then the team page: pictures, bio, links... (the team must exist before pictures can be added)
+        try {
+          await saveCustomise({
+            form, kind: 'team', owner: 'teams', id: teamId, doc: { id: teamId, colors: { primary: color } },
+            save: (changes) => updateTeam({ uid: user.uid, team: { id: teamId }, changes }),
+          });
+        } catch (err) {
+          console.error(err);
+          window.alert('Your team was sent for approval, but its page details didn’t all save. You can finish them on this page.');
         }
+        refresh();
+      }
+      if (form.dataset.form === 'pending-team') {
+        button.disabled = true;
+        button.textContent = 'Saving…';
+        const t = me.pendingTeam;
+        await saveCustomise({
+          form, kind: 'team', owner: 'teams', id: t.id, doc: t,
+          save: (changes) => updateTeam({ uid: user.uid, team: t, changes }),
+        });
         refresh();
       }
       if (form.dataset.form === 'leave') {

@@ -64,7 +64,8 @@ export function bindImagePreviews(root) {
   root.addEventListener('change', (e) => {
     const input = e.target.closest('input[type=file][name^="file-"]');
     if (!input) return;
-    const box = root.querySelector(`[data-preview="${input.name.slice(5)}"]`);
+    // Look inside the same form: a page can have more than one (your profile and your team's).
+    const box = (input.closest('form') ?? root).querySelector(`[data-preview="${input.name.slice(5)}"]`);
     const file = input.files?.[0];
     if (box && file) box.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="">`;
   });
