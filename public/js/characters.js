@@ -43,12 +43,59 @@ const shuffled = (arr) => {
   return a;
 };
 
+// The player's favourite character (file name), or '' to let them take turns. Saved on this device.
+const PICK_KEY = 'jvo.character';
+const getPick = () => { try { return localStorage.getItem(PICK_KEY) ?? ''; } catch { return ''; } };
+const setPick = (name) => { try { localStorage.setItem(PICK_KEY, name); } catch { /* fine */ } };
+
+// The "character" button (bottom right of the Home court / phone banner) and its menu.
+export const characterPicker = (cls) => (cyclingCharacters
+  ? `<div class="char-pick ${cls}" data-char-pick>
+      <button class="char-pick-btn" type="button" aria-haspopup="listbox" aria-expanded="false"><span aria-hidden="true">🏐</span> character <span aria-hidden="true">▾</span></button>
+      <div class="char-menu" role="listbox" aria-label="Choose a character" hidden></div>
+    </div>`
+  : '');
+
+function drawMenu(menu, names, chosen) {
+  const item = (name, label) => `<button type="button" role="option" class="char-opt${name === chosen ? ' on' : ''}" aria-selected="${name === chosen}" data-char="${name}" title="${label}">${name
+    ? `<img src="${DIR}${name}" alt="" loading="lazy" decoding="async">`
+    : '<span class="char-shuffle" aria-hidden="true">🔀</span>'}<span class="sr-only">${label}</span></button>`;
+  menu.innerHTML = `<p class="char-menu-title">Pick your character</p>
+    <div class="char-grid">${item('', 'Shuffle all')}${names.map((n, k) => item(n, `Character ${k + 1}`)).join('')}</div>`;
+}
+
+let timer = null;
+
 // Starts every character spot inside `root`. Stops by itself when the page changes.
 export async function startCharacters(root) {
   const spots = [...root.querySelectorAll('[data-char-spot]')];
   if (!spots.length) return;
-  const names = shuffled(await loadList());
+  const all = await loadList();
+  const names = shuffled(all);
   if (!names.length) return;
+
+  // Character picker(s): choose one to keep, or shuffle.
+  for (const pick of root.querySelectorAll('[data-char-pick]')) {
+    const btn = pick.querySelector('.char-pick-btn');
+    const menu = pick.querySelector('.char-menu');
+    const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', () => {
+      const opening = menu.hidden;
+      if (opening) drawMenu(menu, all, getPick());
+      menu.hidden = !opening;
+      btn.setAttribute('aria-expanded', String(opening));
+    });
+    menu.addEventListener('click', (e) => {
+      const opt = e.target.closest('[data-char]');
+      if (!opt) return;
+      setPick(opt.dataset.char);
+      close();
+      run();
+    });
+    document.addEventListener('click', (e) => { if (!pick.contains(e.target) && !menu.hidden) close(); });
+    pick.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { e.stopPropagation(); close(); btn.focus(); } });
+  }
+
   let i = 0;
   const show = (spot, name) => {
     const [a, b] = spot.querySelectorAll('img:not(.char-ball)');
@@ -60,13 +107,23 @@ export async function startCharacters(root) {
     };
     back.src = `${DIR}${name}`;
   };
-  spots.forEach((s) => show(s, names[0]));
-  if (names.length < 2 || reduceMotion.matches) return;
-  const timer = setInterval(() => {
-    if (!spots[0].isConnected) return clearInterval(timer); // left the page
-    if (document.hidden) return; // don't change while nobody's looking
-    i = (i + 1) % names.length;
-    new Image().src = `${DIR}${names[(i + 1) % names.length]}`; // get the next one ready
+  // A chosen character stays put; otherwise they take turns.
+  function run() {
+    clearInterval(timer);
+    const chosen = getPick();
+    if (chosen && all.includes(chosen)) {
+      spots.forEach((s) => show(s, chosen));
+      return;
+    }
     spots.forEach((s) => show(s, names[i]));
-  }, EVERY_MS);
+    if (names.length < 2 || reduceMotion.matches) return;
+    timer = setInterval(() => {
+      if (!spots[0].isConnected) return clearInterval(timer); // left the page
+      if (document.hidden) return; // don't change while nobody's looking
+      i = (i + 1) % names.length;
+      new Image().src = `${DIR}${names[(i + 1) % names.length]}`; // get the next one ready
+      spots.forEach((s) => show(s, names[i]));
+    }, EVERY_MS);
+  }
+  run();
 }

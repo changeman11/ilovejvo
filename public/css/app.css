@@ -756,6 +756,36 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 /* A soft shadow on the grass under their feet */
 .char-spot::after { content: ''; position: absolute; left: 50%; bottom: -2%; width: 46%; height: 7%; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.35), transparent); z-index: -1; }
 @media (prefers-reduced-motion: reduce) { .char-spot img { transition: none; } }
+
+/* Character picker (bottom right of the Home court / phone banner) */
+.char-pick { position: absolute; right: 10px; bottom: 10px; z-index: 6; }
+.char-pick-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  background: #12131a; color: #fff; border: 2px solid var(--yellow); font: 600 14px var(--font-head); text-transform: lowercase;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+}
+.char-pick-btn:hover, .char-pick-btn[aria-expanded="true"] { background: var(--yellow); color: #1b1b1f; }
+.char-menu {
+  position: absolute; right: 0; bottom: calc(100% + 8px); width: min(340px, calc(100vw - 32px)); max-height: min(60vh, 460px); overflow-y: auto;
+  padding: 10px; background: #12131a; border: 3px solid var(--yellow); border-radius: 16px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+.char-menu-title { margin: 0 0 8px; color: #fff; font: 600 15px var(--font-head); }
+.char-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.char-opt {
+  display: grid; place-items: center; aspect-ratio: 3 / 4; padding: 4px; border-radius: 10px; cursor: pointer;
+  background: #1f2130; border: 2px solid #2c2f44;
+}
+.char-opt { min-width: 0; overflow: hidden; }
+.char-opt img { width: 100%; height: 100%; object-fit: contain; }
+.char-opt:hover { border-color: #8e93a6; }
+.char-opt.on { border-color: var(--yellow); background: #2a2c1a; }
+.char-shuffle { font-size: 26px; }
+@media (max-width: 759px) {
+  .char-menu { position: fixed; left: 16px; right: 16px; top: 76px; bottom: auto; width: auto; max-height: calc(100vh - 170px); z-index: 90; }
+  .char-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.hero-art .char-pick.in-banner { right: 8px; bottom: 8px; }
+.hero-art .char-pick.in-banner .char-pick-btn { padding: 5px 10px; font-size: 12px; }
 /* Phones: the banner shows the empty court with a character standing on it */
 .hero-art.with-chars { aspect-ratio: 4 / 3; overflow: visible; background: url("/images/art/court-empty.jpg") 62% 70% / cover; border-radius: var(--radius); }
 .hero-art.with-chars .char-spot.in-banner { position: absolute; left: 50%; bottom: 6%; height: 94%; width: 72%; transform: translateX(-40%); }
@@ -894,6 +924,9 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
 
   /* Characters switched on: the empty court, with a character standing on it on Home */
   html.chars-on body { background-image: url("/images/art/court-empty.jpg?v=1"); }
+  /* Bottom right of the screen, above the bottom bars and clear of the chat tab */
+  .char-pick.on-court { position: fixed; right: 64px; bottom: calc(var(--playerbar-h) + 14px); }
+  body.has-reel .char-pick.on-court { bottom: calc(var(--playerbar-h) + var(--reel-h) + 14px); }
   .char-spot.on-court { position: fixed; z-index: 0; right: 14vw; bottom: calc(var(--playerbar-h) + 5vh); height: min(72vh, 680px); width: min(48vw, 640px); }
   .home-rest, .game-menu { position: relative; z-index: 1; }
 
