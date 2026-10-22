@@ -4,6 +4,7 @@
 import { loadAllBundles, loadPublicEvents, loadEventBundle, loadPlayers } from '../data.js';
 import { homeProfilePrompt, profileState } from './discord-cta.js';
 import { menuCards } from '../menu.js';
+import { characterSpot, charactersOn, startCharacters } from '../characters.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls } from '../ui.js';
@@ -57,6 +58,7 @@ function gameMenu(state) {
   return `
     <section class="home-stage desktop-only" aria-label="Main menu">
       <nav class="game-menu">${menuCards(state)}</nav>
+      ${characterSpot('on-court')}
     </section>`;
 }
 
@@ -90,8 +92,8 @@ export const home = {
             </div>
           </div>
           <div>
-            <div class="hero-art">
-              <img class="hero-scene" src="/images/art/scene.jpg" alt="A just volleyball player with the ball on a grass court" width="493" height="600">
+            <div class="hero-art${charactersOn ? ' with-chars' : ''}">
+              ${charactersOn ? characterSpot('in-banner') : '<img class="hero-scene" src="/images/art/scene.jpg" alt="A just volleyball player with the ball on a grass court" width="493" height="600">'}
               <picture class="hero-logo">
                 <source srcset="/images/game/just-volleyball-logo-wide.avif" type="image/avif">
                 <img src="/images/game/just-volleyball-logo.jpg" alt="just volleyball" width="460" height="215">
@@ -129,6 +131,9 @@ export const home = {
           </div>
         </div>
       </div>`;
+  },
+  mount(el) {
+    startCharacters(el); // community characters take turns on the court
   },
 };
 

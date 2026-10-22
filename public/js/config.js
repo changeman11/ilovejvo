@@ -31,6 +31,10 @@ const liveConfig = {
 export const firebaseConfig = useEmulators ? emulatorConfig : liveConfig;
 export const uploadsReady = useEmulators || liveUploadsReady;
 
+// Home page: community characters take turns standing on the court (images/characters, made by
+// scripts/cut-characters.mjs). false = the original court picture with its one character.
+export const cyclingCharacters = true;
+
 // The game's Steam page (the "wishlist" button).
 export const steamUrl = 'https://store.steampowered.com/app/5037200/';
 // JVO's Discord invite link, e.g. 'https://discord.gg/abc123'. Empty = the "discord" button is hidden.

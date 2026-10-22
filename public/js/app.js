@@ -20,6 +20,7 @@ import { NotFoundError } from './data.js';
 import { onAdminChange, onUserChange, currentAdmin, startDiscordSignIn } from './auth.js';
 import { renderShell, setSection } from './shell.js';
 import './search.js';
+import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
 import { setNav } from './nav.js';
 import { notice, esc, urls } from './ui.js';
