@@ -99,11 +99,39 @@ async function put(path, blob, type, admin, label) {
 }
 
 // Uploads a prepared image. owner: 'teams' | 'players'. Returns the new file's path.
+// Safety net: if Firebase refuses (e.g. its permission to check the database isn't set up yet),
+// the picture goes to the Cloudflare Worker instead, which checks ownership itself. Pages show it
+// either way (see the "error" listener above), and "Move images" copies it into Firebase later.
 export async function uploadImage({ owner, id, kind, image, admin = false }) {
   const name = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   const path = `${owner}/${id}/${kind}/${name}.${image.ext}`;
-  await put(path, image.blob, image.type, admin, MEDIA[kind].label);
+  try {
+    await put(path, image.blob, image.type, admin, MEDIA[kind].label);
+  } catch (err) {
+    if (!(err instanceof FriendlyError) || !/can’t upload/.test(err.message)) throw err;
+    await putToWorker(path, image, admin, MEDIA[kind].label);
+  }
   return path;
+}
+
+async function putToWorker(path, image, admin, label) {
+  const { auth, adminAuth } = await import('./auth.js');
+  const user = (admin ? adminAuth : auth).currentUser;
+  if (!user) throw new FriendlyError('Please sign in again, then try once more.');
+  let res;
+  try {
+    res = await fetch(oldMediaUrl(path), {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': image.type },
+      body: image.blob,
+    });
+  } catch {
+    throw new FriendlyError(`${label}: upload failed. Check your connection and try again.`);
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new FriendlyError(`${label}: ${body.error ?? 'upload failed. Please try again.'}`);
+  }
 }
 
 // Removes a stored file. Missing files are fine (already gone).
