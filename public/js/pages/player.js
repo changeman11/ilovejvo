@@ -7,8 +7,13 @@ import { playerBadges, playerXp, levelFor } from '../rules/badges.js';
 import { statHeads, statCells, allFixtures, resultOf, fixtureRow } from './parts.js';
 import { careerStats, statDefsFor } from './career.js';
 import { profileShell, showcaseTiles, badgesBlock, aboutBlock, sideBlock } from './profile-parts.js';
+import { commentsBlock, mountComments } from './comments.js';
 
 export const title = 'Player';
+
+export function mount(el) {
+  mountComments(el);
+}
 
 export function loading() {
   return skeleton([260, 90, 300]);
@@ -85,7 +90,8 @@ export async function render({ playerId }) {
   const main = `
     ${career ? showcaseTiles('player', player.showcase, defs, { ...career, sweeps, level: lvl.level }) : ''}
     ${aboutBlock(player.bio)}
-    ${stats}`;
+    ${stats}
+    ${await commentsBlock({ kind: 'player', targetId: player.id, ownerUid: player.uid ?? null })}`;
 
   const side = `
     ${sideBlock('Badges', badgesBlock(playerBadges(career, defs), 'Badges are earned by playing matches.'))}

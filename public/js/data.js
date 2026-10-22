@@ -186,6 +186,13 @@ export function loadJoinRequest(teamId, playerId) {
   return getOne(`joinRequests/${teamId}__${playerId}`).catch(() => null);
 }
 
+// ---------- Comments on a team or player page (never cached, so new ones show straight away) ----------
+
+export async function loadComments(kind, id) {
+  const list = await getAll(`${kind}s/${id}/comments`).catch(() => []);
+  return list.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+}
+
 // ---------- Site settings (settings/{id}: faq, rules) ----------
 
 export function loadSetting(id, { fresh = false, admin = false } = {}) {

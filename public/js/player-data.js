@@ -46,6 +46,25 @@ export async function registerTeam({ uid, player, name, shortName, color, takenI
   return id;
 }
 
+// ---------- Comments (teams/{id}/comments, players/{id}/comments) ----------
+// kind: 'team' | 'player'. The rules allow one post every 15 seconds per person.
+
+export async function postComment({ uid, player, kind, targetId, body }) {
+  await commit(uid, [
+    { type: 'set', path: `commentLimits/${uid}`, data: { lastAt: serverTimestamp() } },
+    {
+      type: 'set',
+      path: `${kind}s/${targetId}/comments/${newId(`${kind}s/${targetId}/comments`)}`,
+      data: { body, authorUid: uid, authorPlayerId: player.id, createdAt: serverTimestamp() },
+    },
+  ]);
+}
+
+// Admins delete through their own sign-in (pass admin: true).
+export async function deleteComment({ uid, kind, targetId, comment, admin = false }) {
+  await commit(uid, [{ type: 'delete', path: `${kind}s/${targetId}/comments/${comment.id}`, before: comment }], { admin });
+}
+
 // Manager tidies up their team.
 export async function updateTeam({ uid, team, changes }) {
   await commit(uid, [{ type: 'update', path: `teams/${team.id}`, before: team, data: changes }]);

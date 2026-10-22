@@ -353,6 +353,19 @@ a.event-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var
 .prose ul, .prose ol { margin: 0 0 12px; padding-left: 22px; max-width: 70ch; }
 .prose li + li { margin-top: 4px; }
 
+/* Comments (team and player pages) */
+.comment-form textarea { width: 100%; resize: vertical; min-height: 64px; }
+.comment-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.comment-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 14px; }
+.comment-list li { display: flex; gap: 10px; align-items: flex-start; }
+.comment-list .avatar { width: 36px; height: 36px; border-width: 2px; font-size: 16px; object-fit: cover; }
+.comment-main { min-width: 0; flex: 1; }
+.comment-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.comment-head a { text-decoration: none; }
+.comment-head .link-btn { margin-left: auto; }
+.comment-main p { margin: 2px 0 0; overflow-wrap: anywhere; }
+.comments-empty { margin: 12px 0 0; }
+
 /* FAQ & rules (/help) */
 .faq-group h2 { margin: 6px 0 10px; }
 .faq details + details { border-top: 1px solid var(--line); }

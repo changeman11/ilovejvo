@@ -15,6 +15,7 @@ import { teamCareer, teamBadges, teamXp, levelFor } from '../rules/badges.js';
 import { allFixtures, resultOf, fixtureRow } from './parts.js';
 import { statDefsFor } from './career.js';
 import { profileShell, showcaseTiles, badgesBlock, aboutBlock, sideBlock } from './profile-parts.js';
+import { commentsBlock, mountComments } from './comments.js';
 
 export const title = 'Team';
 
@@ -80,7 +81,8 @@ export async function render({ teamId }) {
     <section>
       <div class="section-head"><h2>Upcoming</h2></div>
       <div class="panel flush fixtures">${upcoming.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('') || '<p class="muted" style="padding:16px">Nothing scheduled.</p>'}</div>
-    </section>`;
+    </section>
+    ${await commentsBlock({ kind: 'team', targetId: teamId, ownerUid: team.managerUid ?? null })}`;
 
   const side = `
     ${sideBlock('Badges', badgesBlock(teamBadges(rec), 'Badges are earned by playing matches.'))}
@@ -105,6 +107,7 @@ export async function render({ teamId }) {
 }
 
 export function mount(el) {
+  mountComments(el);
   if (!joinCtx) return;
   const { user, me, team, req } = joinCtx;
   const box = el.querySelector('.join-box');

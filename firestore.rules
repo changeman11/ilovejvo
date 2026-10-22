@@ -254,6 +254,39 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- Comments on team and player pages ----------
+    // Anyone can read. Players with a profile post as themselves (≤500 characters), at most one
+    // comment every 15 seconds: each post also stamps commentLimits/{uid} in the same save, and
+    // that stamp can't be moved forward again until 15 seconds have passed.
+    // The writer, the page's owner (the player, or the team's manager) and admins can delete.
+    function validComment() {
+      let d = request.resource.data;
+      return signedIn()
+          && d.keys().hasOnly(['body', 'authorUid', 'authorPlayerId', 'createdAt', 'updatedBy', 'updatedAt'])
+          && d.keys().hasAll(['body', 'authorUid', 'authorPlayerId', 'createdAt'])
+          && d.body is string && d.body.trim().size() > 0 && d.body.size() <= 500
+          && d.authorUid == uid() && d.createdAt == request.time && stampedByMe()
+          && ownsPlayer(d.authorPlayerId)
+          && getAfter(/databases/$(database)/documents/commentLimits/$(uid())).data.lastAt == request.time;
+    }
+    match /teams/{teamId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if validComment() && teamDoc(teamId).get('status', 'approved') == 'approved';
+      allow delete: if isAdmin() || (signedIn() && (resource.data.authorUid == uid() || managesTeam(teamId)));
+    }
+    match /players/{playerId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if validComment() && exists(/databases/$(database)/documents/players/$(playerId));
+      allow delete: if isAdmin() || (signedIn() && (resource.data.authorUid == uid() || ownsPlayer(playerId)));
+    }
+    match /commentLimits/{limitUid} {
+      allow read: if signedIn() && uid() == limitUid;
+      allow create, update: if signedIn() && uid() == limitUid
+          && request.resource.data.keys().hasOnly(['lastAt', 'updatedBy', 'updatedAt'])
+          && request.resource.data.lastAt == request.time && stampedByMe()
+          && (resource == null || resource.data.lastAt < request.time - duration.value(15, 's'));
+    }
+
     // ---------- Join requests (free agent -> team) ----------
     // One per player per team: id "<teamId>__<playerId>". The player asks; the team's manager accepts
     // (adding them in the same save, see players) or declines; the player can withdraw.

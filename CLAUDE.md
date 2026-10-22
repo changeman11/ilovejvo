@@ -20,6 +20,16 @@
 - **Community characters (2026-10-22):** Home shows community characters taking turns on an empty court (`public/js/characters.js`, pictures in `public/images/characters/` + `list.json`, cut out from `art-src/community/` by `node scripts/cut-characters.mjs`; empty court `images/art/court-empty.jpg` from `art-src/court-empty.png`). Off switch: `cyclingCharacters` in `config.js` (false = old court picture with its baked-in character). To add characters: drop full-body pictures on a plain background into `art-src/community/` and re-run the script.
 - **Search:** top bar, players and teams (`js/search.js`), "/" focuses it.
 - **Desktop side menu:** the Home menu cards stay down the left on every other page (`js/menu.js`, `setSection()` in `shell.js`).
+- **Added 2026-10-22:**
+  - **Notifications bell** (`js/notifications.js`), next to the Teams button: invites, join requests and their answers, leave decisions, and matches waiting for your result vote. Worked out from existing records; "seen" is stored on the device only.
+  - **Fixtures:** a heading per round (from labels like "Round 3" or "Semi-final", `roundName()` in `pages/parts.js`), plus a team filter (`?team=`) with a "My team" chip.
+  - **Teams & players** page (`/teams?view=teams|players|free`).
+  - **Results reel** (`js/reel.js`): latest scores scroll above the bottom bar. Users can hide it for a visit.
+  - **FAQ & rules** at `/help`. Admins edit them at `/admin/help`; they're saved in `settings/faq` and `settings/rules`, using a small safe formatter (`rules/markdown.js`). Starter text lives in `js/help-defaults.js`.
+  - **Comments** on team and player pages, stored in `teams/{id}/comments` and `players/{id}/comments`:
+    - Players with a profile can post, up to 500 characters.
+    - One post per 15 seconds, enforced through `commentLimits/{uid}` in the same save.
+    - The writer, the page owner and admins can delete.
 - **Audit log:** written by the browser in the same batch as each admin change; rules force `by == uid` and make it append-only.
 - **Look:** light "beach day" theme in the style of the game *just volleyball* (temkosoft): ball-blue `#1438d8` header, sky background, deep navy `#18204a` outlines (not black), accents sky / teal / coral / purple, yellow `#ffe200` for small highlights only (big yellow + black areas looked like an adult site, per users, 2026-10-21). Teal wins, pink losses, outlined "sticker" panels, Fredoka headings, Graduate (jersey-style) numbers. The official logo is used with the developer's OK (`public/images/game/`, credited and linked to Steam). Avoid generic "AI dashboard" styling.
 - The match engine (`public/js/rules/`) is unchanged: Bo3 sets to 10 win by 2, a fixture can be Bo5; forfeit = 2–0, 10–0. The engine's "season" is built from an event by `engineSeason()` in `data.js`.
