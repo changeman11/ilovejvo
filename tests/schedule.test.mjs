@@ -1,6 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { roundRobin } from '../public/js/rules/schedule.js';
+import { roundRobin, missingGames } from '../public/js/rules/schedule.js';
+
+test('top-up: only matchups without a fixture are added, either way round', () => {
+  const games = roundRobin(['a', 'b', 'c', 'd']); // 6 pairings
+  const existing = [{ homeTeamId: 'b', awayTeamId: 'a' }, { homeTeamId: 'c', awayTeamId: 'd' }, { homeTeamId: null, awayTeamId: 'a' }];
+  const missing = missingGames(games, existing);
+  assert.equal(missing.length, 4);
+  assert.ok(!missing.some((g) => [g.homeTeamId, g.awayTeamId].sort().join() === 'a,b'));
+  // Home & away: one existing a–b game still leaves the return leg
+  const twice = missingGames(roundRobin(['a', 'b'], { double: true }), [{ homeTeamId: 'a', awayTeamId: 'b' }]);
+  assert.equal(twice.length, 1);
+  assert.equal(missingGames(games, games).length, 0);
+});
 
 function pairKey(f) {
   return [f.homeTeamId, f.awayTeamId].sort().join('-');

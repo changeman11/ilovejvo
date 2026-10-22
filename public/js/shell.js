@@ -12,12 +12,31 @@ import { esc, avatarImg, teamDot, fmtDay, fmtTime, fmtNum, urls } from './ui.js'
 import { discordLogo } from './pages/discord-cta.js';
 import { discordInviteUrl, steamUrl } from './config.js';
 import { navigate } from './nav.js';
+import { menuCards } from './menu.js';
 
 const desktop = matchMedia('(min-width: 1024px)');
 const party = document.querySelector('[data-shell="party"]');
 const icons = document.querySelector('[data-shell="icons"]');
 const bar = document.querySelector('[data-shell="bar"]');
+const side = document.querySelector('[data-shell="side"]');
 const SLOTS = 5;
+
+// ---------- Side menu: kept open on every page except Home ----------
+let currentSection = null;
+let menuState = 'guest'; // 'guest' | 'new' | 'player' (from the last sign-in check)
+
+function drawSide() {
+  const show = desktop.matches && currentSection !== '/';
+  document.body.classList.toggle('has-side', show);
+  side.hidden = !show;
+  if (show) side.innerHTML = `<nav class="game-menu side">${menuCards(menuState, { active: currentSection ?? '' })}</nav>`;
+}
+
+// Called by app.js as soon as the address changes, so the right card lights up straight away.
+export function setSection(section) {
+  currentSection = section;
+  drawSide();
+}
 
 const icon = {
   teams: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><circle cx="16" cy="8" r="3.2"/><path d="M2.5 19c0-3.2 2.5-5.5 5.5-5.5s5.5 2.3 5.5 5.5zM12 19c.2-2.4 1.3-4.3 3-5.1.3-.1.7-.2 1-.2 3 0 5.5 2.3 5.5 5.3z"/></svg>',
@@ -118,6 +137,8 @@ export function renderShell() {
   if (!desktop.matches || !bar) return Promise.resolve();
   rendering ??= gather()
     .then((s) => {
+      menuState = s.signedIn ? (s.player ? 'player' : 'new') : 'guest';
+      drawSide();
       party.innerHTML = partyHtml(s);
       icons.innerHTML = iconsHtml(s);
       bar.innerHTML = barHtml(s);
@@ -129,7 +150,10 @@ export function renderShell() {
   return rendering;
 }
 
-desktop.addEventListener('change', () => renderShell());
+desktop.addEventListener('change', () => {
+  drawSide();
+  renderShell();
+});
 
 document.addEventListener('click', async (e) => {
   if (!e.target.closest('[data-shell-signout]')) return;

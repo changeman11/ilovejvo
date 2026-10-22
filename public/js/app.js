@@ -18,7 +18,8 @@ import * as people from './pages/admin/people.js';
 import * as resultEntry from './pages/admin/result.js';
 import { NotFoundError } from './data.js';
 import { onAdminChange, onUserChange, currentAdmin, startDiscordSignIn } from './auth.js';
-import { renderShell } from './shell.js';
+import { renderShell, setSection } from './shell.js';
+import './search.js';
 import * as teamsList from './pages/teams.js';
 import { setNav } from './nav.js';
 import { notice, esc, urls } from './ui.js';
@@ -126,6 +127,7 @@ async function show() {
   const { page, params, section } = route;
   const id = ++renderId;
 
+  setSection(section); // desktop side menu: highlight this page's card
   document.querySelectorAll('.topnav a, .tabbar a').forEach((a) => {
     if (a.getAttribute('href') === section) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');

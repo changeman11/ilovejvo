@@ -41,11 +41,20 @@
         <a href="/me" data-link>Me</a>
         <a href="/admin" data-link class="admin-only" hidden>Admin</a>
       </nav>
+      <!-- Find players and teams (js/search.js). Press "/" to jump here. -->
+      <div class="search" data-search role="search">
+        <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+        <input type="search" placeholder="search players &amp; teams" aria-label="Search players and teams" autocomplete="off" spellcheck="false" enterkeyhint="go">
+        <div class="search-results" role="listbox" hidden></div>
+      </div>
       <!-- Wide screens only: team box and round buttons, like the game's menu (js/shell.js) -->
       <div class="party" data-shell="party" hidden></div>
       <div class="top-icons" data-shell="icons"></div>
     </div>
   </header>
+
+  <!-- Wide screens only: the menu cards stay open down the left side on every page except Home (js/shell.js) -->
+  <aside class="side-menu" data-shell="side" aria-label="Menu" hidden></aside>
 
   <main id="main" class="page" tabindex="-1"></main>
 

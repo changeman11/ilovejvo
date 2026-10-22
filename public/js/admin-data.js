@@ -49,8 +49,13 @@ export async function deleteEvent({ uid, bundle }) {
 
 // ---------- Teams and players ----------
 
-export async function saveTeam({ id, uid, team, existing }) {
-  await commit(uid, [{ type: 'set', path: `teams/${id}`, before: existing, data: team }]);
+// joinPlayer: a player to put on this team in the same save (e.g. the manager when a team is approved).
+export async function saveTeam({ id, uid, team, existing, joinPlayer = null }) {
+  const ops = [{ type: 'set', path: `teams/${id}`, before: existing, data: team }];
+  if (joinPlayer && joinPlayer.teamId !== id) {
+    ops.push({ type: 'update', path: `players/${joinPlayer.id}`, before: joinPlayer, data: { teamId: id } });
+  }
+  await commit(uid, ops);
   invalidate();
 }
 export async function deleteTeam({ id, uid, existing }) {
@@ -101,6 +106,16 @@ export async function saveFixture({ eventId, id, uid, fixture, existing }) {
   }]);
   invalidate(`event:${eventId}`);
   return fixtureId;
+}
+
+// Several new fixtures in one save (auto-generated schedules).
+export async function addFixtures({ eventId, uid, fixtures }) {
+  await commit(uid, fixtures.map((fixture) => ({
+    type: 'set',
+    path: `events/${eventId}/fixtures/${newId(`events/${eventId}/fixtures`)}`,
+    data: { ...fixture, scheduledAt: ts(fixture.scheduledAt) },
+  })));
+  invalidate(`event:${eventId}`);
 }
 
 // Deleting a fixture also deletes its result.

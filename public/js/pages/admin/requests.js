@@ -1,9 +1,10 @@
 // Admin inbox: team registrations, leave requests and profile claims.
 
-import { loadRequests } from '../../data.js';
+import { loadRequests, loadAllBundles } from '../../data.js';
 import { decideTeam, decideLeave, decideClaim } from '../../admin-data.js';
 import { refresh } from '../../nav.js';
-import { esc, skeleton, teamDot, playerLink, fmtDay } from '../../ui.js';
+import { esc, skeleton, teamDot, playerLink, fmtDay, urls } from '../../ui.js';
+import { tallyVotes, voteLabel } from '../../rules/votes.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
 export const title = 'Requests';
@@ -17,8 +18,24 @@ let page = null;
 export async function render() {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
-  const r = await loadRequests();
+  const [r, bundles] = await Promise.all([loadRequests(), loadAllBundles({ includeDrafts: true, fresh: true })]);
   page = { user: gate.user, r };
+
+  // Result votes the two teams don't agree on (no result yet): an admin decides.
+  const disputes = bundles.flatMap((b) => b.fixtures
+    .filter((f) => !b.results[f.id])
+    .map((f) => ({ b, f, tally: tallyVotes((b.submissions ?? []).filter((s) => s.fixtureId === f.id), f) }))
+    .filter((x) => x.tally.status === 'disputed'));
+  const disputeRows = disputes.map(({ b, f, tally }) => {
+    const name = (id) => esc(b.teamsById[id]?.name ?? 'TBC');
+    const says = (votes) => votes.map((v) => `${esc(b.playersById[v.playerId]?.displayName ?? v.playerId)}: ${esc(voteLabel(v.sets))}`).join(' · ');
+    return `
+    <div class="row">
+      <span class="row-main"><b>${name(f.homeTeamId)} v ${name(f.awayTeamId)}</b>
+        <span class="muted small">${esc(b.event.title)} · ${says(tally.home)} · ${says(tally.away)}</span></span>
+      <span class="row-side"><a class="btn btn-sm btn-primary" href="${urls.adminResult(b.event.id, f.id)}" data-link>Decide</a></span>
+    </div>`;
+  }).join('');
   const nameOf = (pid) => r.playersById[pid]?.displayName ?? pid;
   const when = (ms) => (ms ? fmtDay(ms) : '');
   const empty = (text) => `<p class="muted" style="padding:16px">${text}</p>`;
@@ -62,6 +79,8 @@ export async function render() {
         ${adminBar(gate.user, gate.admin, '/admin/requests')}
         <div class="page-head"><div><h1>Requests</h1><p class="muted">Things players are waiting on.</p></div></div>
         <div class="stack">
+          <section><div class="section-head"><h2>Results the teams disagree on</h2></div><div class="panel flush rows">${disputeRows || empty('No disagreements. Results both teams agree on go live by themselves.')}</div>
+            <p class="muted small" style="margin-top:6px">Open one to see each team’s vote and copy the right one into the result.</p></section>
           <section><div class="section-head"><h2>New teams</h2></div><div class="panel flush rows">${teams || empty('No team registrations waiting.')}</div>
             <p class="muted small" style="margin-top:6px">Approving makes the person who registered it the manager.</p></section>
           <section><div class="section-head"><h2>Leave requests</h2></div><div class="panel flush rows">${leaves || empty('No leave requests waiting.')}</div>

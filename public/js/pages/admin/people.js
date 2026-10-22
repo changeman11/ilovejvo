@@ -53,7 +53,7 @@ function teamForm(t) {
       <label class="field"><span>Colour</span><input type="color" name="color" value="${esc(t?.colors?.primary ?? '#19c9b1')}" style="width:80px;min-height:40px;padding:2px"></label>
       <div class="field-row">
         <label class="field"><span>Status</span><select name="status">${[['approved', 'Approved'], ['pending', 'Waiting for approval'], ['rejected', 'Rejected']].map(([v, l]) => `<option value="${v}"${(t?.status ?? 'approved') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="field"><span>Manager (squad players with Discord)</span><select name="manager"><option value="">No manager</option>${(t ? page.people.players.filter((p) => p.teamId === t.id && p.uid) : []).map((p) => `<option value="${esc(p.id)}"${t?.managerPlayerId === p.id ? ' selected' : ''}>${esc(p.displayName)}</option>`).join('')}</select></label>
+        <label class="field"><span>Manager (squad players with Discord)</span><select name="manager"><option value="">No manager</option>${(t ? page.people.players.filter((p) => p.uid && (p.teamId === t.id || p.id === t.managerPlayerId)) : []).map((p) => `<option value="${esc(p.id)}"${t?.managerPlayerId === p.id ? ' selected' : ''}>${esc(p.displayName)}</option>`).join('')}</select></label>
       </div>
       ${moderation('teams', t)}
       <div class="actions">
@@ -198,8 +198,11 @@ export function mount(el) {
       button.disabled = true;
       try {
         const manager = page.people.players.find((p) => p.id === form.querySelector('[name=manager]').value) ?? null;
+        const status = form.querySelector('[name=status]').value;
+        // An approved team's manager is always on its squad (if they're a free agent).
+        const joinPlayer = status === 'approved' && manager && !manager.teamId ? manager : null;
         await saveTeam({
-          id, uid, existing,
+          id, uid, existing, joinPlayer,
           team: {
             ...strip(existing), name, shortName, colors: { primary: val('color') },
             status: form.querySelector('[name=status]').value,

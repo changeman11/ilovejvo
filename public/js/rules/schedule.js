@@ -38,3 +38,24 @@ export function roundRobin(teamIds, { double = false } = {}) {
   }
   return fixtures;
 }
+
+// Only the games still missing: a pairing that already has a fixture (either way round) counts as
+// played once. Lets an admin "top up" the schedule after a team joins late, without duplicates.
+// existing: [{ homeTeamId, awayTeamId }]
+export function missingGames(games, existing) {
+  const key = (a, b) => [a, b].sort().join('|');
+  const have = new Map();
+  for (const f of existing) {
+    if (!f.homeTeamId || !f.awayTeamId) continue;
+    const k = key(f.homeTeamId, f.awayTeamId);
+    have.set(k, (have.get(k) ?? 0) + 1);
+  }
+  return games.filter((g) => {
+    const k = key(g.homeTeamId, g.awayTeamId);
+    if ((have.get(k) ?? 0) > 0) {
+      have.set(k, have.get(k) - 1);
+      return false;
+    }
+    return true;
+  });
+}

@@ -7,3 +7,6 @@ emulator-data/
 *-service-account*.json
 serviceAccount*.json
 .runtimeconfig.json
+
+# Cloudflare Worker local test data and cache (never commit)
+worker/.wrangler/

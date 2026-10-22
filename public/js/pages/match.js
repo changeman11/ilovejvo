@@ -4,6 +4,7 @@ import { loadEventBundle, NotFoundError } from '../data.js';
 import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, teamLink, playerLink, urls } from '../ui.js';
 import { formatFor } from '../rules/season.js';
 import { resultOf, statHeads, statCells } from './parts.js';
+import { votesSummary, reportBlock, mountReport } from './report.js';
 
 export const title = 'Match';
 
@@ -58,7 +59,15 @@ export async function render({ eventId, fixtureId }) {
       </section>` : ''}`;
   } else if (result) {
     body = notice('Result under review', ' An admin is checking this score.');
+  } else {
+    // Not played yet (or not reported): players vote on the result here.
+    body = `${votesSummary(b, f)}${await reportBlock(b, f)}`;
   }
+  const confirmed = played && result.source === 'votes'
+    ? `<p class="muted small" style="margin-top:8px">✓ Confirmed by both teams’ votes${result.confirmedBy?.length ? `: ${result.confirmedBy.map((id) => {
+      const v = (b.submissions ?? []).find((s) => s.id === id);
+      return v ? esc(b.playersById[v.playerId]?.displayName ?? v.playerId) : '';
+    }).filter(Boolean).join(' and ')}` : ''}</p>` : '';
 
   const mvp = played && result.mvpPlayerId
     ? `<div><span class="mvp-line">MVP · ${playerLink(b.playersById[result.mvpPlayerId], result.mvpPlayerId)}</span></div>` : '';
@@ -77,8 +86,13 @@ export async function render({ eventId, fixtureId }) {
           <p class="${f.scheduledAt ? '' : 'event-when tbd'}" style="font-weight:700">${esc(when)}</p>
           ${played && !result.forfeit ? `<div class="set-strip">${result.sets.map((s, i) => `<span>Set ${i + 1}: ${s.home}–${s.away}</span>`).join('')}<span>Points ${check.homePoints}–${check.awayPoints}</span></div>` : ''}
           ${mvp}
+          ${confirmed}
         </section>
         ${body}
       </div>`,
   };
+}
+
+export function mount(el) {
+  mountReport(el);
 }

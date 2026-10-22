@@ -112,7 +112,7 @@ export function engineSeason(event) {
 }
 
 // Everything one event's pages need.
-// Returns { event, season, teams, teamsById, playersById, rosters, fixtures, results }
+// Returns { event, season, teams, teamsById, playersById, rosters, fixtures, results, submissions }
 export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) {
   if (fresh) invalidate(`event:${eventId}`);
   return cached(`event:${eventId}`, admin, async () => {
@@ -125,12 +125,14 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
     }
     if (!event) throw new NotFoundError('That event doesn’t exist');
     const base = `events/${eventId}`;
-    const [teams, players, rosters, fixtures, results] = await Promise.all([
+    const [teams, players, rosters, fixtures, results, submissions] = await Promise.all([
       loadTeams({ fresh, admin }),
       loadPlayers({ fresh, admin }),
       getAll(`${base}/rosters`, admin),
       getAll(`${base}/fixtures`, admin),
       getAll(`${base}/results`, admin),
+      // Players' result votes (see rules/votes.js). Missing on older events = none yet.
+      getAll(`${base}/submissions`, admin).catch(() => []),
     ]);
     const teamIds = new Set(event.teamIds ?? []);
     return {
@@ -143,6 +145,7 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
       // `round` keeps the engine's ordering for undated fixtures
       fixtures: fixtures.map((f) => ({ ...f, round: f.order ?? 0 })),
       results: Object.fromEntries(results.map((r) => [r.id, r])),
+      submissions,
     };
   });
 }

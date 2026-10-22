@@ -6,6 +6,7 @@ import { loadEventBundle, NotFoundError } from '../../data.js';
 import { checkResult } from '../../rules/match.js';
 import { formatFor } from '../../rules/season.js';
 import { forfeitSets, visibleSetCount, cleanStatLine, suggestMvp, reviewResult } from '../../rules/results.js';
+import { voteLabel } from '../../rules/votes.js';
 import { saveResult, deleteResult } from '../../admin-data.js';
 import { navigate } from '../../nav.js';
 import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
@@ -156,6 +157,46 @@ function mvpOptions() {
   return `<option value="">No MVP</option>${groups}`;
 }
 
+// Players' result votes for this match (rules/votes.js), each with a button to copy it into the form.
+const fixtureVotes = () => (page.b.submissions ?? []).filter((v) => v.fixtureId === page.fixture.id);
+
+function votesPanel() {
+  const { b } = page;
+  const votes = fixtureVotes().sort((x, y) => (y.updatedAt ?? 0) - (x.updatedAt ?? 0));
+  if (!votes.length) return '';
+  return `
+    <section class="panel">
+      <h3 style="margin-bottom:6px">Players’ votes</h3>
+      <p class="muted small" style="margin-bottom:8px">“Use” copies that vote’s scores and its team’s stats, plus the other team’s latest stats, into the form below.</p>
+      <div class="rows">${votes.map((v) => `
+        <div class="row">
+          <span class="row-main"><b>${esc(b.playersById[v.playerId]?.displayName ?? v.playerId)} <span class="muted">(${esc(b.teamsById[v.teamId]?.name ?? v.teamId)})</span></b>
+            <span class="small num">${esc(voteLabel(v.sets))} · ${Object.keys(v.playerStats ?? {}).length} stat lines${v.updatedAt ? ` · ${esc(fmtDay(v.updatedAt))}` : ''}</span></span>
+          <span class="row-side"><button type="button" class="btn btn-sm" data-act="use-vote" data-id="${esc(v.id)}">Use</button></span>
+        </div>`).join('')}</div>
+    </section>`;
+}
+
+// Fills the form from a vote (scores in the fixture's home/away order, flipped if the admin swapped).
+function useVote(vote) {
+  const { fixture, format } = page;
+  const s = page.state;
+  const flip = s.homeId !== fixture.homeTeamId;
+  s.mode = 'played';
+  s.sets = Array.from({ length: format.bestOf }, (_, i) => {
+    const set = vote.sets[i];
+    if (!set) return { home: '', away: '' };
+    return flip ? { home: String(set.away), away: String(set.home) } : { home: String(set.home), away: String(set.away) };
+  });
+  const latestFor = (teamId) => (teamId === vote.teamId ? vote
+    : fixtureVotes().filter((v) => v.teamId === teamId).sort((x, y) => (y.updatedAt ?? 0) - (x.updatedAt ?? 0))[0]);
+  for (const teamId of [s.homeId, s.awayId]) {
+    const lines = Object.entries(latestFor(teamId)?.playerStats ?? {}).filter(([, l]) => l.teamId === teamId);
+    if (!lines.length) continue;
+    s.players[teamId] = lines.map(([pid, line]) => ({ pid, played: true, line: Object.fromEntries(statKeys().map((k) => [k, String(line[k] ?? 0)])) }));
+  }
+}
+
 function formHtml() {
   const { b, fixture, existing, state: s, eventId } = page;
   const home = b.teamsById[s.homeId];
@@ -180,6 +221,7 @@ function formHtml() {
       </div>
       ${swapped ? '<p class="small" style="margin-top:8px;font-weight:700">Swapped: the fixture will be saved this way round.</p>' : ''}
     </section>
+    ${votesPanel()}
 
     <section class="panel">
       <div class="segmented" role="radiogroup" aria-label="Result type">
@@ -369,6 +411,14 @@ export function mount(el) {
     if (!button) return;
     const s = page.state;
     readForm(root);
+
+    if (button.dataset.act === 'use-vote') {
+      const vote = fixtureVotes().find((v) => v.id === button.dataset.id);
+      if (vote) {
+        useVote(vote);
+        redraw(root);
+      }
+    }
 
     if (button.dataset.act === 'swap') {
       [s.homeId, s.awayId] = [s.awayId, s.homeId];

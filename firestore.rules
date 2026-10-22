@@ -102,6 +102,46 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7 && d.playerStats is map;
     }
+    function fixtureDoc(eventId, fixtureId) { return get(/databases/$(database)/documents/events/$(eventId)/fixtures/$(fixtureId)).data; }
+    // A vote as it will be after this save (so a vote and the result it completes can be saved together).
+    function voteAfter(eventId, voteId) { return getAfter(/databases/$(database)/documents/events/$(eventId)/submissions/$(voteId)).data; }
+
+    // A player's vote: they're signed in as that player, the player is on one of the two teams,
+    // the event is public and the match has no result yet.
+    function validVote(eventId, subId) {
+      let d = request.resource.data;
+      let f = fixtureDoc(eventId, d.fixtureId);
+      return signedIn() && stampedByMe() && eventPublished(eventId)
+          && subId == d.fixtureId + '__' + d.playerId
+          && d.uid == uid() && ownsPlayer(d.playerId)
+          && d.teamId == playerDoc(d.playerId).get('teamId', '')
+          && (d.teamId == f.homeTeamId || d.teamId == f.awayTeamId)
+          && !exists(/databases/$(database)/documents/events/$(eventId)/results/$(d.fixtureId))
+          && d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7
+          && d.playerStats is map && d.playerStats.size() <= 12
+          && d.keys().hasOnly(['fixtureId', 'playerId', 'uid', 'teamId', 'sets', 'playerStats', 'screenshotPaths', 'createdAt', 'updatedBy', 'updatedAt']);
+    }
+
+    // A result published by players: it must be exactly what one home-team vote and one away-team vote
+    // agree on. Same set scores in both votes; the stat lines are the two votes' lines put together
+    // (map "diff" proves nothing was added or changed); written by one of the two voters.
+    function agreedResult(eventId, fixtureId) {
+      let d = request.resource.data;
+      let f = fixtureDoc(eventId, fixtureId);
+      let h = voteAfter(eventId, d.confirmedBy[0]);
+      let a = voteAfter(eventId, d.confirmedBy[1]);
+      return signedIn() && stampedByMe() && eventPublished(eventId) && validResult()
+          && d.keys().hasOnly(['sets', 'playerStats', 'mvpPlayerId', 'forfeit', 'confirmedBy', 'source', 'enteredBy', 'enteredAt', 'updatedBy', 'updatedAt'])
+          && d.confirmedBy is list && d.confirmedBy.size() == 2
+          && h.fixtureId == fixtureId && a.fixtureId == fixtureId
+          && h.teamId == f.homeTeamId && a.teamId == f.awayTeamId
+          && (h.uid == uid() || a.uid == uid())
+          && h.sets == d.sets && a.sets == d.sets
+          && d.playerStats.diff(h.playerStats).affectedKeys() == a.playerStats.keys().toSet()
+          && d.playerStats.diff(a.playerStats).affectedKeys() == h.playerStats.keys().toSet()
+          && d.forfeit == null
+          && (d.mvpPlayerId == null || d.mvpPlayerId in d.playerStats);
+    }
 
     // ---------- Events (exhibition nights, tournaments): admin-run ----------
     match /events/{eventId} {
@@ -112,7 +152,20 @@ service cloud.firestore {
       match /results/{fixtureId} {
         allow read: if eventPublished(eventId) || isAdmin();
         allow create, update: if isAdmin() && stampedByMe() && validResult();
+        // Players publish a result only when both teams have voted the same set scores (see agreedResult).
+        allow create: if agreedResult(eventId, fixtureId);
         allow delete: if isAdmin();
+      }
+
+      // ---------- Result votes from players ----------
+      // One per player per match (id "<fixtureId>__<playerId>"): the set scores they say happened, plus
+      // their own team's stat lines. Anyone on either team may vote until a result exists.
+      match /submissions/{subId} {
+        allow read: if eventPublished(eventId) || isAdmin();
+        allow create, update: if validVote(eventId, subId);
+        allow delete: if isAdmin()
+          || (signedIn() && resource.data.uid == uid()
+              && !exists(/databases/$(database)/documents/events/$(eventId)/results/$(resource.data.fixtureId)));
       }
       match /{collection}/{docId} {
         allow read: if eventPublished(eventId) || isAdmin();

@@ -5,7 +5,9 @@ import {
   currentUser, currentAdmin, discordOf, discordReady, startDiscordSignIn, devSignIn, devSignInAvailable, DEV_USERS,
   signOut, lastDiscordProfile,
 } from '../auth.js';
-import { loadMe, isApprovedTeam } from '../data.js';
+import { loadMe, isApprovedTeam, loadAllBundles } from '../data.js';
+import { matchesToReport } from './report.js';
+import { fixtureRow } from './parts.js';
 import {
   createProfile, updateProfile, requestClaim, cancelClaim, registerTeam, updateTeam, answerOffer, requestLeave, cancelLeave,
 } from '../player-data.js';
@@ -215,11 +217,18 @@ export async function render() {
     body = noProfileBlock(me, discord);
   } else {
     const onTeam = isApprovedTeam(me.team);
+    // Your team's matches without a result: report them (vote) from here.
+    const toReport = onTeam ? matchesToReport(await loadAllBundles().catch(() => []), me.player).slice(0, 6) : [];
+    const reportBlock = toReport.length ? `
+      <section>
+        <div class="section-head"><h2>Report your results</h2><span class="muted small">Tap a match to vote</span></div>
+        <div class="panel flush fixtures">${toReport.map(({ b, f, voted }) => fixtureRow(b, f, { showEvent: true }).replace('<div class="mid">', `<div class="mid">${voted ? '<span class="tag tag-live">voted</span>' : '<span class="tag tag-draft">vote</span>'}`)).join('')}</div>
+      </section>` : '';
     body = `
       ${profileHead(me, discord)}
       <div class="cols">
         <div class="stack">
-          ${onTeam ? teamBlock(me) : `${offersBlock(me)}${registerTeamBlock(me)}`}
+          ${onTeam ? `${reportBlock}${teamBlock(me)}` : `${offersBlock(me)}${registerTeamBlock(me)}`}
         </div>
         <div class="stack">${editProfileForm(me.player, onTeam ? me.team : null)}</div>
       </div>`;

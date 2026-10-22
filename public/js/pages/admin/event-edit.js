@@ -8,8 +8,8 @@ import { loadEventBundle, loadPeople, NotFoundError } from '../../data.js';
 import {
   EVENT_TYPES, EVENT_STATUSES, validateEvent, dateFromInputs, inputsFromDate, eventDateLabel,
 } from '../../rules/events.js';
-import { roundRobin } from '../../rules/schedule.js';
-import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture } from '../../admin-data.js';
+import { roundRobin, missingGames } from '../../rules/schedule.js';
+import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture, addFixtures } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
 import { resultOf } from '../parts.js';
@@ -196,7 +196,9 @@ function fixturesHtml(editId) {
     <div class="stack">
       <div class="event-links">
         <a class="btn btn-primary" href="${urls.adminEvent(b.event.id, 'fixtures')}&edit=new" data-link data-keep-scroll>+ Add fixture</a>
-        ${b.teams.length >= 2 ? '<button type="button" class="btn" data-act="round-robin">Make round-robin fixtures</button>' : ''}
+        ${b.teams.length >= 2 ? `
+        <button type="button" class="btn" data-act="round-robin" data-legs="1">Auto fixtures: everyone plays once</button>
+        <button type="button" class="btn" data-act="round-robin" data-legs="2">Auto fixtures: home &amp; away</button>` : ''}
       </div>
       ${editId === 'new' ? `<section class="panel flush">${fixtureForm(null)}</section>` : ''}
       <section class="panel flush rows">${rows || '<p class="muted" style="padding:16px">No fixtures yet.</p>'}</section>
@@ -374,21 +376,25 @@ export function mount(el) {
       }
 
       if (act === 'round-robin') {
+        const twice = button.dataset.legs === '2';
         const teamIds = page.b.teams.map((t) => t.id);
-        const games = roundRobin(teamIds);
-        if (!window.confirm(`Add ${games.length} fixtures so every team plays every other team once? Dates will be TBD.`)) return;
+        const games = missingGames(roundRobin(teamIds, { double: twice }), page.b.fixtures);
+        if (!games.length) {
+          window.alert('Every matchup already has a fixture. Nothing to add.');
+          return;
+        }
+        const how = twice ? 'every team plays every other team twice (home and away)' : 'every team plays every other team once';
+        if (!window.confirm(`Add ${games.length} fixture${games.length === 1 ? '' : 's'} so ${how}? Matchups that already have a fixture are skipped. Dates will be TBD.`)) return;
         button.disabled = true;
         let order = Math.max(0, ...page.b.fixtures.map((f) => f.order ?? 0));
-        for (const g of games) {
-          order += 1;
-          await saveFixture({
-            eventId: page.id,
-            id: null,
-            uid,
-            fixture: { label: `Round ${g.round}`, homeTeamId: g.homeTeamId, awayTeamId: g.awayTeamId, scheduledAt: null, bestOf: null, order, status: 'scheduled' },
-            existing: null,
-          });
-        }
+        await addFixtures({
+          eventId: page.id,
+          uid,
+          fixtures: games.map((g) => ({
+            label: `Round ${g.round}`, homeTeamId: g.homeTeamId, awayTeamId: g.awayTeamId,
+            scheduledAt: null, bestOf: null, order: (order += 1), status: 'scheduled',
+          })),
+        });
         refresh();
       }
     } catch (err) {
