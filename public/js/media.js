@@ -1,9 +1,13 @@
 // Profile images: team logos, player pictures, banners and page backgrounds (GIFs allowed).
-// Files are stored by our Cloudflare Worker (free, no card; see worker/src/media.js).
-// The database only keeps each file's path, e.g. "teams/x/logo/abc.gif".
+// Files are stored in Firebase Storage (storage.rules); the database only keeps each file's path,
+// e.g. "teams/x/logo/abc.gif". The Storage library loads only when someone uploads or removes a file.
+//
+// Before 2026-10-22 images were kept by our Cloudflare Worker (worker/src/media.js) under the same
+// paths. If a picture isn't in Firebase yet, the page quietly loads it from the Worker instead
+// (see the "error" listener below), until an admin copies it across (copyOldImage).
 
-import { auth, adminAuth } from './auth.js';
-import { authWorkerUrl, useEmulators, emulatorPorts } from './config.js';
+import { app, adminApp } from './firebase.js';
+import { authWorkerUrl, firebaseConfig, useEmulators, emulatorPorts } from './config.js';
 
 const MB = 1024 * 1024;
 
@@ -19,20 +23,40 @@ export const MEDIA = {
   background: { label: 'Page background', maxMb: 6, maxSide: 1920, hint: 'Fills the page behind your profile.' },
 };
 
-// On this computer the Worker runs locally (wrangler dev).
-const base = useEmulators ? `http://${location.hostname}:${emulatorPorts.worker}` : authWorkerUrl.replace(/\/$/, '');
+const storageHost = useEmulators ? `http://${location.hostname}:${emulatorPorts.storage}` : 'https://firebasestorage.googleapis.com';
+const storageBase = `${storageHost}/v0/b/${firebaseConfig.storageBucket}/o/`;
+const workerBase = useEmulators ? `http://${location.hostname}:${emulatorPorts.worker}` : authWorkerUrl.replace(/\/$/, '');
 
 // Public address of a stored file (or null).
 export function mediaUrl(path) {
   if (!path) return null;
-  return `${base}/media/${String(path).split('/').map(encodeURIComponent).join('/')}`;
+  return `${storageBase}${encodeURIComponent(path)}?alt=media`;
 }
 
-// The signed-in person's token, so the Worker knows who is uploading.
-async function tokenFor(admin) {
-  const user = (admin ? adminAuth : auth).currentUser;
-  if (!user) throw new FriendlyError('Please sign in again, then try once more.');
-  return user.getIdToken();
+// Where an older picture lived (the Cloudflare Worker).
+export function oldMediaUrl(path) {
+  return `${workerBase}/media/${String(path).split('/').map(encodeURIComponent).join('/')}`;
+}
+
+// Any picture that fails to load from Firebase is tried once from the Worker (not moved yet).
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (img?.tagName !== 'IMG' || img.dataset.oldTried || !img.src.startsWith(storageBase)) return;
+  img.dataset.oldTried = '1';
+  img.src = oldMediaUrl(decodeURIComponent(img.src.slice(storageBase.length).split('?')[0]));
+}, true);
+
+let sdk = null;
+const storages = {};
+async function storageFor(admin) {
+  sdk ??= await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js');
+  const key = admin ? 'admin' : 'player';
+  if (!storages[key]) {
+    const s = sdk.getStorage(admin ? adminApp : app);
+    if (useEmulators) sdk.connectStorageEmulator(s, location.hostname, emulatorPorts.storage);
+    storages[key] = s;
+  }
+  return storages[key];
 }
 
 // Checks a chosen file and gets it ready: GIFs as they are; still pictures shrunk and saved as WebP.
@@ -61,26 +85,24 @@ export async function prepareImage(file, kind) {
   return { blob, ext, type: blob.type || 'image/png' };
 }
 
+const CACHE = 'public, max-age=31536000, immutable'; // every upload has its own name
+
+async function put(path, blob, type, admin, label) {
+  const storage = await storageFor(admin);
+  try {
+    await sdk.uploadBytes(sdk.ref(storage, path), blob, { contentType: type, cacheControl: CACHE });
+  } catch (err) {
+    console.error(err);
+    if (err.code === 'storage/unauthorized') throw new FriendlyError(`${label}: you can’t upload that here (too big, or not your profile).`);
+    throw new FriendlyError(`${label}: upload failed. Check your connection and try again.`);
+  }
+}
+
 // Uploads a prepared image. owner: 'teams' | 'players'. Returns the new file's path.
 export async function uploadImage({ owner, id, kind, image, admin = false }) {
   const name = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   const path = `${owner}/${id}/${kind}/${name}.${image.ext}`;
-  const token = await tokenFor(admin);
-  let res;
-  try {
-    res = await fetch(mediaUrl(path), {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': image.type },
-      body: image.blob,
-    });
-  } catch (err) {
-    console.error(err);
-    throw new FriendlyError(`${MEDIA[kind].label}: upload failed. Check your connection and try again.`);
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new FriendlyError(`${MEDIA[kind].label}: ${body.error ?? 'upload failed. Please try again.'}`);
-  }
+  await put(path, image.blob, image.type, admin, MEDIA[kind].label);
   return path;
 }
 
@@ -88,9 +110,33 @@ export async function uploadImage({ owner, id, kind, image, admin = false }) {
 export async function deleteImage(path, { admin = false } = {}) {
   if (!path) return;
   try {
-    const res = await fetch(mediaUrl(path), { method: 'DELETE', headers: { Authorization: `Bearer ${await tokenFor(admin)}` } });
-    if (!res.ok && res.status !== 404) console.warn('Couldn’t remove old image', path, res.status);
+    const storage = await storageFor(admin);
+    await sdk.deleteObject(sdk.ref(storage, path));
   } catch (err) {
-    console.warn('Couldn’t remove old image', path, err);
+    if (err?.code !== 'storage/object-not-found') console.warn('Couldn’t remove image', path, err);
   }
+}
+
+// ---------- Moving older pictures from the Worker into Firebase (admins, once) ----------
+
+// Is this picture already in Firebase?
+export async function inFirebase(path) {
+  const storage = await storageFor(true);
+  try {
+    await sdk.getMetadata(sdk.ref(storage, path));
+    return true;
+  } catch (err) {
+    if (err?.code === 'storage/object-not-found') return false;
+    throw err;
+  }
+}
+
+// Copies one picture from the Worker into Firebase under the same path (so nothing else changes).
+export async function copyOldImage(path) {
+  const res = await fetch(oldMediaUrl(path));
+  if (res.status === 404) return 'missing';
+  if (!res.ok) throw new Error(`Couldn’t fetch ${path} (${res.status})`);
+  const blob = await res.blob();
+  await put(path, blob, res.headers.get('Content-Type') || blob.type, true, path);
+  return 'copied';
 }

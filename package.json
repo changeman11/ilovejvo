@@ -5,7 +5,7 @@
   "description": "I<3JVO: league hub for Just Volleyball Oceania",
   "type": "module",
   "scripts": {
-    "dev": "firebase emulators:start",
+    "dev": "firebase emulators:start --only auth,firestore,storage,hosting",
     "seed": "node seed/seed.mjs",
     "worker": "cd worker && npx --yes wrangler@4.146.0 dev --port 8787 --var DEV_MODE:1 --var FIREBASE_PROJECT_ID:demo-jvo-hub",
     "test": "node --test \"tests/*.test.mjs\"",

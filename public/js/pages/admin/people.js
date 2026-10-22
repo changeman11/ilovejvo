@@ -5,7 +5,7 @@ import { loadPeople, loadAllBundles } from '../../data.js';
 import { saveTeam, deleteTeam, savePlayer, deletePlayer, slugId, removeProfileImage, clearProfileText } from '../../admin-data.js';
 import { navigate } from '../../nav.js';
 import { esc, skeleton, teamDot, urls } from '../../ui.js';
-import { mediaUrl, MEDIA } from '../../media.js';
+import { mediaUrl, MEDIA, inFirebase, copyOldImage } from '../../media.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
 export const title = 'Teams & players';
@@ -23,6 +23,11 @@ const strip = (o) => {
 };
 
 const IMAGE_KINDS = { teams: ['logo', 'banner', 'background'], players: ['avatar', 'banner', 'background'] };
+// Every picture path in use (teams and players).
+const allImagePaths = (people) => [
+  ...people.teams.flatMap((t) => IMAGE_KINDS.teams.map((k) => t[`${k}Path`])),
+  ...people.players.flatMap((p) => IMAGE_KINDS.players.map((k) => p[`${k}Path`])),
+].filter(Boolean);
 const hasImages = (owner, d) => IMAGE_KINDS[owner].some((k) => d[`${k}Path`]);
 const hasText = (d) => Boolean(d.tagline || d.bio || Object.values(d.socials ?? {}).some(Boolean));
 
@@ -143,6 +148,12 @@ export async function render() {
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/people')}
         <div class="page-head"><div><h1>Teams &amp; players</h1><p class="muted">Shared by every event, so player stats add up across all of them.</p></div></div>
+        <section class="panel" style="margin-bottom:20px" data-migrate>
+          <h3>Move older pictures to Firebase</h3>
+          <p class="muted small" style="margin:4px 0 10px">Pictures uploaded before 22 Oct were kept on Cloudflare. They still show, but press this once to copy them into Firebase Storage. It skips anything already moved, so pressing it twice is fine.</p>
+          <button type="button" class="btn btn-primary btn-sm" data-act="migrate-images">Move images (${allImagePaths(people).length})</button>
+          <p class="small migrate-status" aria-live="polite" style="margin-top:8px"></p>
+        </section>
         ${recentBlock}
         <div class="cols">
           <section>
@@ -247,6 +258,25 @@ export function mount(el) {
     const button = e.target.closest('[data-act]');
     if (!button) return;
     const form = button.closest('form');
+    if (button.dataset.act === 'migrate-images') {
+      const status = root.querySelector('.migrate-status');
+      const paths = allImagePaths(page.people);
+      const counts = { copied: 0, already: 0, missing: 0, failed: 0 };
+      button.disabled = true;
+      for (const [i, path] of paths.entries()) {
+        status.textContent = `Checking ${i + 1} of ${paths.length}…`;
+        try {
+          if (await inFirebase(path)) counts.already += 1;
+          else counts[await copyOldImage(path)] += 1;
+        } catch (err) {
+          console.error(path, err);
+          counts.failed += 1;
+        }
+      }
+      status.textContent = `Done: ${counts.copied} moved, ${counts.already} already in Firebase${counts.missing ? `, ${counts.missing} not found anywhere` : ''}${counts.failed ? `, ${counts.failed} failed (press again to retry)` : ''}.`;
+      button.disabled = false;
+      return;
+    }
     try {
       if (button.dataset.act === 'remove-image' || button.dataset.act === 'clear-text') {
         const { owner, id, kind } = button.dataset;

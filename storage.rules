@@ -1,0 +1,52 @@
+rules_version = '2';
+
+// I<3JVO image uploads (Firebase Storage): team logos, player pictures, banners and backgrounds.
+// Anyone can view. Only a team's manager (or the player themselves) can upload; admins can remove anything.
+// Every upload gets a new file name, so files are never overwritten. GIFs are allowed everywhere.
+//
+//   teams/{teamId}/{logo|banner|background}/{file}
+//   players/{playerId}/{avatar|banner|background}/{file}
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    // Same admin test as firestore.rules: password sign-in AND listed in /admins.
+    function isAdmin() {
+      return signedIn()
+          && request.auth.token.firebase.sign_in_provider == 'password'
+          && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+    // Size limits: pictures 2 MB, banners 4 MB, backgrounds 6 MB.
+    function maxBytes(kind) {
+      return (kind == 'background' ? 6 : (kind == 'banner' ? 4 : 2)) * 1024 * 1024;
+    }
+    function validImage(kind) {
+      return request.resource.size <= maxBytes(kind)
+          && request.resource.contentType.matches('image/(png|jpeg|webp|gif)');
+    }
+    function managesTeam(teamId) {
+      return signedIn()
+          && firestore.get(/databases/(default)/documents/teams/$(teamId)).data.managerUid == request.auth.uid;
+    }
+    function ownsPlayer(playerId) {
+      return signedIn()
+          && firestore.get(/databases/(default)/documents/players/$(playerId)).data.uid == request.auth.uid;
+    }
+
+    match /teams/{teamId}/{kind}/{file} {
+      allow get: if true;
+      allow create: if kind in ['logo', 'banner', 'background'] && validImage(kind)
+                    && (isAdmin() || managesTeam(teamId));
+      allow delete: if isAdmin() || managesTeam(teamId);
+    }
+
+    match /players/{playerId}/{kind}/{file} {
+      allow get: if true;
+      allow create: if kind in ['avatar', 'banner', 'background'] && validImage(kind)
+                    && (isAdmin() || ownsPlayer(playerId));
+      allow delete: if isAdmin() || ownsPlayer(playerId);
+    }
+
+    // Everything else is closed.
+  }
+}
