@@ -360,6 +360,23 @@ a.event-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var
 .prose ul, .prose ol { margin: 0 0 12px; padding-left: 22px; max-width: 70ch; }
 .prose li + li { margin-top: 4px; }
 
+/* Manager tag (everywhere a club manager is named) */
+.mgr-tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px 1px 6px; border-radius: 999px; background: var(--yellow); color: var(--ink); border: 2px solid var(--ink); font: 700 11px/1.5 var(--font-body); text-transform: uppercase; letter-spacing: 0.04em; vertical-align: middle; white-space: nowrap; }
+.team-card-wrap { display: grid; gap: 8px; align-content: start; }
+.tc-join { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.tc-mgr { margin: 4px 0 0; }
+
+/* Event sign-ups */
+.signup-line { margin: 8px 0 0; }
+.signup-box .join-box { margin-top: 10px; }
+.btn-lg { min-height: 48px; padding: 10px 22px; font-size: 17px; }
+.signup-admin { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 2px dashed var(--line); }
+.signup-admin select { min-height: 34px; border-radius: 8px; }
+.signup-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.signup-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.signup-list .team { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.signup-list .link-btn { margin-left: auto; }
+
 /* Club hub: manager section */
 .mgr-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
 .mgr-card { display: grid; gap: 2px; padding: 10px 12px; border: 2px solid var(--line); border-radius: var(--radius-sm); text-decoration: none; color: var(--ink); background: var(--surface); }

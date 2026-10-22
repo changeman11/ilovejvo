@@ -154,6 +154,12 @@ export async function clearFixtures({ eventId, uid, fixtures, event, submissions
   invalidate(`event:${eventId}`);
 }
 
+// An admin signs a club up to an event (same record a manager would make).
+export async function adminAddEntry({ eventId, uid, teamId }) {
+  await commit(uid, [{ type: 'set', path: `events/${eventId}/entries/${teamId}`, data: { teamId, managerUid: uid, createdAt: serverTimestamp() } }]);
+  invalidate(`event:${eventId}`);
+}
+
 // Takes a club that signed itself up out of an event.
 export async function removeEntry({ eventId, uid, entry }) {
   await commit(uid, [{ type: 'delete', path: `events/${eventId}/entries/${entry.id}`, before: entry }]);

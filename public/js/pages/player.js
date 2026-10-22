@@ -2,7 +2,7 @@
 // upcoming fixtures, career totals, stats per event and every match.
 
 import { loadAllBundles, loadPeople, NotFoundError, isApprovedTeam } from '../data.js';
-import { esc, fmtNum, skeleton, avatarImg, teamLink, urls } from '../ui.js';
+import { esc, fmtNum, skeleton, avatarImg, teamLink, urls, managerTag } from '../ui.js';
 import { playerBadges, playerXp, levelFor } from '../rules/badges.js';
 import { statHeads, statCells, allFixtures, resultOf, fixtureRow } from './parts.js';
 import { careerStats, statDefsFor } from './career.js';
@@ -31,7 +31,8 @@ export async function render({ playerId }) {
   const lvl = levelFor(playerXp(career));
   const sweeps = career?.log.filter((l) => l.won && l.setsAgainst === 0).length ?? 0;
 
-  const sub = `${team ? teamLink(team) : 'Free agent'}${player.number != null ? ` · #${esc(player.number)}` : ''}`;
+  const isManager = Boolean(team && team.managerPlayerId === player.id);
+  const sub = `${team ? teamLink(team) : 'Free agent'}${isManager ? ` · ${managerTag()}` : ''}${player.number != null ? ` · #${esc(player.number)}` : ''}`;
   const upcoming = team
     ? allFixtures(bundles).filter(({ b, f }) => (f.homeTeamId === team.id || f.awayTeamId === team.id) && !resultOf(b, f).result).slice(0, 4)
     : [];

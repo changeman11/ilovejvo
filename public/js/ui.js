@@ -96,3 +96,6 @@ export function paragraphs(text) {
     .map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
     .join('');
 }
+
+// The "Manager" tag shown next to club managers everywhere (squads, player pages, lists).
+export const managerTag = (label = 'Manager') => `<span class="mgr-tag" title="Club manager"><span aria-hidden="true">👑</span> ${label}</span>`;

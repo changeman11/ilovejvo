@@ -8,10 +8,10 @@ import { currentUser } from '../auth.js';
 import { loadMe, isApprovedTeam, loadAllBundles } from '../data.js';
 import {
   updateTeam, sendOffer, withdrawOffer, releasePlayer, answerOffer, registerTeam,
-  requestLeave, cancelLeave, withdrawJoinRequest, answerJoinRequest,
+  requestLeave, cancelLeave, withdrawJoinRequest, answerJoinRequest, requestToJoin,
 } from '../player-data.js';
 import { refresh, navigate } from '../nav.js';
-import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime } from '../ui.js';
+import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag } from '../ui.js';
 import { prepareImage, FriendlyError, mediaUrl } from '../media.js';
 import { DEFAULT_STATS } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
@@ -68,7 +68,32 @@ function lockedView(me) {
         </section>
       </div>
       <div class="stack">${pending ? pendingTeamBlock(pending) : registerBlock()}</div>
-    </div>`;
+    </div>
+    ${pending ? '' : findClubBlock(me)}`;
+}
+
+// Every club with its manager, and a Request to join button (the manager accepts in their Club hub).
+function findClubBlock(me) {
+  const asked = new Map((me.myJoinRequests ?? []).filter((r) => r.status === 'pending').map((r) => [r.teamId, r]));
+  const clubs = me.teams.filter(isApprovedTeam).sort((a, b) => a.name.localeCompare(b.name));
+  return `
+    <section>
+      <div class="section-head"><h2>Find a club</h2><span class="muted small">Ask a manager to let you in</span></div>
+      <div class="panel flush rows">${clubs.map((t) => {
+        const boss = t.managerPlayerId ? me.playersById[t.managerPlayerId] : null;
+        const size = me.players.filter((p) => p.teamId === t.id).length;
+        const req = asked.get(t.id);
+        const button = !t.managerUid
+          ? '<span class="muted small">No manager yet</span>'
+          : req
+            ? `<span class="small">✓ Asked</span><button class="btn btn-sm" data-act="withdraw-request" data-id="${esc(req.id)}">Withdraw</button>`
+            : `<button class="btn btn-sm btn-primary" data-act="request-join" data-id="${esc(t.id)}">Request to join</button>`;
+        return `<div class="row">
+          <span class="row-main"><b>${teamLink(t)}</b><span class="muted small">${size} player${size === 1 ? '' : 's'}${boss ? ` · ${managerTag()} ${esc(boss.displayName)}` : ''}</span></span>
+          <span class="row-side">${button}</span>
+        </div>`;
+      }).join('') || '<p class="muted" style="padding:16px">No clubs yet. Start one!</p>'}</div>
+    </section>`;
 }
 
 function registerBlock() {
@@ -129,7 +154,7 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
           <div class="section-head"><h2>Squad</h2>${isManager ? '<a href="/club?tab=manager#mgr-invite" data-link>+ Invite players</a>' : ''}</div>
           <div class="panel flush rows">${squad.map((p) => `
             <div class="row">
-              <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}${p.id === team.managerPlayerId ? '<span class="badge">MGR</span>' : ''}</b>${p.number != null ? `<span class="muted small">#${esc(p.number)}</span>` : ''}</span>
+              <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}${p.id === team.managerPlayerId ? managerTag() : ''}</b>${p.number != null ? `<span class="muted small">#${esc(p.number)}</span>` : ''}</span>
               <span class="row-side"></span>
             </div>`).join('')}</div>
         </section>
@@ -212,7 +237,7 @@ function managerTab(ctx) {
             <div class="panel flush rows">${squad.map((p) => {
               const isMe = p.uid === page.user.uid;
               return `<div class="row">
-                <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}${p.id === team.managerPlayerId ? '<span class="badge">MGR</span>' : ''}</b></span>
+                <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}${p.id === team.managerPlayerId ? managerTag() : ''}</b></span>
                 <span class="row-side">${isMe ? '<span class="muted small">you</span>' : `
                   ${p.uid ? `<button class="btn btn-sm" data-act="hand-over" data-id="${esc(p.id)}">Make manager</button>` : ''}
                   <button class="btn btn-sm btn-danger" data-act="release" data-id="${esc(p.id)}">Release</button>`}</span>
@@ -397,6 +422,10 @@ export function mount(el) {
       if (act === 'release') await releasePlayer({ uid: user.uid, player: me.playersById[id] });
       if (act === 'accept-offer' || act === 'decline-offer') {
         await answerOffer({ uid: user.uid, offer: me.offers.find((o) => o.id === id), player: me.player, accept: act === 'accept-offer' });
+      }
+      if (act === 'request-join') {
+        const existing = (me.myJoinRequests ?? []).find((r) => r.teamId === id) ?? null;
+        await requestToJoin({ uid: user.uid, player: me.player, team: me.teamsById[id], message: '', existing });
       }
       if (act === 'withdraw-request') await withdrawJoinRequest({ uid: user.uid, request: me.myJoinRequests.find((r) => r.id === id) });
       if (act === 'accept-request' || act === 'decline-request') {

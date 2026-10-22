@@ -8,10 +8,11 @@ import { inAClub } from '../shell.js';
 import { characterSpot, charactersOn, startCharacters } from '../characters.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
-import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime } from '../ui.js';
+import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag } from '../ui.js';
 import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable } from './parts.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
-import { currentUser } from '../auth.js';
+import { currentUser, currentAdmin } from '../auth.js';
+import { adminAddEntry, removeEntry } from '../admin-data.js';
 import { signUpTeam, withdrawTeam } from '../player-data.js';
 import { refresh } from '../nav.js';
 import { watchEvent } from '../live.js';
@@ -175,27 +176,60 @@ async function signupBox(b) {
   if (!e.signups) return '';
   const open = signupsOpen(e);
   const closes = lockTime(e);
-  const count = b.entries.length;
-  const user = await currentUser().catch(() => null);
+  const [user, adminState] = await Promise.all([currentUser().catch(() => null), currentAdmin().catch(() => null)]);
+  const adminUid = adminState?.admin ? adminState.user.uid : null;
   const me = user ? Object.values(b.playersById).find((p) => p.uid === user.uid) : null;
-  const team = me?.teamId ? b.teamsById[me.teamId] : null;
-  const manager = isApprovedTeam(team) && team.managerUid === user.uid;
+  const team = me?.teamId && isApprovedTeam(b.teamsById[me.teamId]) ? b.teamsById[me.teamId] : null;
+  const manager = Boolean(team && team.managerUid === user.uid);
   const entry = team ? b.entries.find((x) => x.teamId === team.id) : null;
-  if (manager) signupCtx = { user, team, entry, eventId: e.id };
+  signupCtx = { user, team, entry, eventId: e.id, manager, adminUid, entries: b.entries };
+  const managerOf = (t) => (t?.managerPlayerId ? b.playersById[t.managerPlayerId] : null);
 
   const when = closes ? `Sign-ups close ${fmtDay(closes)} ${fmtTime(closes)} (10 minutes before the start).` : 'Sign-ups stay open until the start time is set.';
   let action = '';
-  if (!open) action = `<p class="small" style="margin:6px 0 0"><b>Sign-ups are closed.</b>${entry ? ` ${esc(team.name)} is in.` : ''}</p>`;
-  else if (manager && entry) action = `<div class="join-box"><span>✓ <b>${esc(team.name)}</b> is signed up.</span> <button class="btn btn-sm" type="button" data-act="withdraw-entry">Pull out</button></div>`;
-  else if (manager) action = `<div class="join-box"><button class="btn btn-primary" type="button" data-act="sign-up">Sign up ${esc(team.name)}</button></div>`;
-  else if (team && isApprovedTeam(team)) action = `<p class="small" style="margin:6px 0 0">${entry ? `✓ ${esc(team.name)} is signed up.` : `Ask your manager to sign ${esc(team.name)} up.`}</p>`;
-  else action = '<p class="small" style="margin:6px 0 0">Club managers can sign their club up here.</p>';
+  if (!open) {
+    action = `<p class="small signup-line"><b>Sign-ups are closed.</b>${entry ? ` ${esc(team.name)} is in.` : ''}</p>`;
+  } else if (manager && entry) {
+    action = `<div class="join-box"><span>✓ <b>${esc(team.name)}</b> is signed up.</span> <button class="btn btn-sm" type="button" data-act="withdraw-entry">Pull out</button></div>`;
+  } else if (manager) {
+    action = `<div class="join-box"><button class="btn btn-primary btn-lg" type="button" data-act="sign-up">Sign up ${esc(team.name)}</button><span class="muted small">You’re the manager of ${esc(team.name)}.</span></div>`;
+  } else if (team) {
+    const boss = managerOf(team);
+    action = `<p class="small signup-line">${entry ? `✓ <b>${esc(team.name)}</b> is signed up.` : `Only your club’s manager can sign <b>${esc(team.name)}</b> up${boss ? `: ask <a href="${urls.player(boss.id)}" data-link>${esc(boss.displayName)}</a>` : ' (your club has no manager yet; ask an admin)'}.`}</p>`;
+  } else if (me) {
+    action = '<p class="small signup-line">Clubs sign up through their manager. Not in a club? <a href="/club" data-link>Join or start one</a>.</p>';
+  } else if (!adminUid) {
+    action = '<p class="small signup-line"><button class="btn btn-sm" type="button" data-discord-signin>Sign in with Discord</button> Club managers sign their club up here.</p>';
+  }
+
+  // Admins can sign any club up, or take one out.
+  let adminTools = '';
+  if (adminUid) {
+    const inIt = new Set(b.plan.teamIds);
+    const options = Object.values(b.teamsById).filter((t) => isApprovedTeam(t) && !inIt.has(t.id)).sort((x, y) => x.name.localeCompare(y.name));
+    adminTools = `
+      <div class="signup-admin">
+        <span class="tag tag-draft">Admin</span>
+        ${options.length ? `<select data-admin-team aria-label="Club to sign up">${options.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select>
+        <button class="btn btn-sm btn-primary" type="button" data-act="admin-add">Sign this club up</button>` : '<span class="muted small">Every club is in.</span>'}
+      </div>`;
+  }
+
+  const entered = b.entries.map((x) => b.teamsById[x.teamId]).filter(Boolean);
+  const list = entered.length ? `<ul class="signup-list">${entered.map((t) => {
+    const boss = managerOf(t);
+    return `<li><span class="team">${teamDot(t)}<a href="${urls.team(t.id)}" data-link>${esc(t.name)}</a></span>
+      ${boss ? `<span class="muted small">${managerTag()} ${esc(boss.displayName)}</span>` : ''}
+      ${adminUid ? `<button class="link-btn small" type="button" data-act="admin-remove" data-id="${esc(t.id)}">Remove</button>` : ''}</li>`;
+  }).join('')}</ul>` : '';
 
   return `
     <section class="panel signup-box">
-      <div class="section-head"><h2>Club sign-ups</h2><span class="muted small">${count} club${count === 1 ? '' : 's'} in</span></div>
+      <div class="section-head"><h2>Club sign-ups</h2><span class="muted small">${entered.length} club${entered.length === 1 ? '' : 's'} in</span></div>
       ${open ? `<p class="muted small" style="margin:0">${esc(when)}${e.autoFixtures && e.autoFixtures !== 'off' ? ' The fixtures update as clubs sign up, then lock.' : ''}</p>` : ''}
       ${action}
+      ${adminTools}
+      ${list}
       <p class="form-error" role="alert" hidden></p>
     </section>`;
 }
@@ -207,15 +241,19 @@ export const eventPage = {
     // Clubs joining or leaving, new fixtures and results show up straight away.
     if (shownEventId) watchEvent(shownEventId);
     if (!signupCtx) return;
-    const { user, team, entry, eventId } = signupCtx;
+    const { user, team, entry, eventId, adminUid, entries } = signupCtx;
     el.querySelector('.signup-box')?.addEventListener('click', async (ev) => {
       const btn = ev.target.closest('[data-act]');
       if (!btn) return;
-      if (btn.dataset.act === 'withdraw-entry' && !window.confirm(`Pull ${team.name} out of this event?`)) return;
+      const act = btn.dataset.act;
+      if (act === 'withdraw-entry' && !window.confirm(`Pull ${team.name} out of this event?`)) return;
+      if (act === 'admin-remove' && !window.confirm('Take this club out of the event?')) return;
       btn.disabled = true;
       try {
-        if (btn.dataset.act === 'sign-up') await signUpTeam({ uid: user.uid, eventId, team });
-        else await withdrawTeam({ uid: user.uid, eventId, entry });
+        if (act === 'sign-up') await signUpTeam({ uid: user.uid, eventId, team });
+        if (act === 'withdraw-entry') await withdrawTeam({ uid: user.uid, eventId, entry });
+        if (act === 'admin-add') await adminAddEntry({ eventId, uid: adminUid, teamId: el.querySelector('[data-admin-team]').value });
+        if (act === 'admin-remove') await removeEntry({ eventId, uid: adminUid, entry: entries.find((x) => x.teamId === btn.dataset.id) });
         refresh();
       } catch (err) {
         console.error(err);
