@@ -50,6 +50,13 @@
   - **Discord admins:** an `/admins/{uid}` doc with `discord: true` makes that Discord sign-in an admin, with no password login needed. `isAdmin()` in both rule files accepts it, and `currentAdmin()` switches admin reads and saves to the player connection (`setDiscordAdmin`, `adminDatabase()`).
   - **Admin bell:** an "Admin to-do" section listing clubs to approve, claims, leave requests, stats to check, disputed scores, missing results, and events that need an admin online at the lock.
   - **Back button:** a trail stored in `history.state.trail`. Tab and filter changes don't add steps, revisiting a page cuts the trail, and main-menu pages start fresh. Tabbed menus (`tabbed: true` routes) show "✕ close"; pages you drill into show "← back to …".
+- **Chat panel (added 2026-10-23):** a slide-out panel on the right edge of every page with an arrow tab, Clash of Clans style (`js/chat-panel.js`).
+  - **Tabs:** Global (`chat/*`, anyone reads; players with a profile post up to 300 characters, one message per 3 seconds via `chatLimits/{uid}`) and Club (the squad's `teams/{id}/chat`, the same chat as the Club hub).
+  - **Shared component:** the chat box is `js/chatbox.js`.
+  - **Profanity:** handled in `rules/profanity.js` (tested).
+    - Slurs are blocked in the browser and by the `noSlurs()` regex in firestore.rules (same pattern; a test keeps them in step). It also applies to club chat and comments.
+    - Swearing is allowed but starred out while the reader's filter is on (default on, toggle in the panel, saved on the device).
+    - Admins see ⚑ on rude messages, can delete any message, and get a bell to-do when global chat had swearing in the last day.
 - **Audit log:** written by the browser in the same batch as each admin change; rules force `by == uid` and make it append-only.
 - **Look:** light "beach day" theme in the style of the game *just volleyball* (temkosoft): ball-blue `#1438d8` header, sky background, deep navy `#18204a` outlines (not black), accents sky / teal / coral / purple, yellow `#ffe200` for small highlights only (big yellow + black areas looked like an adult site, per users, 2026-10-21). Teal wins, pink losses, outlined "sticker" panels, Fredoka headings, Graduate (jersey-style) numbers. The official logo is used with the developer's OK (`public/images/game/`, credited and linked to Steam). Avoid generic "AI dashboard" styling.
 - The match engine (`public/js/rules/`) is unchanged: Bo3 sets to 10 win by 2, a fixture can be Bo5; forfeit = 2–0, 10–0. The engine's "season" is built from an event by `engineSeason()` in `data.js`.

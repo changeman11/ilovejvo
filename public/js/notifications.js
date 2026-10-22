@@ -5,6 +5,9 @@
 import { currentUser, currentAdmin } from './auth.js';
 import { loadMe, isApprovedTeam, loadAllBundles, loadRequests } from './data.js';
 import { tallyVotes } from './rules/votes.js';
+import { checkText } from './rules/profanity.js';
+import { getDocs, query, collection, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { db } from './firebase.js';
 import { matchesToReport } from './pages/report.js';
 import { esc, urls, fmtDay, fmtTime } from './ui.js';
 import { signupsOpen, lockTime } from './rules/autofix.js';
@@ -129,10 +132,19 @@ async function gatherAdmin() {
       out.push({ id: `a-lock-${e.id}`, at: e.date - DAY, noDate: true, icon: '🔒', text: `<b>${esc(e.title)}</b> starts ${esc(at(e.date))}: be signed in around then so the fixtures lock and save`, href: urls.adminEvent(e.id, 'fixtures') });
     }
   }
+  // Global chat messages from the last day with swearing in them (slurs are already blocked).
+  try {
+    const snap = await getDocs(query(collection(db, 'chat'), orderBy('createdAt', 'desc'), limit(150)));
+    const rude = snap.docs.map((d) => d.data())
+      .filter((m) => (m.createdAt?.toMillis?.() ?? 0) > now - DAY && checkText(m.body).level !== 'none');
+    if (rude.length) {
+      out.push({ id: 'a-chat', at: rude[0].createdAt.toMillis(), icon: '🗯️', text: `<b>${rude.length}</b> chat message${rude.length === 1 ? '' : 's'} with swearing today (marked ⚑ in the chat)`, openChat: true });
+    }
+  } catch (err) { console.warn('Chat check:', err); }
   return out.map((i) => ({ ...i, admin: true })).sort((x, y) => (y.at ?? 0) - (x.at ?? 0));
 }
 
-const itemHtml = (i) => `<li><a href="${esc(i.href)}" data-link><span class="bell-icon">${i.icon}</span><span>${i.text}${i.at && !i.noDate ? `<small>${esc(fmtDay(i.at))}</small>` : ''}</span></a></li>`;
+const itemHtml = (i) => (i.openChat ? `<li><a href="#" data-open-chat><span class="bell-icon">${i.icon}</span><span>${i.text}</span></a></li>` : `<li><a href="${esc(i.href)}" data-link><span class="bell-icon">${i.icon}</span><span>${i.text}${i.at && !i.noDate ? `<small>${esc(fmtDay(i.at))}</small>` : ''}</span></a></li>`);
 
 function draw(items, open = false) {
   const mine = items.filter((i) => !i.admin);

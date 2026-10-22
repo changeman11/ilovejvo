@@ -284,6 +284,37 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- Chat: no slurs ----------
+    // Same pattern as SEVERE_PATTERN in public/js/rules/profanity.js (a test checks they match).
+    // Ordinary swearing is allowed and starred out on screen; slurs are refused here.
+    function noSlurs(text) {
+      return !text.lower().matches('(?s).*\\b(n+[i1!]+g{2,}(a|ah|as|az|er|ers|uh)?|f+[a@4]+g+([o0]+t+)?s?|r+[e3]+t+[a@4]+r+d+(s|ed)?|tr[a@4]nn(y|ies)|k[i1]kes?|ch[i1]nks?|sp[i1]cs?|c[o0][o0]ns?|g[o0][o0]ks?|wetbacks?)\\b.*');
+    }
+
+    // ---------- Global chat (the slide-out panel) ----------
+    // Anyone can read. Players with a profile post as themselves: up to 300 characters, no slurs,
+    // one message every 3 seconds (each post also stamps chatLimits/{uid} in the same save).
+    // The writer and admins can delete.
+    match /chat/{messageId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['body', 'authorUid', 'authorPlayerId', 'createdAt'])
+        && request.resource.data.body is string && request.resource.data.body.trim().size() > 0
+        && request.resource.data.body.size() <= 300
+        && noSlurs(request.resource.data.body)
+        && request.resource.data.authorUid == uid() && request.resource.data.createdAt == request.time
+        && ownsPlayer(request.resource.data.authorPlayerId)
+        && getAfter(/databases/$(database)/documents/chatLimits/$(uid())).data.lastAt == request.time;
+      allow delete: if isAdmin() || (signedIn() && resource.data.authorUid == uid());
+    }
+    match /chatLimits/{limitUid} {
+      allow read: if signedIn() && uid() == limitUid;
+      allow create, update: if signedIn() && uid() == limitUid
+          && request.resource.data.keys().hasOnly(['lastAt'])
+          && request.resource.data.lastAt == request.time
+          && (resource == null || resource.data.lastAt < request.time - duration.value(3, 's'));
+    }
+
     // ---------- Team chat (Club hub) ----------
     // Only the squad (and admins) can read or post. A signed-in player is found through their
     // Discord profile id ("d<discordId>") or, for claimed profiles, their approved claim.
@@ -313,6 +344,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['body', 'authorUid', 'authorPlayerId', 'createdAt'])
         && request.resource.data.body is string && request.resource.data.body.trim().size() > 0
         && request.resource.data.body.size() <= 500
+        && noSlurs(request.resource.data.body)
         && request.resource.data.authorUid == uid() && request.resource.data.createdAt == request.time
         && squadMember(request.resource.data.authorPlayerId, teamId);
       allow delete: if isAdmin() || (signedIn() && (resource.data.authorUid == uid() || managesTeam(teamId)));
@@ -328,7 +360,7 @@ service cloud.firestore {
       return signedIn()
           && d.keys().hasOnly(['body', 'authorUid', 'authorPlayerId', 'createdAt', 'updatedBy', 'updatedAt'])
           && d.keys().hasAll(['body', 'authorUid', 'authorPlayerId', 'createdAt'])
-          && d.body is string && d.body.trim().size() > 0 && d.body.size() <= 500
+          && d.body is string && d.body.trim().size() > 0 && d.body.size() <= 500 && noSlurs(d.body)
           && d.authorUid == uid() && d.createdAt == request.time && stampedByMe()
           && ownsPlayer(d.authorPlayerId)
           && getAfter(/databases/$(database)/documents/commentLimits/$(uid())).data.lastAt == request.time;

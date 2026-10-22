@@ -24,6 +24,7 @@ import { updateBell } from './notifications.js';
 import { updateReel } from './reel.js';
 import { syncSchedules } from './admin-sync.js';
 import { stopLive } from './live.js';
+import { startChatPanel } from './chat-panel.js';
 import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
 import * as help from './pages/help.js';
@@ -258,8 +259,12 @@ async function adminChanged() {
 onUserChange(() => {
   renderShell();
   adminChanged();
+  startChatPanel(); // the chat panel follows the sign-in (who you post as, your club)
 });
-onAdminChange(adminChanged);
+onAdminChange(() => {
+  adminChanged();
+  startChatPanel();
+});
 
 show();
 
