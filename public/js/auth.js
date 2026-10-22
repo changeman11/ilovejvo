@@ -8,7 +8,7 @@ import {
   getAuth, connectAuthEmulator, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut as fbSignOut,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { app, adminApp, adminDb } from './firebase.js';
+import { app, adminApp, adminDb, db, setDiscordAdmin } from './firebase.js';
 import { useEmulators, emulatorPorts, discordClientId, authWorkerUrl } from './config.js';
 
 export const USERNAME_DOMAIN = 'users.ilovejvo.com';
@@ -56,13 +56,28 @@ export async function discordOf(user) {
 
 // The admin sign-in: { user, admin } where admin is the /admins doc or null.
 // Admin powers only count for password sign-ins (the security rules insist on the same).
+// Also counts a Discord sign-in whose /admins entry has `discord: true` (the rules check the same);
+// then `via` is 'discord' and admin pages use the player connection (firebase.js setDiscordAdmin).
 export async function currentAdmin() {
-  await firstAdminState;
+  await Promise.all([firstAdminState, firstPlayerState]);
   const user = adminAuth.currentUser;
-  if (!user) return { user: null, admin: null };
-  if (!user.providerData.some((p) => p.providerId === 'password')) return { user, admin: null };
-  const snap = await getDoc(doc(adminDb, 'admins', user.uid));
-  return { user, admin: snap.exists() ? snap.data() : null };
+  if (user && user.providerData.some((p) => p.providerId === 'password')) {
+    const snap = await getDoc(doc(adminDb, 'admins', user.uid));
+    if (snap.exists()) {
+      setDiscordAdmin(false);
+      return { user, admin: snap.data(), via: 'password' };
+    }
+  }
+  const player = auth.currentUser;
+  if (player?.uid?.startsWith('discord:')) {
+    const snap = await getDoc(doc(db, 'admins', player.uid)).catch(() => null);
+    if (snap?.exists() && snap.data().discord === true) {
+      setDiscordAdmin(true);
+      return { user: player, admin: snap.data(), via: 'discord' };
+    }
+  }
+  setDiscordAdmin(false);
+  return { user: user ?? null, admin: null };
 }
 
 export function onUserChange(callback) {

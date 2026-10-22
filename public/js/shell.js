@@ -88,7 +88,7 @@ function partyHtml({ signedIn, player, team, squad }) {
     const shown = [...squad].sort((a, b) => (b.id === player.id) - (a.id === player.id)).slice(0, SLOTS);
     slots = [
       ...shown.map((p) => slot(avatarImg(p, 'slot-img'), urls.player(p.id), p.displayName)),
-      ...Array.from({ length: SLOTS - shown.length }, () => slot(plus, isManager ? '/club?tab=invite' : null, isManager ? 'Invite a player' : 'Open spot')),
+      ...Array.from({ length: SLOTS - shown.length }, () => slot(plus, isManager ? '/club?tab=manager#mgr-invite' : null, isManager ? 'Invite a player' : 'Open spot')),
     ];
   }
   return `${lead}<div class="slots">${slots.join('')}</div>`;

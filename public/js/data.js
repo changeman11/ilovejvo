@@ -8,13 +8,13 @@
 import {
   doc, getDoc, getDocs, collection, query, where,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db, adminDb } from './firebase.js';
+import { db, adminDatabase } from './firebase.js';
 import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './rules/defaults.js';
 import { schedulePlan } from './rules/autofix.js';
 
 export class NotFoundError extends Error {}
 
-const dbFor = (admin) => (admin ? adminDb : db);
+const dbFor = (admin) => (admin ? adminDatabase() : db);
 
 function plain(value) {
   if (value && typeof value.toMillis === 'function') return value.toMillis();

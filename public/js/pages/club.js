@@ -11,13 +11,16 @@ import {
   requestLeave, cancelLeave, withdrawJoinRequest, answerJoinRequest,
 } from '../player-data.js';
 import { refresh, navigate } from '../nav.js';
-import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay } from '../ui.js';
+import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime } from '../ui.js';
 import { prepareImage, FriendlyError, mediaUrl } from '../media.js';
 import { DEFAULT_STATS } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
 import { makeProfileCard } from './discord-cta.js';
 import { allFixtures, resultOf, fixtureRow } from './parts.js';
 import { matchesToReport } from './report.js';
+import { chatBlock, mountChat } from './team-chat.js';
+import { signupsOpen, lockTime } from '../rules/autofix.js';
+import { signUpTeam, withdrawTeam, handOverClub } from '../player-data.js';
 
 export const title = 'Club hub';
 export const loading = () => skeleton([160, 260]);
@@ -123,11 +126,11 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
     <div class="cols">
       <div class="stack">
         <section>
-          <div class="section-head"><h2>Squad</h2>${isManager ? '<a href="/club?tab=invite" data-link>+ Invite players</a>' : ''}</div>
+          <div class="section-head"><h2>Squad</h2>${isManager ? '<a href="/club?tab=manager#mgr-invite" data-link>+ Invite players</a>' : ''}</div>
           <div class="panel flush rows">${squad.map((p) => `
             <div class="row">
               <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}${p.id === team.managerPlayerId ? '<span class="badge">MGR</span>' : ''}</b>${p.number != null ? `<span class="muted small">#${esc(p.number)}</span>` : ''}</span>
-              <span class="row-side">${isManager && p.uid !== page.user.uid ? `<button class="btn btn-sm btn-danger" data-act="release" data-id="${esc(p.id)}">Release</button>` : ''}</span>
+              <span class="row-side"></span>
             </div>`).join('')}</div>
         </section>
         ${toReport.length ? `
@@ -137,6 +140,7 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
         </section>` : ''}
       </div>
       <div class="stack">
+        ${chatBlock(team)}
         <section>
           <div class="section-head"><h2>Next matches</h2><a href="/fixtures?team=${encodeURIComponent(team.id)}" data-link>All</a></div>
           <div class="panel flush fixtures">${upcoming.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('') || '<p class="muted" style="padding:16px">Nothing scheduled.</p>'}</div>
@@ -154,6 +158,77 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
               </form>`}
         </section>`}
       </div>
+    </div>`;
+}
+
+// ---------- Manager section: everything a manager does, in one place ----------
+
+function managerTab(ctx) {
+  const { me, team, squad, toReport, events } = ctx;
+  const requests = (me.teamJoinRequests ?? []).filter((r) => r.status === 'pending');
+  const invitesOut = me.sentOffers.filter((o) => o.teamId === team.id && o.status === 'pending');
+  const openEvents = events.filter((x) => x.open);
+  const toSignUp = openEvents.filter((x) => !x.entered);
+  const todo = [
+    ['#mgr-requests', requests.length, 'join request', 'join requests'],
+    ['#mgr-events', toSignUp.length, 'event to sign up for', 'events to sign up for'],
+    ['#mgr-results', toReport.length, 'result to report', 'results to report'],
+    ['#mgr-invite', invitesOut.length, 'invite waiting', 'invites waiting'],
+  ];
+  return `
+    <div class="stack">
+      <section class="panel mgr-todo">
+        <h2 style="margin:0 0 8px">Manager to-do</h2>
+        <div class="mgr-cards">${todo.map(([href, n, one, many]) => `
+          <a class="mgr-card${n ? ' hot' : ''}" href="${href}"><b class="num">${n}</b><span>${n === 1 ? one : many}</span></a>`).join('')}
+        </div>
+      </section>
+
+      <div class="cols">
+        <div class="stack">
+          <section id="mgr-requests">${requestsTab(ctx)}</section>
+
+          <section id="mgr-events">
+            <div class="section-head"><h2>Event sign-ups</h2><a href="/events" data-link>All events</a></div>
+            <div class="panel flush rows">${events.map(({ b, open, entered, closes }) => `
+              <div class="row">
+                <span class="row-main"><b><a href="${urls.event(b.event.id)}" data-link>${esc(b.event.title)}</a></b>
+                  <span class="muted small">${entered ? '✓ Signed up · ' : ''}${open ? (closes ? `Sign-ups close ${esc(fmtDay(closes))} ${esc(fmtTime(closes))}` : 'Sign-ups open') : 'Sign-ups closed'}</span></span>
+                <span class="row-side">${open ? (entered
+                  ? `<button class="btn btn-sm" data-act="event-out" data-id="${esc(b.event.id)}">Pull out</button>`
+                  : `<button class="btn btn-sm btn-primary" data-act="event-in" data-id="${esc(b.event.id)}">Sign up</button>`) : ''}</span>
+              </div>`).join('') || '<p class="muted" style="padding:16px">No events taking sign-ups right now. You’ll get a notification when one opens.</p>'}</div>
+          </section>
+
+          <section id="mgr-results">
+            <div class="section-head"><h2>Results to report</h2></div>
+            <div class="panel flush fixtures">${toReport.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('') || '<p class="muted" style="padding:16px">Nothing to report.</p>'}</div>
+          </section>
+        </div>
+
+        <div class="stack">
+          <section id="mgr-squad">
+            <div class="section-head"><h2>Squad</h2><span class="muted small">${squad.length} player${squad.length === 1 ? '' : 's'}</span></div>
+            <div class="panel flush rows">${squad.map((p) => {
+              const isMe = p.uid === page.user.uid;
+              return `<div class="row">
+                <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}${p.id === team.managerPlayerId ? '<span class="badge">MGR</span>' : ''}</b></span>
+                <span class="row-side">${isMe ? '<span class="muted small">you</span>' : `
+                  ${p.uid ? `<button class="btn btn-sm" data-act="hand-over" data-id="${esc(p.id)}">Make manager</button>` : ''}
+                  <button class="btn btn-sm btn-danger" data-act="release" data-id="${esc(p.id)}">Release</button>`}</span>
+              </div>`;
+            }).join('')}</div>
+            <p class="muted small">Making someone manager hands the club over to them; you stay in the squad.</p>
+          </section>
+          <section class="panel">
+            <h3 style="margin-top:0">Club page</h3>
+            <p class="small">Logo, banner, background, bio, colours and showcase stats.</p>
+            <div class="event-links"><a class="btn btn-sm btn-primary" href="/club?tab=page" data-link>Edit club page</a><a class="btn btn-sm" href="${urls.team(team.id)}" data-link>View public page</a></div>
+          </section>
+        </div>
+      </div>
+
+      <div id="mgr-invite">${inviteTab(ctx)}</div>
     </div>`;
 }
 
@@ -247,13 +322,24 @@ export async function render() {
   const toReport = matchesToReport(bundles, me.player).filter((x) => !x.voted).slice(0, 4);
   const requests = (me.teamJoinRequests ?? []).filter((r) => r.status === 'pending').length;
 
-  const want = new URLSearchParams(location.search).get('tab') ?? 'club';
-  const tab = isManager && ['invite', 'requests', 'page'].includes(want) ? want : 'club';
+  // Events this club can sign up for (or is in), soonest first.
+  const now = Date.now();
+  const events = bundles
+    .filter((b) => b.event.status === 'upcoming' && b.event.signups)
+    .map((b) => ({ b, open: signupsOpen(b.event, now), entered: b.plan.teamIds.includes(team.id), closes: lockTime(b.event), entry: b.entries.find((x) => x.teamId === team.id) ?? null }))
+    .sort((x, y) => (x.b.event.date ?? Infinity) - (y.b.event.date ?? Infinity));
+  const todoCount = requests + events.filter((x) => x.open && !x.entered).length + toReport.length;
+
+  // Old tab names (invite, requests) open the Manager section.
+  let want = new URLSearchParams(location.search).get('tab') ?? 'club';
+  if (['invite', 'requests'].includes(want)) want = 'manager';
+  const tab = isManager && ['manager', 'page'].includes(want) ? want : 'club';
   const tabs = isManager
-    ? [['club', 'Club'], ['invite', 'Invite players'], ['requests', 'Join requests', requests], ['page', 'Club page']]
+    ? [['club', 'Club'], ['manager', 'Manager', todoCount], ['page', 'Club page']]
     : [['club', 'Club']];
-  const ctx = { me, team, isManager, squad, toReport, upcoming };
-  const body = { club: overviewTab, invite: inviteTab, requests: requestsTab, page: pageTab }[tab](ctx);
+  const ctx = { me, team, isManager, squad, toReport, upcoming, events };
+  page.events = events;
+  const body = { club: overviewTab, manager: managerTab, page: pageTab }[tab](ctx);
   return {
     title: `${team.name} · Club hub`,
     html: `<div class="club-root stack">${clubHeader(team, squad, isManager)}${tabs.length > 1 ? tabsBar(tab, tabs) : ''}${body}<p class="form-error" role="alert" hidden data-global></p></div>`,
@@ -265,6 +351,9 @@ export function mount(el) {
   if (!root || !page) return;
   bindImagePreviews(root);
   const { user, me, team } = page;
+  if (team) mountChat(root, { user, player: me.player, team, isManager: page.isManager, playersById: me.playersById });
+  // Links to a part of the Manager section (e.g. #mgr-invite) scroll to it.
+  if (location.hash) root.querySelector(location.hash)?.scrollIntoView({ block: 'start' });
   const showError = (msg, near) => {
     const box = near?.closest('form, section')?.querySelector('.form-error') ?? root.querySelector('[data-global]');
     if (!box) return window.alert(msg);
@@ -293,7 +382,16 @@ export function mount(el) {
         const p = me.playersById[id];
         if (!window.confirm(`Release ${p.displayName}? They become a free agent straight away.`)) return;
       }
+      if (act === 'hand-over') {
+        const p = me.playersById[id];
+        if (!window.confirm(`Make ${p.displayName} the manager of ${team.name}? You’ll stay in the squad but lose the manager tools.`)) return;
+      }
+      const ev = page.events?.find((x) => x.b.event.id === id);
+      if (act === 'event-out' && !window.confirm(`Pull ${team.name} out of ${ev?.b.event.title}?`)) return;
       b.disabled = true;
+      if (act === 'hand-over') await handOverClub({ uid: user.uid, team, player: me.playersById[id] });
+      if (act === 'event-in') await signUpTeam({ uid: user.uid, eventId: id, team });
+      if (act === 'event-out') await withdrawTeam({ uid: user.uid, eventId: id, entry: ev.entry });
       if (act === 'offer') await sendOffer({ uid: user.uid, team, player: me.playersById[id] });
       if (act === 'withdraw') await withdrawOffer({ uid: user.uid, offer: me.sentOffers.find((o) => o.id === id) });
       if (act === 'release') await releasePlayer({ uid: user.uid, player: me.playersById[id] });

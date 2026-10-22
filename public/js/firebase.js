@@ -31,6 +31,14 @@ export const db = initializeFirestore(app, { localCache });
 // Admin data is always fetched fresh, so no offline copy is kept.
 export const adminDb = initializeFirestore(adminApp, { localCache: memoryLocalCache() });
 
+// Admins marked `discord: true` in /admins can run admin pages from their Discord sign-in (no
+// separate login). auth.js currentAdmin() switches this on; admin reads and saves then go through
+// the player connection instead of the admin one.
+let discordAdmin = false;
+export function setDiscordAdmin(on) { discordAdmin = on; }
+export const usingDiscordAdmin = () => discordAdmin;
+export const adminDatabase = () => (discordAdmin ? db : adminDb);
+
 if (useEmulators) {
   connectFirestoreEmulator(db, location.hostname, emulatorPorts.firestore);
   connectFirestoreEmulator(adminDb, location.hostname, emulatorPorts.firestore);

@@ -5,7 +5,7 @@
 import {
   doc, collection, writeBatch, serverTimestamp, Timestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db, adminDb } from './firebase.js';
+import { db, adminDatabase } from './firebase.js';
 
 export { serverTimestamp };
 
@@ -24,7 +24,7 @@ const strip = (obj) => {
 //   update = change only the given fields
 // admin: save through the admin sign-in (admin pages) instead of the player one.
 export async function commit(uid, ops, { admin = false } = {}) {
-  const database = admin ? adminDb : db;
+  const database = admin ? adminDatabase() : db;
   // A batch holds 500 writes; each op is 2 (the change + its audit entry).
   for (let i = 0; i < ops.length; i += 240) {
     const batch = writeBatch(database);

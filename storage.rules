@@ -10,11 +10,12 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
-    // Same admin test as firestore.rules: password sign-in AND listed in /admins.
+    // Same admin test as firestore.rules: listed in /admins, and a password sign-in or marked `discord: true`.
     function isAdmin() {
       return signedIn()
-          && request.auth.token.firebase.sign_in_provider == 'password'
-          && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+          && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+          && (request.auth.token.firebase.sign_in_provider == 'password'
+              || firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.get('discord', false) == true);
     }
     // Size limits: pictures 2 MB, banners and match screenshots 4 MB, backgrounds 6 MB.
     function maxBytes(kind) {

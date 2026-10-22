@@ -3,7 +3,7 @@
 // app.js stops every watch when the page changes.
 
 import { onSnapshot, collection, doc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db, adminDb } from './firebase.js';
+import { db, adminDatabase } from './firebase.js';
 import { invalidate } from './data.js';
 import { refreshQuietly } from './nav.js';
 
@@ -14,6 +14,11 @@ export function stopLive() {
   stops = [];
 }
 
+// Any other listener a page opens (e.g. the team chat), stopped with the rest when the page changes.
+export function keepUntilPageChanges(stop) {
+  stops.push(stop);
+}
+
 // Don't redraw under someone who's typing; try again shortly.
 function typing() {
   const el = document.activeElement;
@@ -21,7 +26,7 @@ function typing() {
 }
 
 export function watchEvent(eventId, { admin = false } = {}) {
-  const database = admin ? adminDb : db;
+  const database = admin ? adminDatabase() : db;
   let timer = null;
   const redraw = () => {
     clearTimeout(timer);

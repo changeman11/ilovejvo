@@ -6,7 +6,7 @@
 // paths. If a picture isn't in Firebase yet, the page quietly loads it from the Worker instead
 // (see the "error" listener below), until an admin copies it across (copyOldImage).
 
-import { app, adminApp } from './firebase.js';
+import { app, adminApp, usingDiscordAdmin } from './firebase.js';
 import { authWorkerUrl, firebaseConfig, useEmulators, emulatorPorts } from './config.js';
 
 const MB = 1024 * 1024;
@@ -49,7 +49,8 @@ document.addEventListener('error', (e) => {
 
 let sdk = null;
 const storages = {};
-async function storageFor(admin) {
+async function storageFor(asAdmin) {
+  const admin = asAdmin && !usingDiscordAdmin(); // Discord admins use their player sign-in
   sdk ??= await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js');
   const key = admin ? 'admin' : 'player';
   if (!storages[key]) {
@@ -117,7 +118,7 @@ export async function uploadImage({ owner, id, kind, image, admin = false }) {
 
 async function putToWorker(path, image, admin, label) {
   const { auth, adminAuth } = await import('./auth.js');
-  const user = (admin ? adminAuth : auth).currentUser;
+  const user = (admin && !usingDiscordAdmin() ? adminAuth : auth).currentUser;
   if (!user) throw new FriendlyError('Please sign in again, then try once more.');
   let res;
   try {

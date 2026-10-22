@@ -2,6 +2,8 @@
 // these just shape the saves the rules expect. Each one also writes an audit entry.
 
 import { commit, newId, serverTimestamp, ts } from './writes.js';
+import { doc, collection, setDoc, deleteDoc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { db } from './firebase.js';
 import { invalidate } from './data.js';
 import { slugId } from './admin-data.js';
 
@@ -136,6 +138,31 @@ export async function answerOffer({ uid, offer, player, accept }) {
 export async function releasePlayer({ uid, player }) {
   await commit(uid, [{ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: null } }]);
   invalidate();
+}
+
+// The manager hands the club over to another squad player (they must have signed in with Discord).
+export async function handOverClub({ uid, team, player }) {
+  await commit(uid, [{ type: 'update', path: `teams/${team.id}`, before: team, data: { managerUid: player.uid, managerPlayerId: player.id } }]);
+  invalidate();
+}
+
+// ---------- Team chat (teams/{id}/chat): squad only. No audit entry, it's just chat. ----------
+
+// Makes sure playerLinks/{uid} points at this player (the chat rules use it to check squad membership).
+export async function ensurePlayerLink({ uid, player }) {
+  const ref = doc(db, `playerLinks/${uid}`);
+  const snap = await getDoc(ref).catch(() => null);
+  if (snap?.exists() && snap.data().playerId === player.id) return;
+  await setDoc(ref, { playerId: player.id });
+}
+
+export async function sendChat({ uid, player, teamId, body }) {
+  const ref = doc(collection(db, `teams/${teamId}/chat`));
+  await setDoc(ref, { body, authorUid: uid, authorPlayerId: player.id, createdAt: serverTimestamp() });
+}
+
+export async function deleteChat({ teamId, messageId }) {
+  await deleteDoc(doc(db, `teams/${teamId}/chat/${messageId}`));
 }
 
 // Player asks to leave their team; an admin decides.

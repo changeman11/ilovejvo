@@ -27,10 +27,13 @@ service cloud.firestore {
     function uid() { return request.auth.uid; }
     // Admin powers need a password sign-in. Discord sign-ins use tokens from our Worker
     // ("custom" provider); if its signing key ever leaked, it still couldn't act as an admin.
+    // A Discord sign-in only counts when its /admins entry is explicitly marked `discord: true`
+    // (added by hand in the Firebase console for named people).
     function isAdmin() {
       return signedIn()
-          && request.auth.token.firebase.sign_in_provider == 'password'
-          && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+          && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+          && (request.auth.token.firebase.sign_in_provider == 'password'
+              || get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('discord', false) == true);
     }
     function discordId() { return signedIn() ? request.auth.token.get('discordId', '') : ''; }
     function stampedByMe() {
@@ -266,6 +269,12 @@ service cloud.firestore {
             && changedOnly(['name', 'shortName', 'colors',
                             'tagline', 'bio', 'theme', 'showcase', 'socials', 'logoPath', 'bannerPath', 'backgroundPath',
                             'updatedBy', 'updatedAt']))
+        // The manager hands the club over to another player in the squad (who has a Discord sign-in).
+        || (managesTeam(teamId) && stampedByMe()
+            && changedOnly(['managerUid', 'managerPlayerId', 'updatedBy', 'updatedAt'])
+            && request.resource.data.managerUid is string
+            && playerDoc(request.resource.data.managerPlayerId).get('teamId', '') == teamId
+            && playerDoc(request.resource.data.managerPlayerId).get('uid', '') == request.resource.data.managerUid)
         // While waiting for approval, the person who registered it can add a logo and profile.
         || (signedIn() && resource.data.status == 'pending' && resource.data.managerUid == uid()
             && stampedByMe() && validTeamProfile(teamId)
@@ -273,6 +282,40 @@ service cloud.firestore {
                             'updatedBy', 'updatedAt']));
 
       allow delete: if isAdmin();
+    }
+
+    // ---------- Team chat (Club hub) ----------
+    // Only the squad (and admins) can read or post. A signed-in player is found through their
+    // Discord profile id ("d<discordId>") or, for claimed profiles, their approved claim.
+    function squadMember(pid, teamId) {
+      return exists(/databases/$(database)/documents/players/$(pid))
+          && playerDoc(pid).get('uid', '') == uid() && playerDoc(pid).get('teamId', '') == teamId;
+    }
+    // playerLinks/{uid} says which profile a sign-in belongs to. The browser writes it, and the rule
+    // below only accepts it when that profile really has this uid, so it can't be faked.
+    function inSquad(teamId) {
+      return signedIn()
+          && exists(/databases/$(database)/documents/playerLinks/$(uid()))
+          && squadMember(get(/databases/$(database)/documents/playerLinks/$(uid())).data.playerId, teamId);
+    }
+    match /playerLinks/{linkUid} {
+      allow read: if isAdmin() || (signedIn() && uid() == linkUid);
+      allow create, update: if signedIn() && uid() == linkUid
+          && request.resource.data.keys().hasOnly(['playerId'])
+          && request.resource.data.playerId is string
+          && exists(/databases/$(database)/documents/players/$(request.resource.data.playerId))
+          && playerDoc(request.resource.data.playerId).get('uid', '') == uid();
+      allow delete: if isAdmin() || (signedIn() && uid() == linkUid);
+    }
+    match /teams/{teamId}/chat/{messageId} {
+      allow read: if isAdmin() || inSquad(teamId);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['body', 'authorUid', 'authorPlayerId', 'createdAt'])
+        && request.resource.data.body is string && request.resource.data.body.trim().size() > 0
+        && request.resource.data.body.size() <= 500
+        && request.resource.data.authorUid == uid() && request.resource.data.createdAt == request.time
+        && squadMember(request.resource.data.authorPlayerId, teamId);
+      allow delete: if isAdmin() || (signedIn() && (resource.data.authorUid == uid() || managesTeam(teamId)));
     }
 
     // ---------- Comments on team and player pages ----------

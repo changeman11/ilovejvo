@@ -63,6 +63,8 @@ export function adminBar(user, admin, current = '') {
   return `
     <div class="admin-bar">
       <nav class="admin-nav">${links.map(([href, label]) => `<a href="${href}" data-link${href === current ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-      <span class="muted small">${esc(admin.name ?? usernameOf(user))} · <button class="link-btn" data-action="sign-out">Sign out</button></span>
+      <span class="muted small">${user.uid.startsWith('discord:')
+        ? `${esc(admin.name ?? 'Admin')} · admin via Discord`
+        : `${esc(admin.name ?? usernameOf(user))} · <button class="link-btn" data-action="sign-out">Sign out</button>`}</span>
     </div>`;
 }

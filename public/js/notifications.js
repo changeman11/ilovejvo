@@ -2,8 +2,9 @@
 // your result vote. Worked out from the same records the Club hub uses (nothing extra is stored).
 // "Seen" is remembered on this device only: opening the bell clears the red count.
 
-import { currentUser } from './auth.js';
-import { loadMe, isApprovedTeam, loadAllBundles } from './data.js';
+import { currentUser, currentAdmin } from './auth.js';
+import { loadMe, isApprovedTeam, loadAllBundles, loadRequests } from './data.js';
+import { tallyVotes } from './rules/votes.js';
 import { matchesToReport } from './pages/report.js';
 import { esc, urls, fmtDay, fmtTime } from './ui.js';
 import { signupsOpen, lockTime } from './rules/autofix.js';
@@ -11,7 +12,7 @@ import { signupsOpen, lockTime } from './rules/autofix.js';
 const box = document.querySelector('[data-bell]');
 const SEEN_KEY = 'jvo.notificationsSeenAt';
 const RECENT = 14 * 24 * 3600 * 1000; // answers older than two weeks drop off
-let cache = { at: 0, uid: null, items: [] };
+let cache = { at: 0, key: null, items: [], admin: false, player: false };
 
 const seenAt = () => { try { return Number(localStorage.getItem(SEEN_KEY) ?? 0); } catch { return 0; } };
 const markSeen = () => { try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch { /* fine */ } };
@@ -69,7 +70,7 @@ async function gather(uid) {
     }
   }
   for (const r of me.teamJoinRequests ?? []) {
-    if (r.status === 'pending') items.push({ id: `req-${r.id}`, at: r.createdAt ?? 0, icon: '🙋', text: `<b>${esc(me.playersById[r.playerId]?.displayName ?? 'A player')}</b> wants to join your club`, href: '/club?tab=requests' });
+    if (r.status === 'pending') items.push({ id: `req-${r.id}`, at: r.createdAt ?? 0, icon: '🙋', text: `<b>${esc(me.playersById[r.playerId]?.displayName ?? 'A player')}</b> wants to join your club`, href: '/club?tab=manager#mgr-requests' });
   }
   for (const l of me.leaves) {
     if (['approved', 'declined'].includes(l.status) && now - (l.updatedAt ?? 0) < RECENT) {
@@ -89,32 +90,91 @@ async function gather(uid) {
 
 const BELL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v4l-2 3h16l-2-3V9a6 6 0 0 0-6-6zM10 19a2 2 0 0 0 4 0"/></svg>';
 
+// ---------- Admin to-dos (shown while the admin login is signed in on this device) ----------
+// Approvals and checks waiting on an admin. They stay counted in red until they're dealt with.
+async function gatherAdmin() {
+  const [r, bundles] = await Promise.all([loadRequests(), loadAllBundles({ includeDrafts: true })]);
+  const out = [];
+  const now = Date.now();
+  const inbox = '/admin/requests';
+  for (const t of r.pendingTeams) {
+    out.push({ id: `a-team-${t.id}`, at: t.updatedAt ?? 0, icon: '🛡️', text: `New club to approve: <b>${esc(t.name)}</b>`, href: inbox });
+  }
+  for (const c of r.claims) {
+    out.push({ id: `a-claim-${c.id}`, at: c.createdAt ?? 0, icon: '🔗', text: `<b>${esc(c.discordName ?? 'Someone')}</b> wants to claim <b>${esc(r.playersById[c.playerId]?.displayName ?? c.playerId)}</b>`, href: inbox });
+  }
+  for (const l of r.leaves) {
+    out.push({ id: `a-leave-${l.id}`, at: l.createdAt ?? 0, icon: '🚪', text: `<b>${esc(r.playersById[l.playerId]?.displayName ?? 'A player')}</b> wants to leave <b>${esc(r.teamsById[l.teamId]?.name ?? 'their club')}</b>`, href: inbox });
+  }
+  for (const b of bundles) {
+    const name = (id) => esc(b.teamsById[id]?.name ?? 'TBC');
+    for (const f of b.fixtures) {
+      if (f.virtual) continue;
+      const res = b.results[f.id];
+      const match = `<b>${name(f.homeTeamId)}</b> v <b>${name(f.awayTeamId)}</b>`;
+      if (res?.statsStatus === 'pending') {
+        out.push({ id: `a-stats-${b.event.id}-${f.id}`, at: res.updatedAt ?? 0, icon: '📸', text: `Stats to check: ${match}`, href: urls.adminResult(b.event.id, f.id) });
+      } else if (!res) {
+        const tally = tallyVotes((b.submissions ?? []).filter((s) => s.fixtureId === f.id), f);
+        if (tally.status === 'disputed') {
+          out.push({ id: `a-dispute-${b.event.id}-${f.id}`, at: now, icon: '⚖️', text: `Teams disagree on the score: ${match}`, href: urls.adminResult(b.event.id, f.id) });
+        } else if (f.scheduledAt && !f.timeTbd && now - f.scheduledAt > 3 * 3600 * 1000 && f.homeTeamId && f.awayTeamId) {
+          out.push({ id: `a-missing-${b.event.id}-${f.id}`, at: f.scheduledAt, icon: '⏳', text: `No result yet: ${match}`, href: urls.adminResult(b.event.id, f.id) });
+        }
+      }
+    }
+    // An event starting within a day whose fixtures will need an admin online to lock them.
+    const e = b.event;
+    if (e.status === 'upcoming' && e.autoFixtures && e.autoFixtures !== 'off' && !e.fixturesLockedAt && e.date && e.date > now && e.date - now < DAY) {
+      out.push({ id: `a-lock-${e.id}`, at: e.date - DAY, noDate: true, icon: '🔒', text: `<b>${esc(e.title)}</b> starts ${esc(at(e.date))}: be signed in around then so the fixtures lock and save`, href: urls.adminEvent(e.id, 'fixtures') });
+    }
+  }
+  return out.map((i) => ({ ...i, admin: true })).sort((x, y) => (y.at ?? 0) - (x.at ?? 0));
+}
+
+const itemHtml = (i) => `<li><a href="${esc(i.href)}" data-link><span class="bell-icon">${i.icon}</span><span>${i.text}${i.at && !i.noDate ? `<small>${esc(fmtDay(i.at))}</small>` : ''}</span></a></li>`;
+
 function draw(items, open = false) {
-  const unseen = items.filter((i) => (i.at ?? 0) > seenAt() || i.id.startsWith('offer') || i.id.startsWith('req')).length;
+  const mine = items.filter((i) => !i.admin);
+  const adminItems = items.filter((i) => i.admin);
+  // Admin to-dos and invites/requests stay counted until they're dealt with; the rest until you open the bell.
+  const unseen = items.filter((i) => i.admin || (i.at ?? 0) > seenAt() || i.id.startsWith('offer') || i.id.startsWith('req')).length;
   box.hidden = false;
   box.innerHTML = `
     <button class="round-btn bell-btn" type="button" data-bell-toggle aria-expanded="${open}" aria-label="Notifications${unseen ? ` (${unseen} new)` : ''}" title="Notifications">
       ${BELL}${unseen && !open ? `<span class="bell-count">${unseen > 9 ? '9+' : unseen}</span>` : ''}
     </button>
     <div class="bell-panel" ${open ? '' : 'hidden'} role="dialog" aria-label="Notifications">
-      <b class="bell-title">Notifications</b>
-      ${items.length ? `<ul>${items.slice(0, 12).map((i) => `<li><a href="${esc(i.href)}" data-link><span class="bell-icon">${i.icon}</span><span>${i.text}${i.at && !i.noDate ? `<small>${esc(fmtDay(i.at))}</small>` : ''}</span></a></li>`).join('')}</ul>`
-        : '<p class="muted small">Nothing new. Invites and club news show up here.</p>'}
+      ${cache.admin ? `
+        <b class="bell-title">Admin to-do${adminItems.length ? ` <span class="bell-tag">${adminItems.length}</span>` : ''}</b>
+        ${adminItems.length ? `<ul>${adminItems.slice(0, 10).map(itemHtml).join('')}</ul>${adminItems.length > 10 ? '<p class="small"><a href="/admin/requests" data-link>See everything in the admin inbox</a></p>' : ''}`
+          : '<p class="muted small">All caught up. Approvals and results to check show up here.</p>'}` : ''}
+      ${cache.player ? `
+        <b class="bell-title">Notifications</b>
+        ${mine.length ? `<ul>${mine.slice(0, 12).map(itemHtml).join('')}</ul>`
+          : '<p class="muted small">Nothing new. Invites and club news show up here.</p>'}` : ''}
     </div>`;
 }
 
 // Refreshes the bell (cached for a minute so page changes stay cheap).
+// Shows for players (Discord sign-in), admins (admin login), or both on the same device.
 export async function updateBell({ force = false } = {}) {
   if (!box) return;
-  const user = await currentUser().catch(() => null);
-  if (!user) {
+  const [user, adminState] = await Promise.all([currentUser().catch(() => null), currentAdmin().catch(() => null)]);
+  const adminUid = adminState?.admin ? adminState.user.uid : null;
+  if (!user && !adminUid) {
     box.hidden = true;
     box.innerHTML = '';
     return;
   }
-  if (force || cache.uid !== user.uid || Date.now() - cache.at > 60000) {
+  const key = `${user?.uid ?? ''}|${adminUid ?? ''}`;
+  if (force || cache.key !== key || Date.now() - cache.at > 60000) {
     try {
-      cache = { at: Date.now(), uid: user.uid, items: await gather(user.uid) };
+      const [items, adminItems] = await Promise.all([
+        user ? gather(user.uid) : [],
+        adminUid ? gatherAdmin().catch((err) => { console.warn('Admin notifications:', err); return []; }) : [],
+      ]);
+      cache = { at: Date.now(), key, items: [...adminItems, ...items], admin: Boolean(adminUid), player: Boolean(user) };
     } catch (err) {
       console.warn('Notifications:', err);
       return;

@@ -38,61 +38,97 @@ const toMenu = () => ({ href: '/', label: 'main menu' });
 const toAdmin = () => ({ href: '/admin', label: 'admin' });
 const routes = [
   { path: '/', page: events.home, section: '/' },
-  { path: '/fixtures', page: fixtures, section: '/fixtures', up: toMenu },
-  { path: '/stats', page: stats, section: '/stats', up: toMenu },
-  { path: '/events', page: events.eventsList, section: '/events', up: toMenu },
+  { path: '/fixtures', page: fixtures, section: '/fixtures', up: toMenu, tabbed: true },
+  { path: '/stats', page: stats, section: '/stats', up: toMenu, tabbed: true },
+  { path: '/events', page: events.eventsList, section: '/events', up: toMenu, tabbed: true },
   { path: '/event/:eventId', page: events.eventPage, section: '/events', up: () => ({ href: '/events', label: 'events' }) },
   { path: '/match/:eventId/:fixtureId', page: match, section: '/fixtures', up: (p) => ({ href: urls.event(p.eventId), label: 'the event' }) },
   { path: '/player/:playerId', page: player, section: '/stats', up: () => ({ href: '/stats', label: 'stats' }) },
-  { path: '/teams', page: teamsList, section: '/teams', up: toMenu },
+  { path: '/teams', page: teamsList, section: '/teams', up: toMenu, tabbed: true },
   { path: '/team/:teamId', page: team, section: '/teams', up: () => ({ href: '/teams', label: 'teams' }) },
-  { path: '/help', page: help, section: '/help', up: toMenu },
+  { path: '/help', page: help, section: '/help', up: toMenu, tabbed: true },
   { path: '/me', page: me, section: '/me', up: toMenu },
-  { path: '/club', page: club, section: '/club', up: toMenu },
+  { path: '/club', page: club, section: '/club', up: toMenu, tabbed: true },
   { path: '/auth/discord', page: authCallback, section: '/me' },
   { path: '/admin', page: adminHome, section: '/admin', up: toMenu },
   { path: '/admin/requests', page: requests, section: '/admin', up: toAdmin },
   { path: '/admin/people', page: people, section: '/admin', up: toAdmin },
-  { path: '/admin/help', page: helpEdit, section: '/admin', up: toAdmin },
-  { path: '/admin/event/:eventId', page: eventEdit, section: '/admin', up: toAdmin },
+  { path: '/admin/help', page: helpEdit, section: '/admin', up: toAdmin, tabbed: true },
+  { path: '/admin/event/:eventId', page: eventEdit, section: '/admin', up: toAdmin, tabbed: true },
   { path: '/admin/result/:eventId/:fixtureId', page: resultEntry, section: '/admin', up: (p) => ({ href: urls.adminEvent(p.eventId, 'fixtures'), label: 'the event’s fixtures' }) },
 ];
 
 // ---------- Back button (and Esc), like backing out of a menu in the game ----------
-// Each page visit inside the site is numbered (history.state.depth) and remembers the page it came from,
-// so "back" can say where it goes. With nothing to go back to, it goes "up" instead.
+// history.state.trail is the list of pages that led here ([{ href, title }], oldest first), like a stack
+// of menus. It never loops:
+// - "back" goes to the last page on the trail and takes it off (or "up" when the trail is empty)
+// - opening a page that's already on the trail cuts the trail back to it
+// - opening a main-menu page (Fixtures, Stats, Club...) starts a fresh trail from the main menu
+// - switching tabs or filters on the same page doesn't add a step
 const shortTitle = () => (document.title === SITE_NAME ? 'main menu' : document.title.replace(` · ${SITE_NAME}`, ''));
-if (!history.state) history.replaceState({ depth: 0 }, '');
+const here = () => location.pathname + location.search;
+const trailNow = () => history.state?.trail ?? [];
+if (!history.state?.trail) history.replaceState({ trail: [] }, '');
+
+const pathOf = (href) => new URL(href, location.origin).pathname.replace(/\/+$/, '') || '/';
+const isMenuPage = (href) => matchRoute(pathOf(href)).up === toMenu;
+
+// The trail for a page we're about to open from the current one.
+function trailFor(href) {
+  const trail = trailNow();
+  const at = trail.findIndex((t) => t.href === href);
+  if (at >= 0) return trail.slice(0, at); // already on the trail: back up to it
+  if (pathOf(href) === '/') return [];
+  if (pathOf(href) === pathOf(here())) return trail; // same page, other tab/filter
+  if (isMenuPage(href)) return [{ href: '/', title: 'main menu' }];
+  return [...trail, { href: here(), title: shortTitle() }].slice(-12);
+}
+
+function backTarget(route, params) {
+  const last = trailNow().at(-1);
+  if (last) return { href: last.href, label: last.title };
+  return route.up?.(params) ?? null;
+}
 
 function backBar(route, params) {
-  const up = route.up?.(params);
-  if (!up) return '';
-  const fromHere = (history.state?.depth ?? 0) > 0;
-  const label = fromHere ? history.state.from : up.label;
+  if (!route.up) return '';
+  const target = backTarget(route, params);
+  if (!target) return '';
+  // Menus made of tabs get a "close" button (it closes the whole menu, never just a tab);
+  // pages you drill into get "back to …".
+  const button = route.tabbed
+    ? `<a class="back-btn close" href="${esc(target.href)}" data-back title="Back to ${esc(target.label ?? 'the previous page')}"><span class="back-arrow" aria-hidden="true">✕</span><span>close</span></a>`
+    : `<a class="back-btn" href="${esc(target.href)}" data-back><span class="back-arrow" aria-hidden="true">←</span><span>back${target.label ? ` to ${esc(target.label)}` : ''}</span></a>`;
   return `
-    <nav class="backbar" aria-label="Back">
-      <a class="back-btn" href="${esc(up.href)}" data-back><span class="back-arrow" aria-hidden="true">←</span><span>back${label ? ` to ${esc(label)}` : ''}</span></a>
+    <nav class="backbar" aria-label="${route.tabbed ? 'Close' : 'Back'}">
+      ${button}
       <span class="esc-hint" aria-hidden="true"><kbd>esc</kbd></span>
     </nav>`;
 }
 
-function goBack(fallbackHref) {
-  if ((history.state?.depth ?? 0) > 0) history.back();
-  else navigate(fallbackHref, { replace: true });
+// Goes to the back target and takes it off the trail (replacing this page, so it can't loop back).
+function goBack() {
+  const route = matchRoute(pathOf(here()));
+  const target = backTarget(route, route.params);
+  if (!target) return;
+  const trail = trailNow();
+  const rest = trail.at(-1)?.href === target.href ? trail.slice(0, -1) : [];
+  history.replaceState({ trail: rest }, '', target.href);
+  window.scrollTo(0, 0);
+  show();
 }
 
 document.addEventListener('click', (e) => {
   const link = e.target.closest('a[data-back]');
   if (!link || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
   e.preventDefault();
-  goBack(link.getAttribute('href'));
+  goBack();
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented) return;
   if (e.target.closest?.('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
-  const link = main.querySelector('a[data-back]');
-  if (link) goBack(link.getAttribute('href'));
+  if (main.querySelector('a[data-back]')) goBack();
 });
 
 // Old addresses from earlier versions of the site.
@@ -169,10 +205,12 @@ async function show({ quiet = false } = {}) {
 }
 
 function navigate(href, { keepScroll = false, replace = false } = {}) {
-  if (href !== location.pathname + location.search) {
-    const state = history.state ?? { depth: 0 };
-    if (replace) history.replaceState(state, '', href);
-    else history.pushState({ depth: (state.depth ?? 0) + 1, from: shortTitle() }, '', href);
+  if (href !== here()) {
+    const samePage = pathOf(href) === pathOf(here());
+    const trail = replace ? trailNow().filter((t) => t.href !== href) : trailFor(href);
+    // Tabs and filters on the same page replace the entry, so browser back skips them too.
+    if (replace || samePage) history.replaceState({ trail }, '', href);
+    else history.pushState({ trail }, '', href);
     if (!keepScroll) window.scrollTo(0, 0);
   }
   show();
@@ -206,20 +244,22 @@ document.addEventListener('change', (e) => {
 
 window.addEventListener('popstate', show);
 
-// Desktop bars follow the player's sign-in.
-onUserChange(() => {
-  renderShell();
-  updateBell({ force: true });
-});
-
-// The "Admin" menu link appears while the admin (password) sign-in is active.
-onAdminChange(async () => {
+// The "Admin" menu link appears for admins: the admin login, or a Discord admin (see auth.js currentAdmin).
+async function adminChanged() {
   let isAdmin = false;
   try {
     isAdmin = Boolean((await currentAdmin()).admin);
   } catch { /* stay hidden */ }
   document.querySelectorAll('.admin-only').forEach((el) => { el.hidden = !isAdmin; });
+  updateBell({ force: true }); // admin to-dos appear (or go) in the bell
+}
+
+// Desktop bars and the bell follow the player's sign-in (which can also make someone a Discord admin).
+onUserChange(() => {
+  renderShell();
+  adminChanged();
 });
+onAdminChange(adminChanged);
 
 show();
 
