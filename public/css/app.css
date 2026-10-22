@@ -619,6 +619,19 @@ html.no-club .tabbar .club-link > svg:first-child { opacity: 0.55; }
 a.club-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
 
 /* ---------- Teams list ---------- */
+/* Players list (Teams & players page) */
+.people-list { list-style: none; margin: 0; padding: 0; }
+.people-list li + li { border-top: 1px solid var(--line); }
+.people-list a { display: flex; align-items: center; gap: 12px; padding: 10px 14px; text-decoration: none; color: var(--ink); }
+.people-list a:hover { background: var(--tint-sky); }
+.people-list .avatar { width: 40px; height: 40px; flex: none; border-width: 2px; font-size: 18px; object-fit: cover; }
+.pl-main { display: grid; min-width: 0; flex: 1; line-height: 1.25; }
+.pl-main b, .pl-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-main small { color: var(--muted); font-size: 13px; }
+.pl-main .team { display: inline-flex; align-items: center; gap: 5px; }
+.pl-side { display: grid; text-align: right; line-height: 1.2; flex: none; }
+.pl-side small { color: var(--muted); font-size: 12px; }
+.fa-tag { font-weight: 700; color: var(--teal-dark, #0b7a6c); }
 .team-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .team-card { --theme: var(--blue); padding: 0; overflow: hidden; text-decoration: none; display: grid; }
 a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }

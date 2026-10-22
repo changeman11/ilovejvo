@@ -96,7 +96,7 @@ function partyHtml({ signedIn, player, team, squad }) {
 
 function iconsHtml({ signedIn }) {
   return `
-    <a class="round-btn" href="/teams" data-link title="Teams" aria-label="Teams">${icon.teams}</a>
+    <a class="round-btn" href="/teams" data-link title="Teams &amp; players" aria-label="Teams and players">${icon.teams}</a>
     <a class="round-btn" href="/admin" data-link title="Admin" aria-label="Admin">${icon.cog}</a>
     ${signedIn ? `<button class="round-btn danger" type="button" data-shell-signout title="Sign out" aria-label="Sign out">${icon.power}</button>` : ''}`;
 }
