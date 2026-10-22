@@ -1,9 +1,10 @@
-// Fixtures & results across every published event.
-// URL options: ?view=upcoming|results  ?event=<id>
+// Fixtures & results across every published event, with a heading per round.
+// URL options: ?view=upcoming|results  ?event=<id>  ?team=<id>
 
-import { loadAllBundles } from '../data.js';
+import { loadAllBundles, loadPeople, isApprovedTeam } from '../data.js';
+import { currentUser } from '../auth.js';
 import { esc, skeleton, notice, pageTitle } from '../ui.js';
-import { allFixtures, fixturesByDay, resultOf } from './parts.js';
+import { allFixtures, fixturesByRound, resultOf } from './parts.js';
 
 export const title = 'Fixtures';
 
@@ -11,13 +12,28 @@ export function loading() {
   return skeleton([60, 44, 360]);
 }
 
+// The signed-in player's club id, or null.
+async function myTeamId() {
+  const user = await currentUser().catch(() => null);
+  if (!user) return null;
+  const people = await loadPeople();
+  const me = people.players.find((p) => p.uid === user.uid);
+  return me?.teamId && isApprovedTeam(people.teamsById[me.teamId]) ? me.teamId : null;
+}
+
 export async function render() {
   const params = new URLSearchParams(location.search);
   const view = params.get('view') === 'results' ? 'results' : 'upcoming';
-  const bundles = await loadAllBundles();
+  const [bundles, mine] = await Promise.all([loadAllBundles(), myTeamId()]);
   const eventId = bundles.some((b) => b.event.id === params.get('event')) ? params.get('event') : null;
+  const inEvents = eventId ? bundles.filter((b) => b.event.id === eventId) : bundles;
 
-  const items = allFixtures(eventId ? bundles.filter((b) => b.event.id === eventId) : bundles);
+  // Teams that have at least one fixture in the events shown (for the team picker).
+  const teamsById = Object.assign({}, ...bundles.map((b) => b.teamsById));
+  const teamIds = [...new Set(inEvents.flatMap((b) => b.fixtures.flatMap((f) => [f.homeTeamId, f.awayTeamId])))].filter((id) => teamsById[id]);
+  const teamId = teamsById[params.get('team')] ? params.get('team') : null;
+
+  const items = allFixtures(inEvents).filter(({ f }) => !teamId || f.homeTeamId === teamId || f.awayTeamId === teamId);
   const upcoming = items.filter(({ b, f }) => !b.results[f.id]);
   const results = items.filter(({ b, f }) => resultOf(b, f).result).reverse(); // newest first
   const shown = view === 'results' ? results : upcoming;
@@ -33,14 +49,28 @@ export async function render() {
     `<option value="${esc(url({ event: null }))}">All events</option>`,
     ...bundles.map((b) => `<option value="${esc(url({ event: b.event.id }))}"${b.event.id === eventId ? ' selected' : ''}>${esc(b.event.title)}</option>`),
   ].join('');
+  const teamOptions = [
+    `<option value="${esc(url({ team: null }))}">All teams</option>`,
+    ...teamIds
+      .sort((a, z) => teamsById[a].name.localeCompare(teamsById[z].name))
+      .map((id) => `<option value="${esc(url({ team: id }))}"${id === teamId ? ' selected' : ''}>${esc(teamsById[id].name)}${id === mine ? ' (my team)' : ''}</option>`),
+  ].join('');
+  const myChip = mine
+    ? `<a class="chip-link" href="${esc(url({ team: teamId === mine ? null : mine }))}" data-link data-keep-scroll${teamId === mine ? ' aria-current="true"' : ''}>★ My team</a>`
+    : '';
 
   return `
     <div class="page-head">
       ${pageTitle('Fixtures', 'Every match across exhibition nights and tournaments. Times are in your time zone.', 'teal')}
-      ${bundles.length > 1 ? `<label class="picker"><span class="sr-only">Event</span><select data-nav>${eventOptions}</select></label>` : ''}
     </div>
-    <nav class="chips">${chip('upcoming', 'Upcoming', upcoming.length)}${chip('results', 'Results', results.length)}</nav>
+    <div class="fixture-filters">
+      <nav class="chips">${chip('upcoming', 'Upcoming', upcoming.length)}${chip('results', 'Results', results.length)}${myChip}</nav>
+      ${bundles.length > 1 ? `<label class="picker"><span class="sr-only">Event</span><select data-nav>${eventOptions}</select></label>` : ''}
+      ${teamIds.length > 1 ? `<label class="picker"><span class="sr-only">Team</span><select data-nav>${teamOptions}</select></label>` : ''}
+    </div>
     ${shown.length
-      ? `<div class="panel flush fixtures">${fixturesByDay(shown, { showEvent: !eventId })}</div>`
-      : notice(view === 'results' ? 'No results yet' : 'Nothing scheduled', view === 'results' ? ' Results appear here once matches are played.' : ' New fixtures will show up here.', 'x')}`;
+      ? `<div class="panel flush fixtures">${fixturesByRound(shown, { showEvent: !eventId })}</div>`
+      : teamId
+        ? `${notice(view === 'results' ? 'No results for this team yet' : 'Nothing scheduled for this team', '', 'x')}<p class="small" style="text-align:center"><a href="${esc(url({ team: null }))}" data-link>Show every team</a></p>`
+        : notice(view === 'results' ? 'No results yet' : 'Nothing scheduled', view === 'results' ? ' Results appear here once matches are played.' : ' New fixtures will show up here.', 'x')}`;
 }

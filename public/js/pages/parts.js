@@ -23,7 +23,7 @@ export function resultOf(b, f) {
 
 // One fixture as a scoreboard row, linking to its match page.
 // showEvent: name the event in the row (for site-wide lists). timeOnly: list is already grouped by day.
-export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = null } = {}) {
+export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = null, hideRound = false } = {}) {
   const home = b.teamsById[f.homeTeamId];
   const away = b.teamsById[f.awayTeamId];
   const { result, check } = resultOf(b, f);
@@ -40,7 +40,8 @@ export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = n
   const bestOf = formatFor(b.season, f).bestOf;
   const meta = [
     showEvent ? `<b>${esc(b.event.title)}</b>` : '',
-    f.label ? esc(f.label) : '',
+    // Under a round heading, "Round 3" would just repeat it (but "Semi-final 1" still says which one)
+    f.label && !(hideRound && roundName(f) === f.label.trim()) ? esc(f.label) : '',
     played && !timeOnly && f.scheduledAt ? fmtDay(f.scheduledAt) : '',
     result?.forfeit ? 'Forfeit' : '',
     bestOf !== 3 ? `Best of ${bestOf}` : '',
@@ -56,6 +57,37 @@ export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = n
 }
 
 // Rows grouped under day headings; undated fixtures go under "Date TBD".
+// The round a fixture belongs to, from its label ("Round 3", "Semi-final 1", "Grand final"), or null.
+export function roundName(f) {
+  const label = (f.label ?? '').trim();
+  let m = label.match(/^(round|week|matchday|game ?day)\s*(\d+)/i);
+  if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1).toLowerCase()} ${m[2]}`;
+  if (/^quarter[- ]?finals?\b/i.test(label)) return 'Quarter-finals';
+  if (/^semi[- ]?finals?\b/i.test(label)) return 'Semi-finals';
+  if (/^grand[- ]?finals?\b/i.test(label)) return 'Grand final';
+  if (/^finals?\b/i.test(label)) return 'Final';
+  m = label.match(/^(group\s+\w+)/i);
+  if (m) return m[1].replace(/^group/i, 'Group');
+  return null;
+}
+
+// Fixtures with a heading for each round (from the labels). Fixtures without a round label
+// are grouped by day instead. showEvent: each heading also names the event.
+export function fixturesByRound(items, { showEvent = false, ...rowOptions } = {}) {
+  let last = null;
+  return items.map(({ b, f }) => {
+    const round = roundName(f);
+    const day = f.scheduledAt ? fmtDay(f.scheduledAt) : 'Date TBD';
+    const key = round ? `${b.event.id}|${round}` : `day|${day}|${showEvent ? b.event.id : ''}`;
+    const head = key !== last
+      ? `<div class="day-head round-head"><span>${esc(round ?? day)}</span>${showEvent ? `<small>${esc(b.event.title)}</small>` : ''}</div>`
+      : '';
+    last = key;
+    // Under a round heading the row shows its own date; under a day heading just the time.
+    return head + fixtureRow(b, f, { ...rowOptions, showEvent: false, timeOnly: !round && Boolean(f.scheduledAt), hideRound: Boolean(round) });
+  }).join('');
+}
+
 export function fixturesByDay(items, rowOptions = {}) {
   let last = null;
   return items.map(({ b, f }) => {
