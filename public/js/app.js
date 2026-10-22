@@ -20,6 +20,7 @@ import { NotFoundError } from './data.js';
 import { onAdminChange, onUserChange, currentAdmin, startDiscordSignIn } from './auth.js';
 import { renderShell, setSection } from './shell.js';
 import './search.js';
+import { updateBell } from './notifications.js';
 import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
 import { setNav } from './nav.js';
@@ -145,6 +146,7 @@ async function show() {
     if (title) document.title = `${title} · ${SITE_NAME}`;
     page.mount?.(main);
     renderShell(); // keeps the desktop bars (level, team, next match) up to date after saves
+    updateBell({ force: ['/club', '/me'].includes(location.pathname) });
   } catch (err) {
     if (id !== renderId) return;
     if (err instanceof NotFoundError) {
@@ -195,7 +197,10 @@ document.addEventListener('change', (e) => {
 window.addEventListener('popstate', show);
 
 // Desktop bars follow the player's sign-in.
-onUserChange(() => renderShell());
+onUserChange(() => {
+  renderShell();
+  updateBell({ force: true });
+});
 
 // The "Admin" menu link appears while the admin (password) sign-in is active.
 onAdminChange(async () => {

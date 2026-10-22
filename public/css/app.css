@@ -100,6 +100,29 @@ p { margin: 0; }
 .sr-empty { padding: 8px; color: var(--muted); font-size: 14px; }
 @media (min-width: 760px) { .search { flex: 0 1 260px; margin-left: 0; } }
 
+/* ---------- Notifications bell (js/notifications.js) ---------- */
+.bell { position: relative; flex: none; }
+.bell-btn {
+  position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  background: #fff; color: var(--blue); border: 2px solid var(--ink); cursor: pointer; padding: 0;
+}
+.bell-btn svg { width: 21px; height: 21px; fill: currentColor; stroke: currentColor; stroke-width: 1.2; stroke-linejoin: round; }
+.bell-count {
+  position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  background: var(--coral, #ff5a6e); color: #fff; border: 2px solid var(--ink); font: 700 12px/16px var(--font-body); text-align: center;
+}
+.bell-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; width: min(340px, calc(100vw - 2 * var(--gutter))); padding: 10px;
+  background: var(--surface); color: var(--ink); border: var(--outline); border-radius: var(--radius-sm); box-shadow: var(--pop);
+}
+.bell-title { display: block; font-family: var(--font-head); font-size: 17px; padding: 2px 6px 8px; }
+.bell-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 60vh; overflow-y: auto; }
+.bell-panel a { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border-radius: 8px; text-decoration: none; color: var(--ink); line-height: 1.3; }
+.bell-panel a:hover { background: var(--tint-sky); }
+.bell-panel small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.bell-icon { font-size: 18px; line-height: 1.2; }
+.bell-panel p { padding: 4px 6px 6px; margin: 0; }
+
 /* ---------- Bottom tab bar (phones) ---------- */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
@@ -663,6 +686,12 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
   .round-btn:hover { border-color: var(--g-yellow); }
   .round-btn.danger { background: #ef3e4a; border-color: #ef3e4a; }
   .round-btn.danger:hover { border-color: #fff; }
+  /* The bell sits just left of the Teams button */
+  .bell:not([hidden]) { margin-left: auto; }
+  .bell:not([hidden]) + .top-icons { margin-left: 0; }
+  .bell-btn { width: 48px; height: 48px; background: var(--g-card); color: #fff; border: 2px solid rgba(255, 255, 255, 0.1); }
+  .bell-btn:hover, .bell-btn[aria-expanded="true"] { border-color: var(--g-yellow); }
+  .bell-count { border-color: var(--g-bar); }
 
   /* ----- Content: light "glass" sheet over the court (stat tables stay easy to read) ----- */
   main.page { max-width: 1180px; }
@@ -798,12 +827,24 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
   .footer a { color: #fff; }
   .save-bar { bottom: calc(var(--playerbar-h) + 12px); }
 }
-@media (min-width: 1024px) and (max-width: 1279px) {
-  /* Tighter top bar on smaller laptops */
+@media (min-width: 1024px) and (max-width: 1599px) {
+  /* Tighter top bar on laptops: fewer team slots, smaller buttons */
   .topnav a { padding: 8px 14px; font-size: 17px; }
-  .slots .slot:nth-child(n + 4) { display: none; }
+  .slots .slot:nth-child(n + 3) { display: none; }
   .search { flex-basis: 190px; min-width: 160px; }
-  .topbar-inner { gap: 14px; }
+  .topbar-inner { gap: 14px; padding-left: 20px; padding-right: 20px; }
   .party { padding-right: 8px; }
+  .round-btn, .bell-btn { width: 42px; height: 42px; }
+  .top-icons { gap: 8px; }
   .dark-pill { max-width: 220px; }
+}
+@media (min-width: 1024px) and (max-width: 1365px) {
+  /* Small laptops: the team box shows just your club's short name (it still opens the Club hub) */
+  .brand { font-size: 28px; }
+  .topnav a { padding: 7px 10px; font-size: 16px; }
+  .slots { display: none; }
+  .party { padding: 4px; }
+  .party-lead { padding: 6px 12px; font-size: 15px; }
+  .search { flex-basis: 160px; min-width: 130px; }
+  .topbar-inner { gap: 10px; }
 }
