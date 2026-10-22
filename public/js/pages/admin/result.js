@@ -7,6 +7,7 @@ import { checkResult } from '../../rules/match.js';
 import { formatFor } from '../../rules/season.js';
 import { forfeitSets, visibleSetCount, cleanStatLine, suggestMvp, reviewResult } from '../../rules/results.js';
 import { voteLabel } from '../../rules/votes.js';
+import { shotThumbs } from '../report.js';
 import { saveResult, deleteResult } from '../../admin-data.js';
 import { navigate } from '../../nav.js';
 import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
@@ -171,7 +172,8 @@ function votesPanel() {
       <div class="rows">${votes.map((v) => `
         <div class="row">
           <span class="row-main"><b>${esc(b.playersById[v.playerId]?.displayName ?? v.playerId)} <span class="muted">(${esc(b.teamsById[v.teamId]?.name ?? v.teamId)})</span></b>
-            <span class="small num">${esc(voteLabel(v.sets))} · ${Object.keys(v.playerStats ?? {}).length} stat lines${v.updatedAt ? ` · ${esc(fmtDay(v.updatedAt))}` : ''}</span></span>
+            <span class="small num">${esc(voteLabel(v.sets))} · ${Object.keys(v.playerStats ?? {}).length} stat lines${v.updatedAt ? ` · ${esc(fmtDay(v.updatedAt))}` : ''}</span>
+            ${v.screenshotPaths?.length ? `<span class="vote-shots">${shotThumbs(v.screenshotPaths)}</span>` : '<span class="muted small">No screenshot</span>'}</span>
           <span class="row-side"><button type="button" class="btn btn-sm" data-act="use-vote" data-id="${esc(v.id)}">Use</button></span>
         </div>`).join('')}</div>
     </section>`;

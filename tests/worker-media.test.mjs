@@ -50,6 +50,8 @@ const put = (path, token, { body = GIF, type = 'image/gif', origin = SITE } = {}
 test('media paths: only known owners, kinds and file names', () => {
   assert.equal(parseMediaPath('/media/teams/tide/logo/abc123.gif').key, 'teams/tide/logo/abc123.gif');
   assert.equal(parseMediaPath('/media/players/kai/avatar/x.webp').kind, 'avatar');
+  assert.equal(parseMediaPath('/media/players/kai/shot/x.webp').kind, 'shot', 'match screenshots for votes');
+  assert.equal(parseMediaPath('/media/teams/tide/shot/x.webp'), null, 'screenshots belong to players');
   assert.equal(parseMediaPath('/media/teams/tide/avatar/x.gif'), null, 'teams have logos, not avatars');
   assert.equal(parseMediaPath('/media/players/kai/logo/x.gif'), null);
   assert.equal(parseMediaPath('/media/teams/../admins/logo/x.gif'), null);

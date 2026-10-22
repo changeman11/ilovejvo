@@ -90,13 +90,13 @@ export async function requestLeave({ uid, player, reason }) {
 
 // A player's vote on a match result (rules/votes.js). If it agrees with the other team's vote,
 // `agreed` is the result to publish, saved in the same go (the security rules check the agreement).
-export async function submitVote({ uid, eventId, fixtureId, player, sets, playerStats, existing, agreed = null }) {
+export async function submitVote({ uid, eventId, fixtureId, player, sets, playerStats, screenshotPaths = [], existing, agreed = null }) {
   const ops = [{
     type: 'set',
     path: `events/${eventId}/submissions/${fixtureId}__${player.id}`,
     before: existing,
     data: {
-      fixtureId, playerId: player.id, uid, teamId: player.teamId, sets, playerStats,
+      fixtureId, playerId: player.id, uid, teamId: player.teamId, sets, playerStats, screenshotPaths,
       createdAt: existing?.createdAt ? ts(existing.createdAt) : serverTimestamp(),
     },
   }];

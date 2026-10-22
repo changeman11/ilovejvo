@@ -16,9 +16,9 @@ service firebase.storage {
           && request.auth.token.firebase.sign_in_provider == 'password'
           && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
     }
-    // Size limits: pictures 2 MB, banners 4 MB, backgrounds 6 MB.
+    // Size limits: pictures 2 MB, banners and match screenshots 4 MB, backgrounds 6 MB.
     function maxBytes(kind) {
-      return (kind == 'background' ? 6 : (kind == 'banner' ? 4 : 2)) * 1024 * 1024;
+      return (kind == 'background' ? 6 : (kind in ['banner', 'shot'] ? 4 : 2)) * 1024 * 1024;
     }
     function validImage(kind) {
       return request.resource.size <= maxBytes(kind)
@@ -42,7 +42,8 @@ service firebase.storage {
 
     match /players/{playerId}/{kind}/{file} {
       allow get: if true;
-      allow create: if kind in ['avatar', 'banner', 'background'] && validImage(kind)
+      // "shot" = end-of-match screenshots attached to the player's result votes.
+      allow create: if kind in ['avatar', 'banner', 'background', 'shot'] && validImage(kind)
                     && (isAdmin() || ownsPlayer(playerId));
       allow delete: if isAdmin() || ownsPlayer(playerId);
     }

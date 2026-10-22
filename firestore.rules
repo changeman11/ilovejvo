@@ -119,6 +119,7 @@ service cloud.firestore {
           && !exists(/databases/$(database)/documents/events/$(eventId)/results/$(d.fixtureId))
           && d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7
           && d.playerStats is map && d.playerStats.size() <= 12
+          && (!('screenshotPaths' in d) || (d.screenshotPaths is list && d.screenshotPaths.size() <= 3))
           && d.keys().hasOnly(['fixtureId', 'playerId', 'uid', 'teamId', 'sets', 'playerStats', 'screenshotPaths', 'createdAt', 'updatedBy', 'updatedAt']);
     }
 

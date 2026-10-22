@@ -9,9 +9,10 @@
 // and whose profile it is comes from the database itself (Firestore), read with their own token.
 // Admins: password sign-in AND listed in /admins, the same test as the database rules.
 
-const KINDS = { teams: ['logo', 'banner', 'background'], players: ['avatar', 'banner', 'background'] };
+// "shot" = end-of-match screenshots attached to a player's result votes.
+const KINDS = { teams: ['logo', 'banner', 'background'], players: ['avatar', 'banner', 'background', 'shot'] };
 const MB = 1024 * 1024;
-export const MAX_BYTES = { logo: 2 * MB, avatar: 2 * MB, banner: 4 * MB, background: 6 * MB };
+export const MAX_BYTES = { logo: 2 * MB, avatar: 2 * MB, banner: 4 * MB, background: 6 * MB, shot: 4 * MB };
 const TYPES = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
 const GOOGLE_KEYS = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 

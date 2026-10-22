@@ -21,6 +21,7 @@ export const MEDIA = {
   avatar: { label: 'Profile picture', maxMb: 2, maxSide: 512, hint: 'Square works best. Leave empty to use your Discord picture.' },
   banner: { label: 'Banner', maxMb: 4, maxSide: 1600, hint: 'Wide, about 4 : 1 (e.g. 1600 × 400).' },
   background: { label: 'Page background', maxMb: 6, maxSide: 1920, hint: 'Fills the page behind your profile.' },
+  shot: { label: 'Screenshot', maxMb: 4, maxSide: 1920, hint: 'The end-of-match stats screen.' },
 };
 
 const storageHost = useEmulators ? `http://${location.hostname}:${emulatorPorts.storage}` : 'https://firebasestorage.googleapis.com';

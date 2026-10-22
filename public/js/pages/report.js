@@ -11,9 +11,17 @@ import { cleanStatLine } from '../rules/results.js';
 import { tallyVotes, resultFromVotes, sameSets, voteLabel } from '../rules/votes.js';
 import { submitVote } from '../player-data.js';
 import { refresh } from '../nav.js';
+import { mediaUrl, prepareImage, uploadImage, deleteImage, FriendlyError } from '../media.js';
 
 let ctx = null; // { b, f, player, team, mine, format }
 let flash = ''; // message shown after a save
+const MAX_SHOTS = 3;
+
+// Small screenshot previews that open the full picture.
+export const shotThumbs = (paths) => (paths ?? []).map((p, i) => {
+  const url = mediaUrl(p);
+  return `<a href="${esc(url)}" target="_blank" rel="noopener" title="Screenshot ${i + 1}"><img src="${esc(url)}" alt="Screenshot ${i + 1}" loading="lazy"></a>`;
+}).join('');
 
 // Everyone sees who has voted what (so teams can sort out a mismatch themselves).
 export function votesSummary(b, f) {
@@ -23,7 +31,8 @@ export function votesSummary(b, f) {
   const side = (teamId, votes) => `
     <div class="vote-side">
       <b>${teamDot(b.teamsById[teamId])} ${esc(b.teamsById[teamId]?.name ?? 'TBC')}</b>
-      ${votes.length ? votes.map((v) => `<span class="vote${tally.pair && (tally.pair.home.id === v.id || tally.pair.away.id === v.id) ? ' ok' : ''}">${playerLink(b.playersById[v.playerId], v.playerId)} says <b class="num">${esc(voteLabel(v.sets))}</b></span>`).join('')
+      ${votes.length ? votes.map((v) => `<span class="vote${tally.pair && (tally.pair.home.id === v.id || tally.pair.away.id === v.id) ? ' ok' : ''}">${playerLink(b.playersById[v.playerId], v.playerId)} says <b class="num">${esc(voteLabel(v.sets))}</b>
+        ${v.screenshotPaths?.length ? `<span class="vote-shots">${shotThumbs(v.screenshotPaths)}</span>` : ''}</span>`).join('')
         : '<span class="muted small">no vote yet</span>'}
     </div>`;
   const status = {
@@ -104,6 +113,14 @@ export async function reportBlock(b, f) {
         <thead><tr><th class="first">Player</th>${defs.map((d) => `<th title="${esc(d.name)}">${esc(d.label)}</th>`).join('')}</tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
+      <div class="field" style="margin-top:14px">
+        <span>Screenshot of the end-of-match screen (recommended, up to ${MAX_SHOTS})</span>
+        ${mine?.screenshotPaths?.length ? `<div class="vote-shots">${shotThumbs(mine.screenshotPaths)}</div>` : ''}
+        <label class="btn btn-sm" style="justify-self:start">${mine?.screenshotPaths?.length ? 'Replace screenshots…' : 'Add screenshots…'}
+          <input type="file" name="shots" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden></label>
+        <span class="muted small" data-shots-picked></span>
+        <span class="muted small">It’s proof if the teams don’t agree.</span>
+      </div>
       <div class="actions" style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary" type="submit">${mine ? 'Update my vote' : 'Submit my vote'}</button>
       </div>
@@ -128,6 +145,11 @@ export function mountReport(root) {
   flash = '';
   form.addEventListener('change', (e) => {
     if (e.target.matches('[data-played]')) e.target.closest('tr').classList.toggle('off', !e.target.checked);
+    if (e.target.matches('[name=shots]')) {
+      const n = e.target.files.length;
+      form.querySelector('[data-shots-picked]').textContent = n > MAX_SHOTS
+        ? `Only the first ${MAX_SHOTS} will be used.` : n ? `${n} picked.` : '';
+    }
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -161,7 +183,20 @@ export function mountReport(root) {
     button.disabled = true;
     button.textContent = 'Saving…';
     try {
-      await submitVote({ uid: user.uid, eventId: b.event.id, fixtureId: f.id, player, sets, playerStats, existing: mine, agreed });
+      // Screenshots: newly picked ones replace the old; otherwise keep what the vote had.
+      const files = [...(form.querySelector('[name=shots]')?.files ?? [])].slice(0, MAX_SHOTS);
+      let screenshotPaths = mine?.screenshotPaths ?? [];
+      if (files.length) {
+        button.textContent = 'Uploading screenshots…';
+        screenshotPaths = [];
+        for (const file of files) {
+          const image = await prepareImage(file, 'shot');
+          screenshotPaths.push(await uploadImage({ owner: 'players', id: player.id, kind: 'shot', image }));
+        }
+        button.textContent = 'Saving…';
+      }
+      await submitVote({ uid: user.uid, eventId: b.event.id, fixtureId: f.id, player, sets, playerStats, screenshotPaths, existing: mine, agreed });
+      if (files.length) for (const old of mine?.screenshotPaths ?? []) deleteImage(old);
       const others = tallyVotes([...(b.submissions ?? []).filter((s) => s.fixtureId === f.id && s.id !== myVote.id), myVote], f);
       flash = agreed ? '' : others.status === 'disputed'
         ? 'Saved. Your scores don’t match the other team’s vote yet. Double-check them, or an admin will decide.'
@@ -171,7 +206,7 @@ export function mountReport(root) {
       console.error(err);
       button.disabled = false;
       button.textContent = mine ? 'Update my vote' : 'Submit my vote';
-      showError(err.code === 'permission-denied'
+      showError(err instanceof FriendlyError ? err.message : err.code === 'permission-denied'
         ? 'That couldn’t be saved. The result may already be in, or you’re not on this team any more. Refresh and try again.'
         : 'Something went wrong. Check your connection and try again.');
     }

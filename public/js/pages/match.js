@@ -5,6 +5,7 @@ import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, teamLink, pla
 import { formatFor } from '../rules/season.js';
 import { resultOf, statHeads, statCells } from './parts.js';
 import { votesSummary, reportBlock, mountReport } from './report.js';
+import { mediaUrl } from '../media.js';
 
 export const title = 'Match';
 
@@ -49,7 +50,9 @@ export async function render({ eventId, fixtureId }) {
     body = notice('Forfeit', ` ${b.teamsById[result.forfeit.teamId]?.name ?? 'A team'} didn’t play, so it counts as a ${check.homeSets}–${check.awaySets} win.`);
   } else if (played) {
     const vod = safeUrl(result.vodUrl);
-    const shots = (result.screenshots ?? []).map(safeUrl).filter(Boolean);
+    // Admin-entered screenshot links, plus screenshots players attached to their votes.
+    const voteShots = (b.submissions ?? []).filter((v) => v.fixtureId === f.id).flatMap((v) => v.screenshotPaths ?? []).map(mediaUrl);
+    const shots = [...(result.screenshots ?? []).map(safeUrl), ...voteShots].filter(Boolean);
     body = `
       ${boxScore(b, f.homeTeamId, result)}
       ${boxScore(b, f.awayTeamId, result)}
