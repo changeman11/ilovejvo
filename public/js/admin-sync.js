@@ -6,6 +6,7 @@
 import { currentAdmin } from './auth.js';
 import { loadAllBundles } from './data.js';
 import { saveSchedule } from './admin-data.js';
+import { drawToSave } from './rules/autofix.js';
 
 let lastRun = 0;
 let running = null;
@@ -23,7 +24,7 @@ export function syncSchedules({ force = false } = {}) {
       const { toSave, lockGroup } = b.plan;
       if (!toSave.length) continue;
       try {
-        await saveSchedule({ eventId: b.event.id, uid: user.uid, fixtures: toSave, lockGroup, event: b.event });
+        await saveSchedule({ eventId: b.event.id, uid: user.uid, fixtures: toSave, lockGroup, event: b.event, draw: lockGroup ? drawToSave(b.plan) : null });
         saved += toSave.length;
       } catch (err) {
         console.warn('Saving the schedule for', b.event.id, err);

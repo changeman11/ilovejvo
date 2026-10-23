@@ -168,14 +168,17 @@ export async function removeEntry({ eventId, uid, entry }) {
 
 // Saves the worked-out schedule (rules/autofix.js schedulePlan().toSave) with its own ids.
 // lockGroup: also mark the round robin as fixed, so it stops following sign-ups.
-export async function saveSchedule({ eventId, uid, fixtures, lockGroup, event }) {
+// draw: { teamId: group letter } to save with the lock (so the groups can't change afterwards).
+export async function saveSchedule({ eventId, uid, fixtures, lockGroup, event, draw = null }) {
   const ops = fixtures.map((f) => ({
     type: 'set',
     path: `events/${eventId}/fixtures/${f.id}`,
     data: { ...storedFixture(f), scheduledAt: ts(f.scheduledAt) },
   }));
   if (lockGroup && !event.fixturesLockedAt) {
-    ops.push({ type: 'update', path: `events/${eventId}`, before: event, data: { fixturesLockedAt: serverTimestamp() } });
+    const data = { fixturesLockedAt: serverTimestamp() };
+    if (draw) data.groups = { ...(event.groups ?? {}), assign: draw };
+    ops.push({ type: 'update', path: `events/${eventId}`, before: event, data });
   }
   if (ops.length) await commit(uid, ops);
   invalidate(`event:${eventId}`);

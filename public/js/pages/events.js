@@ -274,7 +274,13 @@ export const eventPage = {
     const stats = careerStats([b]);
     const signup = safeUrl(e.signupUrl);
     const stream = safeUrl(e.streamUrl);
-    const table = e.showTable && b.teams.length ? computeStandings(b).rows : null;
+    const table = e.showTable && b.teams.length && b.plan.groupCount < 2 ? computeStandings(b).rows : null;
+    // Group stage: a table per group (always shown when there are groups).
+    const groupTables = b.plan.groupCount > 1 && b.plan.teamIds.length
+      ? Object.entries(b.plan.tables).map(([l, t]) => `
+        <section><div class="section-head"><h2>Group ${l}</h2>${t.done ? '<span class="tag tag-live">Finished</span>' : ''}</div>
+          <div class="panel flush">${t.rows.length ? standingsTable(t.rows, b) : '<p class="muted" style="padding:16px">No teams yet.</p>'}</div></section>`).join('')
+      : '';
 
     return {
       title: e.title,
@@ -301,6 +307,7 @@ export const eventPage = {
                 ${b.plan.finalsNote ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
               </section>
               ${table ? `<section><div class="section-head"><h2>Table</h2></div><div class="panel flush">${standingsTable(table, b)}</div></section>` : ''}
+              ${groupTables}
             </div>
             <div class="stack">
               <section>

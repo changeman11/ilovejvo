@@ -8,7 +8,7 @@ import { loadEventBundle, loadPeople, NotFoundError } from '../../data.js';
 import {
   EVENT_TYPES, EVENT_STATUSES, validateEvent, dateFromInputs, inputsFromDate, eventDateLabel,
 } from '../../rules/events.js';
-import { AUTO_MODES, FINALS_TYPES, lockTime, isLocked, schedulePlan } from '../../rules/autofix.js';
+import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, isLocked, schedulePlan, drawToSave, matchCount, groupCount } from '../../rules/autofix.js';
 import { syncSchedules } from '../../admin-sync.js';
 import { watchEvent } from '../../live.js';
 import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures } from '../../admin-data.js';
@@ -34,6 +34,17 @@ function payload(changes = {}) {
 }
 
 // ---------- Details tab ----------
+
+// "12 teams in 3 groups: 18 matches (everyone plays everyone: 66)", for the Rule config.
+function groupHint(e) {
+  const teams = page?.b?.plan?.teamIds?.length ?? 0;
+  const n = groupCount(e);
+  if (!teams) return n > 1 ? `Teams are split into ${n} groups; each group plays its own round robin.` : 'Everyone plays everyone.';
+  const all = matchCount({ ...e, groups: { count: 1 } }, teams);
+  return n > 1
+    ? `${teams} teams in ${n} groups: ${matchCount(e, teams)} group matches (everyone plays everyone would be ${all}).`
+    : `${teams} teams: ${all} matches.`;
+}
 
 function detailsHtml(e) {
   const { dateStr, timeStr } = inputsFromDate(e.date, e.timeTbd);
@@ -63,8 +74,13 @@ function detailsHtml(e) {
         </div>
         <label class="field"><span>Fixtures</span><select name="autoFixtures">${Object.entries(AUTO_MODES).map(([k, v]) => opt(k, v, e.autoFixtures ?? 'off')).join('')}</select></label>
         <div class="field-row">
-          <label class="field"><span>Finals</span><select name="finalsType">${Object.entries(FINALS_TYPES).map(([k, v]) => opt(k, v, e.finals?.type ?? 'none')).join('')}</select></label>
-          <label class="field"><span>Semi-finals best of</span><select name="semiBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.semiBestOf ?? 3)).join('')}</select></label>
+          <label class="field"><span>Groups</span><select name="groupCount">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => opt(n, n === 1 ? 'No groups (everyone plays everyone)' : `${n} groups`, e.groups?.count ?? 1)).join('')}</select></label>
+          <label class="field"><span>Group draw</span><select name="groupDraw">${Object.entries(GROUP_DRAWS).map(([k, v]) => opt(k, v, e.groups?.draw ?? 'auto')).join('')}</select></label>
+        </div>
+        <p class="muted small group-hint" style="margin-top:-6px">${esc(groupHint(e))}</p>
+        <div class="field-row">
+          <label class="field"><span>Knockout</span><select name="finalsType">${Object.entries(FINALS_TYPES).map(([k, v]) => opt(k, v, e.finals?.type ?? 'none')).join('')}</select></label>
+          <label class="field"><span>Quarter / semi-finals best of</span><select name="semiBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.semiBestOf ?? 3)).join('')}</select></label>
           <label class="field"><span>Final best of</span><select name="finalBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.finalBestOf ?? 5)).join('')}</select></label>
         </div>
         <label class="check"><input type="checkbox" name="signups" ${e.signups ? 'checked' : ''}> Clubs can sign themselves up on the event page (closes 10 minutes before the start)</label>
@@ -72,7 +88,7 @@ function detailsHtml(e) {
         ${isTournament ? `
         <label class="field"><span>Format note (shown on the event page)</span><input type="text" name="formatNote" maxlength="120" value="${esc(e.formatNote ?? '')}" placeholder="e.g. Round robin, then a best-of-5 final"></label>
         <label class="field"><span>Prize</span><input type="text" name="prize" maxlength="120" value="${esc(e.prize ?? '')}"></label>` : ''}
-        <p class="muted small">Every set is first to 10, win by 2. Finals seeds come from the event table once every other match has a result; finals don’t count in the table.</p>
+        <p class="muted small">Every set is first to 10, win by 2. Knockout places go to group winners, then runners-up (best runners-up on points if not all fit), paired so group mates don’t meet in the first knockout round. Knockout matches don’t count in the tables.</p>
       </section>
       <section class="panel">
         <label class="field"><span>Sign-up link</span><input type="url" name="signupUrl" value="${esc(e.signupUrl ?? '')}" placeholder="https://"></label>
@@ -108,6 +124,8 @@ function readDetails(form) {
     autoFixtures: val('autoFixtures') || 'off',
     finals: { type: val('finalsType') || 'none', semiBestOf: Number(val('semiBestOf')) || 3, finalBestOf: Number(val('finalBestOf')) || 5 },
     signups: form.querySelector('[name=signups]').checked,
+    // Groups: count and how teams are drawn. Teams already placed (Teams tab, or saved at the lock) stay placed.
+    groups: { count: Number(val('groupCount')) || 1, draw: val('groupDraw') || 'auto', assign: page.existing?.groups?.assign ?? {} },
     signupUrl: val('signupUrl').trim() || null,
     streamUrl: val('streamUrl').trim() || null,
     status: val('status'),
@@ -116,6 +134,38 @@ function readDetails(form) {
 }
 
 // ---------- Teams tab ----------
+
+// Groups: which group each team is in. "Auto" = drawn automatically; or pick a group by hand.
+function groupsPanel() {
+  const { b, people } = page;
+  const e = b.event;
+  const n = groupCount(e);
+  if (n < 2) return '';
+  const letters = LETTERS.slice(0, n).split('');
+  const assign = e.groups?.assign ?? {};
+  const locked = Boolean(e.fixturesLockedAt);
+  const teams = b.plan.teamIds.map((id) => people.teams.find((t) => t.id === id) ?? { id, name: id });
+  return `
+    <section class="panel" data-groups>
+      <div class="section-head"><h3>Groups</h3><span class="muted small">${n} groups · ${esc(e.groups?.draw === 'manual' ? 'placed by hand, the rest drawn' : 'automatic draw')}</span></div>
+      ${locked ? '<p class="small"><b>The fixtures are locked, so the groups are fixed.</b> Clear the fixtures (Fixtures tab) to change them.</p>' : '<p class="muted small" style="margin-top:0">Pick a group to place a team by hand. “Auto” teams are drawn into the smallest groups. The draw is saved when the fixtures lock.</p>'}
+      ${teams.length ? `<div class="group-columns">${letters.map((l) => `
+        <div class="group-col"><b>Group ${l}</b> <span class="muted small">${b.plan.groups[l].length} teams</span>
+          <ul>${b.plan.groups[l].map((id) => {
+            const t = teams.find((x) => x.id === id);
+            return `<li><span class="team">${teamDot(t)}${esc(t?.name ?? id)}</span>
+              <select data-group-team="${esc(id)}" aria-label="Group for ${esc(t?.name ?? id)}" ${locked ? 'disabled' : ''}>
+                ${opt('', 'Auto', assign[id] && letters.includes(assign[id]) ? '-' : '')}${letters.map((x) => opt(x, x, assign[id] ?? '')).join('')}
+              </select></li>`;
+          }).join('')}</ul>
+        </div>`).join('')}</div>` : '<p class="muted">No teams yet.</p>'}
+      ${locked || !teams.length ? '' : `<div class="actions">
+        <button type="button" class="btn btn-primary btn-sm" data-act="save-groups">Save groups</button>
+        <button type="button" class="btn btn-sm" data-act="redraw-groups">Re-draw everyone automatically</button>
+      </div>`}
+      <p class="muted small" style="margin-bottom:0">Current draw: ${letters.map((l) => `${l} ${b.plan.groups[l].length}`).join(' · ')}</p>
+    </section>`;
+}
 
 function teamsHtml() {
   const { b, people } = page;
@@ -152,6 +202,7 @@ function teamsHtml() {
             <span class="row-side"><button type="button" class="btn btn-sm btn-danger" data-act="remove-entry" data-id="${esc(x.id)}">Remove</button></span></div>`;
         }).join('')}
       </section>` : ''}
+      ${groupsPanel()}
       <section class="panel" data-teams>
         <div class="section-head"><h3>Teams added by admins</h3><a href="/admin/people" data-link>Add teams &amp; players</a></div>
         ${teams.length ? `<div class="tick-list">${teams.map((t) => `<label class="check"><input type="checkbox" value="${esc(t.id)}" ${inEvent.has(t.id) ? 'checked' : ''}> ${teamDot(t)} ${esc(t.name)}</label>`).join('')}</div>
@@ -203,6 +254,7 @@ function scheduleSettingsHtml() {
   else lockLine = 'This event has no start time, so it won’t lock by itself. Set a date and time on Details, or lock it yourself.';
   const auto = e.autoFixtures && e.autoFixtures !== 'off';
   const rules = [
+    groupCount(e) > 1 ? `${groupCount(e)} groups` : 'No groups',
     AUTO_MODES[e.autoFixtures ?? 'off'],
     FINALS_TYPES[finals.type ?? 'none'],
     e.signups ? 'clubs sign themselves up' : 'admins add teams',
@@ -327,6 +379,11 @@ export function mount(el) {
 
   root.addEventListener('change', (e) => {
     // Switching type redraws the details form (tournaments have extra fields).
+    // Group / fixture choices: update the "how many matches" hint straight away.
+    if (e.target.matches('[data-form="details"] [name=groupCount], [data-form="details"] [name=autoFixtures]')) {
+      const hint = root.querySelector('.group-hint');
+      if (hint) hint.textContent = groupHint({ ...payload(), ...readDetails(e.target.form) });
+    }
     if (e.target.matches('[data-form="details"] [name=type]')) {
       root.querySelector('.entry').innerHTML = detailsHtml({ ...payload(), ...readDetails(e.target.form) });
     }
@@ -448,7 +505,17 @@ export function mount(el) {
           results: b.results,
           now: Infinity,
         });
-        await saveSchedule({ eventId: page.id, uid, fixtures: plan.toSave, lockGroup: true, event: b.event });
+        await saveSchedule({ eventId: page.id, uid, fixtures: plan.toSave, lockGroup: true, event: b.event, draw: drawToSave(plan) });
+        refresh();
+      }
+
+      if (act === 'save-groups' || act === 'redraw-groups') {
+        const assign = {};
+        if (act === 'save-groups') {
+          for (const sel of root.querySelectorAll('[data-group-team]')) if (sel.value) assign[sel.dataset.groupTeam] = sel.value;
+        } else if (!window.confirm('Clear every hand-placed team and draw all groups automatically?')) return;
+        button.disabled = true;
+        await saveEvent({ id: page.id, uid, event: payload({ groups: { ...(page.existing.groups ?? {}), assign } }), existing: page.existing });
         refresh();
       }
 

@@ -1113,3 +1113,11 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
 .img-zoom input { width: 120px; }
 .img-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .img-actions [hidden] { display: none; }
+
+/* Groups panel (admin event Teams tab) */
+.group-columns { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin-bottom: 10px; }
+.group-col { border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 10px; }
+.group-col ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.group-col li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.group-col li .team { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-col select { min-height: 30px; border-radius: 8px; width: auto; max-width: 74px; flex: none; padding: 2px 4px; }
