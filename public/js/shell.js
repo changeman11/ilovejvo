@@ -13,13 +13,14 @@ import { discordLogo } from './pages/discord-cta.js';
 import { discordInviteUrl, steamUrl } from './config.js';
 import { navigate } from './nav.js';
 import { menuCards } from './menu.js';
+import { SQUAD_MAX } from './rules/defaults.js';
 
 const desktop = matchMedia('(min-width: 1024px)');
 const party = document.querySelector('[data-shell="party"]');
 const icons = document.querySelector('[data-shell="icons"]');
 const bar = document.querySelector('[data-shell="bar"]');
 const side = document.querySelector('[data-shell="side"]');
-const SLOTS = 5;
+const SLOTS = SQUAD_MAX; // party box spots: 4 players + 2 subs
 
 // ---------- Side menu: kept open on every page except Home ----------
 let currentSection = null;

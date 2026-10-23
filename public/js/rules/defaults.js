@@ -79,3 +79,7 @@ export function fivbMatchPoints(bestOf) {
   }
   return table;
 }
+
+// Club squads: 4 on court + 2 subs. Managers can't invite or accept anyone past this.
+export const SQUAD_MAX = 6;
+export const squadSize = (players, teamId) => players.filter((p) => p.teamId === teamId).length;

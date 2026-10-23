@@ -13,7 +13,7 @@ import {
 import { refresh, navigate } from '../nav.js';
 import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag, frameStyle, isLft, lftTag } from '../ui.js';
 import { prepareImage, FriendlyError, mediaUrl } from '../media.js';
-import { DEFAULT_STATS } from '../rules/defaults.js';
+import { DEFAULT_STATS, SQUAD_MAX, squadSize } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
 import { makeProfileCard } from './discord-cta.js';
 import { allFixtures, resultOf, fixtureRow } from './parts.js';
@@ -83,13 +83,15 @@ function findClubBlock(me) {
         const boss = t.managerPlayerId ? me.playersById[t.managerPlayerId] : null;
         const size = me.players.filter((p) => p.teamId === t.id).length;
         const req = asked.get(t.id);
-        const button = !t.managerUid
+        const button = size >= SQUAD_MAX
+          ? `<span class="muted small">Full (${size}/${SQUAD_MAX})</span>`
+          : !t.managerUid
           ? '<span class="muted small">No manager yet</span>'
           : req
             ? `<span class="small">✓ Asked</span><button class="btn btn-sm" data-act="withdraw-request" data-id="${esc(req.id)}">Withdraw</button>`
             : `<button class="btn btn-sm btn-primary" data-act="request-join" data-id="${esc(t.id)}">Request to join</button>`;
         return `<div class="row">
-          <span class="row-main"><b>${teamLink(t)}</b><span class="muted small">${size} player${size === 1 ? '' : 's'}${boss ? ` · ${managerTag()} ${esc(boss.displayName)}` : ''}</span></span>
+          <span class="row-main"><b>${teamLink(t)}</b><span class="muted small">${size}/${SQUAD_MAX} players${boss ? ` · ${managerTag()} ${esc(boss.displayName)}` : ''}</span></span>
           <span class="row-side">${button}</span>
         </div>`;
       }).join('') || '<p class="muted" style="padding:16px">No clubs yet. Start one!</p>'}</div>
@@ -97,7 +99,7 @@ function findClubBlock(me) {
 }
 
 // Free agents a new club's founder can pick to invite (sent when an admin approves the club).
-const MAX_INVITES = 8;
+const MAX_INVITES = SQUAD_MAX - 1; // the founder plus up to 5 = a full squad
 function invitePicker(me, chosen = []) {
   const picked = new Set(chosen);
   const agents = me.players
@@ -177,7 +179,7 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
     <div class="cols">
       <div class="stack">
         <section>
-          <div class="section-head"><h2>Squad</h2>${isManager ? '<a href="/club?tab=manager#mgr-invite" data-link>+ Invite players</a>' : ''}</div>
+          <div class="section-head"><h2>Squad <span class="muted small">${squad.length}/${SQUAD_MAX}</span></h2>${isManager && squad.length < SQUAD_MAX ? '<a href="/club?tab=manager#mgr-invite" data-link>+ Invite players</a>' : ''}</div>
           <div class="panel flush rows">${squad.map((p) => `
             <div class="row">
               <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}${p.id === team.managerPlayerId ? managerTag() : ''}</b>${p.number != null ? `<span class="muted small">#${esc(p.number)}</span>` : ''}</span>
@@ -264,7 +266,7 @@ function managerTab(ctx) {
 
         <div class="stack">
           <section id="mgr-squad">
-            <div class="section-head"><h2>Squad</h2><span class="muted small">${squad.length} player${squad.length === 1 ? '' : 's'}</span></div>
+            <div class="section-head"><h2>Squad</h2><span class="muted small">${squad.length}/${SQUAD_MAX} (4 + 2 subs)</span></div>
             <div class="panel flush rows">${squad.map((p) => {
               const isMe = p.uid === page.user.uid;
               return `<div class="row">
@@ -288,7 +290,8 @@ function managerTab(ctx) {
     </div>`;
 }
 
-function inviteTab({ me, team }) {
+function inviteTab({ me, team, squad }) {
+  const full = (squad?.length ?? 0) >= SQUAD_MAX;
   const sent = me.sentOffers.filter((o) => o.teamId === team.id);
   const pending = sent.filter((o) => o.status === 'pending');
   const offered = new Set(pending.map((o) => o.playerId));
@@ -300,13 +303,14 @@ function inviteTab({ me, team }) {
     <div class="cols">
       <section>
         <div class="section-head"><h2>Invite free agents</h2><span class="muted small">${freeAgents.length} available</span></div>
+        ${full ? `<p class="small"><b>Your squad is full (${SQUAD_MAX} players: 4 + 2 subs).</b> Release a player to make room.</p>` : ''}
         <div class="panel">
           <p class="muted small" style="margin-bottom:10px">They get a notification (the bell) and can accept from their Club hub.</p>
           <label class="field"><span>Search</span><input type="search" data-filter placeholder="Player name"></label>
           <div class="rows" data-agents>${freeAgents.map((p) => `
             <div class="row" data-name="${esc(p.displayName.toLowerCase())}">
               <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}</b>${isLft(p) ? lftTag() : ''}</span>
-              <span class="row-side"><button class="btn btn-sm btn-primary" data-act="offer" data-id="${esc(p.id)}">Invite</button></span>
+              <span class="row-side"><button class="btn btn-sm btn-primary" data-act="offer" data-id="${esc(p.id)}" ${full ? 'disabled' : ''}>Invite</button></span>
             </div>`).join('') || '<p class="muted">No free agents right now.</p>'}</div>
         </div>
       </section>
@@ -417,6 +421,7 @@ export function mount(el) {
     box.hidden = false;
   };
   const fail = (err, near) => {
+    if (err.friendly) return showError(err.friendly, near);
     console.error(err);
     if (err instanceof FriendlyError) return showError(err.message, near);
     showError(err.code === 'permission-denied' ? 'That isn’t allowed any more (it may have changed). Refresh and try again.' : 'Something went wrong. Check your connection and try again.', near);
@@ -462,6 +467,11 @@ export function mount(el) {
       if (act === 'hand-over') await handOverClub({ uid: user.uid, team, player: me.playersById[id] });
       if (act === 'event-in') await signUpTeam({ uid: user.uid, eventId: id, team });
       if (act === 'event-out') await withdrawTeam({ uid: user.uid, eventId: id, entry: ev.entry });
+      const full = (teamId) => squadSize(me.players, teamId) >= SQUAD_MAX;
+      if (act === 'offer' && full(team.id)) throw Object.assign(new Error('full'), { friendly: 'Your squad is full (6 players: 4 + 2 subs). Release a player first.' });
+      if (act === 'accept-request' && full(team.id)) throw Object.assign(new Error('full'), { friendly: 'Your squad is full (6 players: 4 + 2 subs). Release a player first.' });
+      if (act === 'accept-offer' && full(me.offers.find((o) => o.id === id)?.teamId)) throw Object.assign(new Error('full'), { friendly: 'That club is full (6 players: 4 + 2 subs).' });
+      if (act === 'request-join' && full(id)) throw Object.assign(new Error('full'), { friendly: 'That club is full (6 players: 4 + 2 subs).' });
       if (act === 'offer') await sendOffer({ uid: user.uid, team, player: me.playersById[id] });
       if (act === 'withdraw') await withdrawOffer({ uid: user.uid, offer: me.sentOffers.find((o) => o.id === id) });
       if (act === 'release') await releasePlayer({ uid: user.uid, player: me.playersById[id] });

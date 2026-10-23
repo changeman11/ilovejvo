@@ -4,6 +4,7 @@ import { commit as save, ts, newId, serverTimestamp } from './writes.js';
 import { invalidate, loadPeople, loadAllBundles } from './data.js';
 import { deleteImage } from './media.js';
 import { transferOp } from './transfers.js';
+import { SQUAD_MAX } from './rules/defaults.js';
 
 // Admin saves always go through the admin (password) sign-in.
 const commit = (uid, ops) => save(uid, ops, { admin: true });
@@ -310,7 +311,7 @@ export async function decideTeam({ uid, team, approve }) {
   // players who are still free agents.
   if (approve && team.invitePlayerIds?.length && team.managerUid) {
     const people = await loadPeople({ fresh: true, admin: true });
-    for (const pid of team.invitePlayerIds.slice(0, 8)) {
+    for (const pid of team.invitePlayerIds.slice(0, SQUAD_MAX - 1)) {
       const p = people.playersById[pid];
       if (!p?.uid || p.teamId || pid === team.managerPlayerId) continue;
       ops.push({

@@ -10,6 +10,7 @@ import { mediaUrl } from '../media.js';
 import { seasonMatches } from '../rules/season.js';
 import { teamCareer, teamXp, playerXp, levelFor } from '../rules/badges.js';
 import { careerStats } from './career.js';
+import { SQUAD_MAX, squadSize } from '../rules/defaults.js';
 
 export const title = 'Teams & players';
 
@@ -45,6 +46,7 @@ export function loading() {
 // The "Request to join" button under a club card, for signed-in players without a club.
 function joinButton(t) {
   if (!joinCtx) return '';
+  if (joinCtx.squadOf(t.id) >= SQUAD_MAX) return `<div class="tc-join"><span class="muted small">Full (${SQUAD_MAX}/${SQUAD_MAX})</span></div>`;
   if (!t.managerUid) return '<div class="tc-join"><span class="muted small">No manager to accept requests yet</span></div>';
   const req = joinCtx.requests.find((r) => r.teamId === t.id && r.status === 'pending');
   return req
@@ -70,7 +72,7 @@ function teamCards(teams, people, records) {
           <div class="tc-text">
             <h3>${esc(t.name)}</h3>
             ${t.tagline ? `<p class="tc-tag">${esc(t.tagline)}</p>` : ''}
-            <p class="muted small">${squad} player${squad === 1 ? '' : 's'}${r ? ` · ${r.wins}–${r.losses} · level ${levelFor(teamXp(r)).level}` : ''}</p>
+            <p class="muted small">${squad}/${SQUAD_MAX} players${r ? ` · ${r.wins}–${r.losses} · level ${levelFor(teamXp(r)).level}` : ''}</p>
             <p class="small tc-mgr">${boss ? `${managerTag()} ${esc(boss.displayName)}` : '<span class="muted">No manager yet</span>'}</p>
           </div>
         </div>
@@ -120,7 +122,7 @@ export async function render() {
   const mine = user ? people.players.find((p) => p.uid === user.uid) : null;
   if (mine && !(mine.teamId && isApprovedTeam(people.teamsById[mine.teamId]))) {
     const me = await loadMe(user.uid).catch(() => null);
-    joinCtx = { user, player: mine, requests: me?.myJoinRequests ?? [], teamsById: people.teamsById };
+    joinCtx = { user, player: mine, requests: me?.myJoinRequests ?? [], teamsById: people.teamsById, squadOf: (id) => squadSize(people.players, id) };
   }
 
   let body;

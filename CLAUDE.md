@@ -92,7 +92,7 @@ The reference is **ORC Hub** (https://orc-hub.web.app), the hub for the Oceanic 
 ## JVO's format (confirmed 2026-10-21)
 
 - **Type**: a volleyball *video game* league, online and run on Discord. The game has just released (name: _TBC_).
-- **Teams**: 4v4 for now; other sizes may come later (`format.teamSize`).
+- **Teams**: 4v4 for now; other sizes may come later (`format.teamSize`). **Squads: 4 + 2 subs = 6 max** (decided 2026-10-24; `SQUAD_MAX` in `rules/defaults.js`). The party box at the top has 6 spots; invites, accepting join requests/invites and Request to join stop at 6 (in the app; the rules don't count squads). Admins can still move players freely.
 - **Match**: best of 3 sets, **every set first to 10** (deciding set too), deuce on, win by 2, no cap.
 - **Table points**: 2–0 win = 3, 2–1 win = 2, 1–2 loss = 1, 0–2 loss = 0.
 - **Positions**: none fixed. Players do everything. Keep the `position` field (empty) for later.

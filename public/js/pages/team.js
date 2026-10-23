@@ -16,6 +16,7 @@ import { allFixtures, resultOf, fixtureRow } from './parts.js';
 import { statDefsFor } from './career.js';
 import { profileShell, showcaseTiles, badgesBlock, aboutBlock, sideBlock } from './profile-parts.js';
 import { commentsBlock, mountComments } from './comments.js';
+import { SQUAD_MAX } from '../rules/defaults.js';
 
 export const title = 'Team';
 
@@ -35,7 +36,10 @@ export async function render({ teamId }) {
   let joinBlock = '';
   const user = await currentUser().catch(() => null);
   const me = user ? people.players.find((p) => p.uid === user.uid) : null;
-  if (me && !me.teamId && !disbanded && !team.mix) {
+  const isFull = people.players.filter((x) => x.teamId === teamId).length >= SQUAD_MAX;
+  if (me && !me.teamId && !disbanded && !team.mix && isFull) {
+    joinBlock = `<div class="join-box"><span>This club is full (${SQUAD_MAX} players: 4 + 2 subs).</span></div>`;
+  } else if (me && !me.teamId && !disbanded && !team.mix) {
     const req = await loadJoinRequest(teamId, me.id);
     joinCtx = { user, me, team, req };
     joinBlock = req?.status === 'pending'

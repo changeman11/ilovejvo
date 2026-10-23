@@ -13,7 +13,7 @@ import {
 } from '../player-data.js';
 import { MEDIA, prepareImage, uploadImage, FriendlyError } from '../media.js';
 import { uploadsReady } from '../config.js';
-import { DEFAULT_STATS } from '../rules/defaults.js';
+import { DEFAULT_STATS, SQUAD_MAX, squadSize } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
 import { makeProfileCard } from './discord-cta.js';
 import { refresh, navigate } from '../nav.js';
@@ -308,6 +308,7 @@ export function mount(el) {
       if (act === 'cancel-claim') { await cancelClaim({ uid: user.uid, claim: me.claim }); refresh(); }
       if (act === 'accept-offer' || act === 'decline-offer') {
         const offer = me.offers.find((o) => o.id === b.dataset.id);
+        if (act === 'accept-offer' && squadSize(me.players, offer.teamId) >= SQUAD_MAX) { window.alert('That club is full (6 players: 4 + 2 subs).'); return; }
         await answerOffer({ uid: user.uid, offer, player: me.player, accept: act === 'accept-offer' });
         refresh();
       }
