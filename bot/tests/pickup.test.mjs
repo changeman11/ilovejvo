@@ -1,5 +1,5 @@
 // The whole pickup flow with a pretend Discord (FakeIo) and a clock the test moves forward:
-// queue -> countdown -> random mode -> locked ready-up channel (ready check) -> captains -> draft
+// sign up -> countdown -> random mode -> locked ready-up channel (ready check) -> captains -> draft
 // -> locked team channels -> result -> Elo.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +8,6 @@ import { FileStore } from '../src/store/file-store.js';
 import { seeded } from '../src/logic/random.js';
 import { currentSide } from '../src/logic/draft.js';
 
-const QUEUE = 'queue-vc';
 const quiet = { info() {}, warn() {}, error(...a) { throw new Error(a.join(' ')); } };
 
 class FakeClock {
@@ -35,7 +34,7 @@ class FakeClock {
 }
 
 // Pretend Discord. The bot's own moves don't fire voice events here; tests send the events that
-// players cause (joining the queue, joining or leaving a ready-up channel) themselves.
+// players cause (joining or leaving a ready-up channel) themselves.
 class FakeIo {
   messages = new Map();
   channels = new Map(); // id -> { name, allow }
@@ -49,8 +48,6 @@ class FakeIo {
   async deleteChannel(id) { this.channels.delete(id); }
   async channelSize(id) { return this.channels.has(id) ? [...this.voice.values()].filter((c) => c === id).length : -1; }
   async move(userId, channelId) { if (!this.voice.has(userId)) return false; this.voice.set(userId, channelId); return true; }
-  async where(userId) { return this.voice.get(userId) ?? null; }
-  async disconnect(userId) { this.voice.delete(userId); }
 }
 
 const config = {
@@ -61,7 +58,6 @@ const config = {
   pickSeconds: 60,
   startRating: 1000,
   k: 32,
-  queueChannelId: QUEUE,
   adminRoleIds: [],
   allowTestPlayers: true,
 };
@@ -71,11 +67,9 @@ function setup({ seed = 1, store = new FileStore({ startRating: 1000 }), io = ne
   return { pickup, io, store, clock };
 }
 
+// Players sign up with the menu (they don't need to be in voice).
 async function joinAll(env, count, from = 1) {
-  for (let i = from; i < from + count; i++) {
-    env.io.voice.set(`u${i}`, QUEUE);
-    await env.pickup.join(`u${i}`, `Player ${i}`);
-  }
+  for (let i = from; i < from + count; i++) await env.pickup.join(`u${i}`, `Player ${i}`);
   await env.pickup.idle();
 }
 
@@ -89,7 +83,7 @@ async function confirm(env, ids) {
     const from = env.io.voice.get(id);
     env.io.voice.set(id, match.lobbyId);
     if (from) await env.pickup.left(from, id);
-    await env.pickup.joined(match.lobbyId, id, id);
+    await env.pickup.joined(match.lobbyId, id);
   }
   await env.pickup.idle();
 }
@@ -116,11 +110,11 @@ async function runDraft(env) {
   return match;
 }
 
-test('full flow: queue -> countdown -> locked ready check -> 2v2 draft -> locked team channels -> result -> Elo', async () => {
+test('full flow: sign up -> countdown -> locked ready check -> 2v2 draft -> locked team channels -> result -> Elo', async () => {
   const env = setup();
   await env.pickup.start();
   await joinAll(env, 4);
-  assert.ok(env.pickup.countdown, 'countdown started at 4 queued');
+  assert.ok(env.pickup.countdown, 'countdown started at 4 signed up');
   await env.clock.advance(29_000, env.pickup);
   assert.equal(env.pickup.matches.size, 0, 'still counting down');
   await env.clock.advance(1_000, env.pickup);
@@ -222,10 +216,9 @@ test('a no-show is dropped and the next player in the queue takes their place', 
   await confirm(env, ['u1', 'u2', 'u3']);
   await env.clock.advance(60_000, env.pickup);
 
-  // u4 is out of the game, the queue and the queue channel; u5 is in.
+  // u4 is out of the game and off the sign-up list; u5 is in.
   assert.deepEqual(match.players.map((p) => p.id), ['u1', 'u2', 'u3', 'u5']);
   assert.ok(!env.pickup.queue.has('u4'));
-  assert.equal(env.io.voice.get('u4'), undefined, 'u4 was taken out of the queue channel');
   assert.deepEqual(match.dropped, ['Player 4']);
   // A new locked channel that lets u5 in; the confirmed players were moved there; old one gone.
   assert.notEqual(match.lobbyId, firstLobby);
@@ -249,18 +242,23 @@ test("not enough players to replace a no-show: cancelled, and the others go back
   await confirm(env, ['u1', 'u2', 'u3']);
   await env.clock.advance(60_000, env.pickup);
   assert.equal(env.pickup.matches.size, 0);
-  for (const id of ['u1', 'u2', 'u3']) assert.equal(env.io.voice.get(id), QUEUE, `${id} moved back to the queue channel`);
-  assert.deepEqual(env.pickup.readyList().map((p) => p.id), ['u1', 'u2', 'u3'], 'same order as before');
+  assert.deepEqual(env.pickup.readyList().map((p) => p.id), ['u1', 'u2', 'u3'], 'still signed up, same order');
   assert.ok(!env.pickup.queue.has('u4'));
-  assert.ok(!env.io.channels.has(match.lobbyId), 'ready-up channel deleted');
   assert.match(env.io.messages.get(match.messageId).content, /ready check cancelled: Player 4 didn't join in time/);
+  // The old ready-up channel goes once the three leave it.
+  assert.ok(env.io.channels.has(match.lobbyId));
+  for (const id of ['u1', 'u2', 'u3']) {
+    env.io.voice.delete(id);
+    await env.pickup.left(match.lobbyId, id);
+  }
+  assert.ok(!env.io.channels.has(match.lobbyId), 'ready-up channel deleted');
   // Someone new joins: 4 again, a new countdown, and the three keep their places.
   await joinAll(env, 1, 9);
   await env.clock.advance(30_000, env.pickup);
   assert.deepEqual(matchIn(env, 'check').players.map((p) => p.id), ['u1', 'u2', 'u3', 'u9']);
 });
 
-test('leaving the ready-up channel: un-confirms during the check, cancels during the draft', async () => {
+test('withdrawing stops the countdown; leaving the ready-up channel un-confirms, or cancels the draft', async () => {
   const env = setup();
   await env.pickup.start();
   await joinAll(env, 4);
@@ -271,7 +269,7 @@ test('leaving the ready-up channel: un-confirms during the check, cancels during
   await env.clock.advance(30_000, env.pickup);
   const match = matchIn(env, 'check');
   await confirm(env, ['u1', 'u2']);
-  env.io.voice.set('u2', QUEUE);
+  env.io.voice.delete('u2');
   await env.pickup.left(match.lobbyId, 'u2');
   assert.ok(!match.confirmed.has('u2'), 'left again: not ready any more');
   await confirm(env, ['u2', 'u3', 'u5']);
@@ -281,9 +279,7 @@ test('leaving the ready-up channel: un-confirms during the check, cancels during
   await env.pickup.left(match.lobbyId, 'u3');
   assert.equal(env.pickup.matches.size, 0);
   assert.match(env.io.messages.get(match.messageId).content, /draft cancelled: Player 3 left/);
-  for (const id of ['u1', 'u2', 'u5']) assert.equal(env.io.voice.get(id), QUEUE);
-  assert.deepEqual(env.pickup.readyList().map((p) => p.id), ['u1', 'u2', 'u5'], 'same order as before');
-  assert.ok(!env.io.channels.has(match.lobbyId));
+  assert.deepEqual(env.pickup.readyList().map((p) => p.id), ['u1', 'u2', 'u5'], 'still signed up, same order; Player 3 is out');
 });
 
 test("a captain who doesn't pick in time gets a random pick; others can't pick for them", async () => {
@@ -356,7 +352,6 @@ test('both captains can agree to cancel (no Elo change)', async () => {
 test('test players: they fill the queue, are always ready, pick and agree by themselves', async () => {
   const env = setup({ seed: 2 });
   await env.pickup.start();
-  env.io.voice.set('me', QUEUE);
   await env.pickup.join('me', 'Me');
   assert.match((await env.pickup.command('pickup', { sub: 'testfill', count: 3 }, { id: 'me', name: 'Me', isAdmin: true })).content, /Added 3/);
   await env.clock.advance(30_000, env.pickup);
@@ -400,7 +395,7 @@ test('after a restart, games waiting for a result can still be reported', async 
   assert.ok(again.pickup.games.has('g2'), 'game numbers carry on');
 });
 
-test('shutting down sends players in a ready check back to the queue', async () => {
+test('shutting down cancels a ready check and keeps everyone signed up', async () => {
   const env = setup();
   await env.pickup.start();
   await joinAll(env, 4);
@@ -409,8 +404,8 @@ test('shutting down sends players in a ready check back to the queue', async () 
   await confirm(env, ['u1', 'u2']);
   await env.pickup.shutdown();
   assert.equal(env.pickup.matches.size, 0);
-  for (const id of ['u1', 'u2', 'u3', 'u4']) assert.equal(env.io.voice.get(id), QUEUE);
-  assert.ok(!env.io.channels.has(match.lobbyId));
+  assert.deepEqual(env.pickup.readyList().map((p) => p.id), ['u1', 'u2', 'u3', 'u4']);
+  assert.match(env.io.messages.get(match.messageId).content, /cancelled: the bot is restarting/);
 });
 
 test('/elo and /leaderboard', async () => {
@@ -451,6 +446,29 @@ test("if the bot can't post the ready check, it cancels it and doesn't retry in 
   assert.equal(env.pickup.readyList().length, 12, 'everyone still queued');
   assert.equal(io.channels.size, 0, 'the ready-up channel was removed');
   assert.ok(errors.some((e) => /Missing Permissions/.test(e)));
+});
+
+test('the Sign up / Withdraw menu', async () => {
+  const env = setup();
+  await env.pickup.start();
+  const menu = env.io.messages.get(env.pickup.queueMessageId).components[0].components[0];
+  assert.equal(menu.custom_id, 'queue');
+  assert.deepEqual(menu.options.map((o) => o.value), ['join', 'leave']);
+  const me = { id: 'u1', name: 'Player 1', isAdmin: false };
+  assert.match((await env.pickup.select('queue', 'leave', me)).ephemeral, /weren't signed up/);
+  assert.match((await env.pickup.select('queue', 'join', me)).ephemeral, /Signed up. You're #1/);
+  assert.match((await env.pickup.select('queue', 'join', me)).ephemeral, /already signed up/);
+  await joinAll(env, 2, 2);
+  const fourth = await env.pickup.select('queue', 'join', { id: 'u4', name: 'Player 4', isAdmin: false });
+  assert.match(fourth.ephemeral, /#4/);
+  assert.ok(env.pickup.countdown);
+  assert.match((await env.pickup.select('queue', 'leave', me)).ephemeral, /Withdrawn/);
+  assert.equal(env.pickup.countdown, null);
+  await env.pickup.select('queue', 'join', me);
+  await env.clock.advance(30_000, env.pickup);
+  // Picked: can't sign up again or withdraw; the ready-up channel is the way in or out.
+  assert.match((await env.pickup.select('queue', 'join', me)).ephemeral, /join your ready-up channel/);
+  assert.match((await env.pickup.select('queue', 'leave', me)).ephemeral, /don't join the ready-up channel/);
 });
 
 test('the queue message is kept up to date (at most once a second)', async () => {

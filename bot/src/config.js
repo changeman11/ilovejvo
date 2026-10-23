@@ -67,8 +67,6 @@ export function loadConfig(env = process.env) {
   const config = {
     token,
     guildId: discordId('GUILD_ID', 'your Discord server ID (right-click the server icon -> Copy Server ID)'),
-    // Optional: when empty, the bot finds or makes a voice channel called "🏐 pickup queue".
-    queueChannelId: discordId('QUEUE_CHANNEL_ID', '', false),
     pickupChannelId: discordId('PICKUP_CHANNEL_ID', 'the text channel where the bot posts drafts and results'),
     teamCategoryId: discordId('TEAM_CATEGORY_ID', '', false),
     adminRoleIds: text('ADMIN_ROLE_IDS')

@@ -1,8 +1,8 @@
 // The Discord side of `io` (see pickup.js): posting messages, making and removing the locked
-// voice channels, and moving people. Also checks the bot has the permissions it needs, makes the
-// queue channel if there isn't one, and tidies up ready-up channels left over from a crash.
+// voice channels, and moving people. Also checks the bot has the permissions it needs and tidies
+// up ready-up channels left over from a crash.
 import { ChannelType, OverwriteType, PermissionFlagsBits as P } from 'discord.js';
-import { QUEUE_CHANNEL_NAME, LOBBY_PREFIX } from './views.js';
+import { LOBBY_PREFIX } from './views.js';
 
 export async function setupDiscord(client, config, log = console) {
   const guild = await client.guilds.fetch(config.guildId).catch(() => null);
@@ -12,22 +12,7 @@ export async function setupDiscord(client, config, log = console) {
   await guild.channels.fetch(); // fill the cache so channels can be found by name
   const me = await guild.members.fetchMe();
 
-  // The open queue channel: the one in QUEUE_CHANNEL_ID, or "🏐 pickup queue" (made if missing).
-  let queue;
-  if (config.queueChannelId) {
-    queue = await guild.channels.fetch(config.queueChannelId).catch(() => null);
-    if (queue?.type !== ChannelType.GuildVoice) throw new Error(`QUEUE_CHANNEL_ID (${config.queueChannelId}) isn't a voice channel in ${guild.name}.`);
-  } else {
-    const parentId = config.teamCategoryId || text.parentId || null;
-    queue = guild.channels.cache.find((c) => c.type === ChannelType.GuildVoice && c.name === QUEUE_CHANNEL_NAME && c.parentId === parentId);
-    if (!queue) {
-      queue = await guild.channels.create({ name: QUEUE_CHANNEL_NAME, type: ChannelType.GuildVoice, parent: parentId ?? undefined, reason: 'Pickup queue' });
-      log.info?.(`Made the queue voice channel "${QUEUE_CHANNEL_NAME}" (id ${queue.id}).`);
-    }
-    config.queueChannelId = queue.id;
-  }
-
-  const categoryId = config.teamCategoryId || queue.parentId || null;
+  const categoryId = config.teamCategoryId || text.parentId || null;
   const category = categoryId ? await guild.channels.fetch(categoryId).catch(() => null) : null;
   if (config.teamCategoryId && category?.type !== ChannelType.GuildCategory) {
     throw new Error(`TEAM_CATEGORY_ID (${config.teamCategoryId}) isn't a category in ${guild.name}.`);
@@ -45,7 +30,6 @@ export async function setupDiscord(client, config, log = console) {
     const missing = perms.filter((p) => !have?.has(P[p]));
     if (missing.length) log.warn(`⚠️  The bot is missing ${missing.join(', ')} in ${label}. See BOT-SETUP.md, Part 3.`);
   };
-  check(queue, ['ViewChannel', 'Connect', 'MoveMembers'], `the queue channel (${queue.name})`);
   check(text, ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'], `#${text.name}`);
   check(category ?? guild, ['ViewChannel', 'ManageChannels', 'Connect', 'MoveMembers'], category ? `the ${category.name} category` : 'the server');
   // Locked channels can only grant permissions the bot has server-wide.
@@ -91,35 +75,18 @@ export async function setupDiscord(client, config, log = console) {
       await guild.members.edit(userId, { channel: channelId });
       return true;
     },
-    async where(userId) {
-      return guild.voiceStates.cache.get(userId)?.channelId ?? null;
-    },
-    async disconnect(userId) {
-      await guild.members.edit(userId, { channel: null });
-    },
   };
 
-  // Ready-up channels left over from a crash or restart: move anyone in them back to the queue,
-  // then delete them. Only voice channels in the bot's own category with the bot's name pattern.
+  // Ready-up channels left over from a crash or restart (nobody can be in a ready check after a
+  // restart). Only voice channels in the bot's own category with the bot's name pattern.
   for (const channel of guild.channels.cache.values()) {
-    if (channel.type !== ChannelType.GuildVoice || channel.id === queue.id) continue;
+    if (channel.type !== ChannelType.GuildVoice) continue;
     if (channel.parentId !== (category?.id ?? null) || !channel.name.startsWith(LOBBY_PREFIX)) continue;
-    for (const state of guild.voiceStates.cache.filter((s) => s.channelId === channel.id).values()) {
-      await guild.members.edit(state.id, { channel: queue.id }).catch(() => {});
-    }
     await channel.delete('Leftover pickup ready-up channel').catch((err) => log.warn(`Couldn't delete ${channel.name}: ${err.message}`));
     log.info?.(`Removed a leftover ready-up channel (${channel.name}).`);
   }
 
-  // People already in the queue channel.
-  const members = [];
-  for (const state of guild.voiceStates.cache.values()) {
-    if (state.channelId !== queue.id) continue;
-    const member = state.member ?? (await guild.members.fetch(state.id).catch(() => null));
-    if (member && !member.user.bot) members.push({ id: member.id, name: member.displayName });
-  }
-
-  return { guild, queue, text, category, io, members };
+  return { guild, text, category, io };
 }
 
 // Admins: anyone with Manage Server, or one of ADMIN_ROLE_IDS.

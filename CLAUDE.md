@@ -86,12 +86,12 @@
 - **Audit log:** written by the browser in the same batch as each admin change; rules force `by == uid` and make it append-only.
 - **Pickup bot (added 2026-10-23):** a Discord bot in `bot/` (its own `package.json`, discord.js 14.27.0). Setup: `BOT-SETUP.md`.
   - **Flow:**
-    - Players queue by joining the open `🏐 pickup queue` voice channel (the bot makes it if `QUEUE_CHANNEL_ID` is empty). At 4+ queued, a 30 s countdown runs, then the bot picks a random mode (2v2 to 6v6) from those that fit. The longest-waiting players get in; 12 queued starts at once.
+    - Players sign up / withdraw with a dropdown (`custom_id: 'queue'`) on the bot's queue card in `#pickup`; no voice needed to queue (changed 2026-10-23, was a queue voice channel). Sign-ups are kept in memory only. At 4+ signed up, a 30 s countdown runs, then the bot picks a random mode (2v2 to 6v6) from those that fit. The longest-waiting players get in; 12 signed up starts at once.
     - **Ready check (2026-10-23):** the bot makes a locked `🏐 ready up · NvN` voice channel and pings the picked players.
       - **Locked** means everyone can see it; only those players, `ADMIN_ROLE_IDS` and the bot can connect.
       - Players confirm by joining it within `READY_SECONDS` (60).
-      - No-shows are dropped (disconnected from the queue channel) and replaced from the queue. A new locked channel is made for the new line-up, because editing who can join would need Manage Roles.
-      - If there aren't enough replacements, it's cancelled and the confirmed players go back to the queue in their old order.
+      - No-shows are dropped from the sign-up list and replaced from the queue. A new locked channel is made for the new line-up, because editing who can join would need Manage Roles.
+      - If there aren't enough replacements, it's cancelled and the confirmed players stay signed up in their old order.
       - Leftover `🏐 ready up · ` channels are cleared when the bot starts.
     - Two random captains; a coin flip decides the first pick, then alternating picks (A B A B) with buttons, 60 s each or the pick is random. Leaving the ready-up channel mid-draft cancels it.
     - The bot makes two locked team voice channels (that team plus admins), moves the players, and deletes the ready-up channel.

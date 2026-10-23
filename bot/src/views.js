@@ -12,6 +12,7 @@ const CORAL = 0xff6b5b;
 const GREY = 0x8a90a8;
 
 const BUTTON = 2;
+const SELECT = 3;
 const ROW = 1;
 const STYLE = { primary: 1, secondary: 2, success: 3, danger: 4 };
 
@@ -38,9 +39,8 @@ export const teamName = (game, side) => {
 
 export const teamChannelName = (game, side) => `🏐 #${game.number} ${teamName(game, side)}`.slice(0, 100);
 
-// Channel names. The bot makes the queue channel if QUEUE_CHANNEL_ID is empty, and tidies up
-// leftover ready-up channels (names starting with LOBBY_PREFIX) when it starts.
-export const QUEUE_CHANNEL_NAME = '🏐 pickup queue';
+// Ready-up channel names. The bot tidies up leftover ones (names starting with LOBBY_PREFIX)
+// when it starts.
 export const LOBBY_PREFIX = '🏐 ready up · ';
 export const lobbyChannelName = (match) => `${LOBBY_PREFIX}${modeLabel(match.size)}`;
 
@@ -51,12 +51,12 @@ export function queueView(snapshot, config) {
   const need = minPlayers(config.modes) - ready.length;
   const fits = fittingModes(ready.length, config.modes).map(modeLabel).join(' · ');
   let status;
-  if (countdownEndsAt) status = `**${ready.length}** ready. Starting <t:${unix(countdownEndsAt)}:R>, so others can still join.\nPossible modes: ${fits}`;
-  else if (need > 0) status = `**${ready.length}** ready. Need **${need}** more to start a game.`;
-  else status = `**${ready.length}** ready.`;
+  if (countdownEndsAt) status = `**${ready.length}** signed up. Starting <t:${unix(countdownEndsAt)}:R>, so others can still join.\nPossible modes: ${fits}`;
+  else if (need > 0) status = `**${ready.length}** signed up. Need **${need}** more to start a game.`;
+  else status = `**${ready.length}** signed up.`;
   const fields = [
     {
-      name: `Ready (${ready.length})`,
+      name: `Signed up (${ready.length})`,
       value: ready.length ? ready.slice(0, 30).map((p, i) => `${i + 1}. ${esc(p.name)}`).join('\n') + (ready.length > 30 ? `\n…and ${ready.length - 30} more` : '') : 'Nobody yet.',
     },
   ];
@@ -72,14 +72,29 @@ export function queueView(snapshot, config) {
     content: '',
     embeds: [
       {
-        title: '🏐 Pickup games: ready up',
+        title: "🏐 Pickup games: sign up",
         color: BLUE,
-        description: `Join <#${config.queueChannelId}> to queue. Each game is a random mode (${config.modes.map(modeLabel).join(', ')}) that fits how many are queued. When you're picked, join your locked ready-up channel within ${config.readySeconds} seconds.\n\n${status}`,
+        description: `Pick **Sign up** in the menu below to queue (or **Withdraw** to leave). Each game is a random mode (${config.modes.map(modeLabel).join(', ')}) that fits how many are signed up. When the queue pops you get pinged: join your locked ready-up voice channel within ${config.readySeconds} seconds.\n\n${status}`,
         fields,
         footer: { text: 'I<3JVO pickups · /elo · /leaderboard' },
       },
     ],
-    components: [],
+    components: [
+      {
+        type: ROW,
+        components: [
+          {
+            type: SELECT,
+            custom_id: 'queue',
+            placeholder: 'Sign up or withdraw…',
+            options: [
+              { label: 'Sign up', value: 'join', description: 'Join the queue for the next pickup game', emoji: { name: '✅' } },
+              { label: 'Withdraw', value: 'leave', description: 'Leave the queue', emoji: { name: '❌' } },
+            ],
+          },
+        ],
+      },
+    ],
     allowedMentions: noMentions,
   };
 }
@@ -132,7 +147,7 @@ export function matchCancelledView(match, reason) {
       {
         title: `${modeLabel(match.size)} ${what} cancelled`,
         color: GREY,
-        description: `${reason}. Everyone else is back in the queue, in the same order.`,
+        description: `${reason}. Everyone else is still signed up, in the same order.`,
         fields: [{ name: 'Players', value: match.players.map((p) => esc(p.name)).join(', ') || '—' }],
       },
     ],

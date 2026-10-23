@@ -2,22 +2,22 @@
 
 The pickup bot runs pick-up games in the JVO Discord. The code is in [`bot/`](bot/).
 
-1. **Queue:** players join the open **🏐 pickup queue** voice channel. The bot makes it if there isn't one.
-2. **Countdown:** once 4 or more are queued, a 30-second countdown gives others time to join.
-3. **Random mode:** the bot picks a random mode (2v2 to 6v6) from the ones that fit the number queued.
+1. **Sign up:** players pick **Sign up** (or **Withdraw**) in the menu on the bot's queue card in `#pickup`. They don't need to be in voice.
+2. **Countdown:** once 4 or more are signed up, a 30-second countdown gives others time to join.
+3. **Random mode:** the bot picks a random mode (2v2 to 6v6) from the ones that fit the number signed up.
    - The longest-waiting players get in. Everyone else stays queued for the next game.
-   - With 12 queued, it starts straight away.
-4. **Ready check:** the bot makes a **locked** voice channel (`🏐 ready up · 4v4`) and pings the players who got in.
+   - With 12 signed up, it starts straight away.
+4. **Ready check (the queue "pops"):** the bot makes a **locked** voice channel (`🏐 ready up · 4v4`) and pings the players who got in.
    - Everyone can see it, but only those players (and admins) can join.
    - Each player confirms by joining it within **60 seconds**.
-   - Anyone who doesn't is **dropped**: taken out of the queue channel, so they aren't picked again while away. The next player in the queue takes their place and gets pinged.
-   - If there aren't enough players to replace them, the ready check is cancelled. The players who did confirm go back to the front of the queue.
+   - Anyone who doesn't is **dropped** from the queue (they can sign up again). The next player in the queue takes their place and gets pinged.
+   - If there aren't enough players to replace them, the ready check is cancelled. The players who did confirm stay signed up at the front of the queue.
    - Leaving the ready-up channel before everyone's in un-confirms you; you can come back before the time's up.
 5. **Captains:** once everyone's in, one random player on each team becomes captain. A coin flip decides who picks first.
 6. **Draft:** captains take turns (A, B, A, B) picking teammates by pressing names in the pickup channel.
    - 60 seconds per pick, or the pick is random.
    - The last player is placed automatically.
-   - If anyone leaves the ready-up channel during the draft, it's cancelled. Everyone else goes back to the queue in their old places.
+   - If anyone leaves the ready-up channel during the draft, it's cancelled. Everyone else stays signed up in their old places.
 7. **Team channels:** the bot makes two **locked** voice channels (`🏐 #12 Team 1 · Alice`, `🏐 #12 Team 2 · Bob`) and moves each team into its own.
    - Only that team (and admins) can join; everyone else can see who's in.
    - The ready-up channel is then deleted.
@@ -92,14 +92,13 @@ Later, use the same link for the real JVO server.
 
 1. Discord → **User Settings** → **Advanced** → turn on **Developer Mode**. This adds "Copy ID" to right-click menus.
 2. In the server, create a **category** (for example `PICKUP`), and in it a **text channel** `#pickup`.
-   - The bot makes the open **🏐 pickup queue** voice channel in that category the first time it starts. The locked ready-up and team channels go there too.
+   - The bot's locked ready-up and team voice channels are made in that category.
 3. If the category is private, open its **Edit Category** → **Permissions** → add the bot's role (`I<3JVO`). Allow **View Channel, Connect, Move Members, Manage Channels, Send Messages, Embed Links**.
    - Locked channels need nothing extra: the bot doesn't need "Manage Roles".
 4. On your PC, in the `bot` folder, copy `.env.example` to a new file called `.env`. Fill in **`.env`**, never `.env.example`: the example is the blank template that goes into git, so anything typed there could end up public. Get each ID by right-clicking → **Copy ID**:
    - `DISCORD_TOKEN`: the token from Part 1.
    - `GUILD_ID`: right-click the **server icon** → Copy Server ID.
    - `PICKUP_CHANNEL_ID`: the `#pickup` text channel.
-   - `QUEUE_CHANNEL_ID` (optional): leave it empty to use the bot's **🏐 pickup queue** channel, or put in your own voice channel's ID.
    - `ADMIN_ROLE_IDS` (optional): Server Settings → Roles → right-click a role → Copy Role ID. Separate several with commas.
      - Anyone with **Manage Server** is already an admin.
      - Admin roles can join every locked channel, and get pinged when captains disagree.
@@ -119,10 +118,10 @@ Testing alone works: the bot can add **pretend players** to fill the queue.
    ```bash
    npm start
    ```
-   You should see `Logged in as I<3JVO#…. Watching "🏐 pickup queue"…`, and a **Pickup games: ready up** card appears in `#pickup`.
+   You should see `Logged in as I<3JVO#…. Queue card in #pickup…`, and a **Pickup games: sign up** card with a menu appears in `#pickup`.
    - If it prints warnings about missing permissions, fix them (Part 3, step 3) and restart. To stop the bot: Ctrl+C.
-3. Join the `🏐 pickup queue` voice channel. The card lists you.
-4. In `#pickup`, type `/pickup testfill count:3`. That makes 4 queued, so a 30-second countdown starts.
+3. In the card's menu, pick **Sign up**. The card lists you.
+4. In `#pickup`, type `/pickup testfill count:3`. That makes 4 signed up, so a 30-second countdown starts.
    - To skip the wait, use `/pickup start`.
 5. **Ready check:** the bot pings you and makes a locked `🏐 ready up · 2v2` channel. Pretend players are always ready.
    - Join it within 60 seconds.
@@ -137,7 +136,7 @@ Testing alone works: the bot can add **pretend players** to fill the queue.
 9. Try `/elo`, `/leaderboard` and `/queue`.
 10. Leave the team voice channel. It disappears.
 
-**Real test:** you plus 3 friends in the queue channel. With `ALLOW_TEST_PLAYERS` empty, it's exactly how real games run.
+**Real test:** you plus 3 friends sign up. With `ALLOW_TEST_PLAYERS` empty, it's exactly how real games run.
 
 To run the automated tests (no Discord needed), from the repo folder:
 
@@ -236,9 +235,9 @@ Your PC only runs the bot while it's on. For 24/7, use Oracle's Always Free serv
 
 | Who | What |
 |---|---|
-| Everyone | Join `🏐 pickup queue` to queue; leave it to stop queuing. After a game, rejoin it to play again. |
+| Everyone | **Sign up** or **Withdraw** with the menu on the queue card in `#pickup`. After a game, sign up again to play again. |
 | Picked players | When the bot pings you, join your locked `🏐 ready up` channel within 60 seconds, or you're dropped. |
-| Everyone | `/queue` (who's ready), `/elo` or `/elo player:@someone`, `/leaderboard` (top 20) |
+| Everyone | `/queue` (who's signed up), `/elo` or `/elo player:@someone`, `/leaderboard` (top 20) |
 | Captains | Press names on the draft card on your turn. Press the winner (or **Cancel game**) on the game card. |
 | Admins | `/pickup start` (start now, optional `mode`). Press the winner on any game card. Pick for an away captain. |
 | Admins | `/pickup result game:<number> winner:<Team 1, Team 2 or Cancel>`: set or **correct** a result. The old Elo change is undone first. |
@@ -264,8 +263,8 @@ Your PC only runs the bot while it's on. For 24/7, use Oracle's Always Free serv
 | Everything happens twice | Two copies of the bot are running (your PC and the server). Stop one. |
 | `ssh`: `UNPROTECTED PRIVATE KEY FILE` | In PowerShell: `icacls $HOME\.ssh\jvo-bot.key /inheritance:r /grant:r "$($env:USERNAME):(R)"` |
 | A player "isn't in voice, so they weren't moved" | Discord can only move people who are connected to voice. They join their team channel by hand. |
-| Someone was taken out of the queue channel | They were picked but didn't join their ready-up channel in time. They can rejoin the queue. |
-| A `🏐 ready up · …` channel was left behind | This happens if the bot stops mid-check. The next time the bot starts, it moves anyone in it back to the queue and deletes it. |
+| Someone vanished from the queue | They were picked but didn't join their ready-up channel in time. They can sign up again. |
+| A `🏐 ready up · …` channel was left behind | This happens if the bot stops mid-check. The next time the bot starts, it deletes it. |
 
 ## Where things are
 

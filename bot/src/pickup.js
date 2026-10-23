@@ -1,5 +1,5 @@
-// The pickup game manager: queue -> random mode -> ready check -> captains -> draft -> team voice
-// channels -> result -> Elo. It doesn't know about discord.js; it talks to Discord through `io`:
+// The pickup game manager: sign-up queue -> random mode -> ready check -> captains -> draft -> team
+// voice channels -> result -> Elo. Players sign up / withdraw with the menu on the queue card. It doesn't know about discord.js; it talks to Discord through `io`:
 //
 //   io.post(message) -> messageId        io.edit(messageId, message)     io.remove(messageId)
 //   io.createVoice(name, { allow: [userIds] }) -> channelId   (locked: only those users and admins
@@ -7,8 +7,6 @@
 //   io.deleteChannel(channelId)
 //   io.channelSize(channelId) -> number of people in it (-1 if the channel is gone)
 //   io.move(userId, channelId) -> true, or false if they aren't in a voice channel
-//   io.where(userId) -> the voice channel they're in, or null
-//   io.disconnect(userId) -> takes them out of voice
 //
 // and saves through `store` (FileStore or FirestoreStore). Every event runs one at a time (run()),
 // so two clicks at the same moment can't trip over each other.
@@ -29,7 +27,7 @@ const LIVE = ['playing', 'disputed'];
 export class Pickup {
   constructor({ io, store, config, clock = systemClock, rng = Math.random, log = console }) {
     Object.assign(this, { io, store, config, clock, rng, log });
-    this.queue = new Map(); // userId -> { id, name, joinedAt, fake }  (everyone in the ready-up channel)
+    this.queue = new Map(); // userId -> { id, name, joinedAt, fake }  (everyone signed up)
     this.busy = new Map(); // userId -> matchId  (in a ready check or draft, so not counted as ready)
     this.matches = new Map(); // matchId -> ready check or draft (see beginCheck / beginDraft)
     this.lobbies = new Map(); // locked ready-up voice channel id -> matchId
@@ -78,31 +76,26 @@ export class Pickup {
 
   // ---------- events (called by the Discord layer) ----------
 
-  // members: people already in the queue channel when the bot starts.
-  start({ members = [] } = {}) {
+  start() {
     return this.run(async () => {
       for (const game of await this.store.openGames()) this.track(game);
       for (const game of [...this.games.values()]) await this.cleanupChannels(game);
-      const now = this.clock.now();
-      members.forEach((m, i) => this.queue.set(m.id, { id: m.id, name: m.name, joinedAt: now + i, fake: false }));
       this.queueMessageId = this.store.getMeta('queueMessageId') ?? null;
       await this.queueChanged({ immediate: true, repost: true });
     });
   }
 
-  // Someone joined a voice channel: the queue channel, or a ready-up channel (to confirm).
-  joined(channelId, id, name) {
+  // Someone joined a voice channel: if it's their ready-up channel, that confirms them.
+  joined(channelId, id) {
     return this.event(async () => {
-      if (channelId === this.config.queueChannelId) return this.onQueueJoin(id, name);
       const match = this.matches.get(this.lobbies.get(channelId));
       if (match) await this.onLobbyJoin(match, id);
     });
   }
 
-  // Someone left a voice channel: the queue, a ready-up channel, or a team channel.
+  // Someone left a voice channel: a ready-up channel or a team channel.
   left(channelId, id) {
     return this.event(async () => {
-      if (channelId === this.config.queueChannelId) return this.onQueueLeave(id);
       const match = this.matches.get(this.lobbies.get(channelId));
       if (match) return this.onLobbyLeave(match, id);
       if (this.oldLobbies.has(channelId)) return this.removeLobby(channelId);
@@ -111,13 +104,26 @@ export class Pickup {
     });
   }
 
-  // Shortcuts for the queue channel (used by the tests).
+  // The Sign up / Withdraw menu on the queue card. Returns { ephemeral: 'text' } for that person.
+  select(customId, value, user) {
+    return this.run(async () => {
+      if (customId !== 'queue') return { ephemeral: "That menu isn't used any more." };
+      const reply = value === 'join' ? await this.signUp(user.id, user.name) : await this.withdraw(user.id);
+      this.renderQueueSoon(); // also resets the menu on everyone's screen
+      return reply;
+    }).catch((err) => {
+      this.log.error('[pickup] menu', err);
+      return { ephemeral: `Something went wrong: ${err.message}` };
+    });
+  }
+
+  // Shortcuts used by the tests.
   join(id, name) {
-    return this.joined(this.config.queueChannelId, id, name);
+    return this.event(() => this.signUp(id, name));
   }
 
   leave(id) {
-    return this.left(this.config.queueChannelId, id);
+    return this.event(() => this.withdraw(id));
   }
 
   // user: { id, name, isAdmin }. Returns { ephemeral: 'text' } to tell only that person something.
@@ -160,16 +166,24 @@ export class Pickup {
   }
 
   // ---------- queue ----------
-  async onQueueJoin(id, name) {
-    if (this.queue.has(id)) return;
+  async signUp(id, name) {
+    if (this.busy.has(id)) return { ephemeral: "You're in a game that's getting ready: join your ready-up channel." };
+    if (this.queue.has(id)) return { ephemeral: `You're already signed up (#${this.position(id)} in the queue).` };
     this.queue.set(id, { id, name, joinedAt: this.clock.now(), fake: false });
     await this.queueChanged();
+    return { ephemeral: this.busy.has(id) ? "✅ You're in a game! Join your ready-up channel." : `✅ Signed up. You're #${this.position(id)} in the queue.` };
   }
 
-  async onQueueLeave(id) {
-    if (!this.queue.has(id)) return;
+  async withdraw(id) {
+    if (this.busy.has(id)) return { ephemeral: "You've been picked for a game. If you can't play, don't join the ready-up channel and the next player takes your place." };
+    if (!this.queue.has(id)) return { ephemeral: "You weren't signed up." };
     this.queue.delete(id);
     await this.queueChanged();
+    return { ephemeral: 'Withdrawn from the queue.' };
+  }
+
+  position(id) {
+    return this.readyList().findIndex((p) => p.id === id) + 1;
   }
 
   // immediate: redraw the queue message now instead of within a second; repost: at the bottom.
@@ -328,7 +342,7 @@ export class Pickup {
       await this.safeEdit(match.messageId, views.checkView(match, this.config));
       return;
     }
-    await this.cancelMatch(match, `${views.esc(player.name)} left the ready-up channel during the draft`);
+    await this.cancelMatch(match, `${views.esc(player.name)} left the ready-up channel during the draft`, { exclude: id });
     await this.queueChanged();
   }
 
@@ -370,19 +384,12 @@ export class Pickup {
     await this.queueChanged();
   }
 
-  // A no-show loses their place: out of the game and the queue (and out of the queue channel, so
-  // they don't get picked again while away).
+  // A no-show loses their place: out of the game and off the sign-up list.
   async dropPlayer(match, player) {
     match.players = match.players.filter((p) => p.id !== player.id);
     match.dropped.push(player.name);
     this.busy.delete(player.id);
     this.queue.delete(player.id);
-    if (player.fake) return;
-    try {
-      if ((await this.io.where(player.id)) === this.config.queueChannelId) await this.io.disconnect(player.id);
-    } catch (err) {
-      this.log.warn(`[pickup] could not remove ${player.name} from the queue channel:`, err.message);
-    }
   }
 
   // Delete an old ready-up channel once nobody's in it (it's checked again when someone leaves).
@@ -402,28 +409,16 @@ export class Pickup {
     }
   }
 
-  // Stop a ready check or draft. Players in the ready-up channel go back to the queue channel in
-  // their old places; players who never left the queue keep their places too.
-  async cancelMatch(match, reason) {
+  // Stop a ready check or draft. Everyone in it stays signed up, in their old places (except
+  // `exclude`, who left mid-draft). The ready-up channel is deleted once it's empty.
+  async cancelMatch(match, reason, { exclude = null } = {}) {
     if (match.timer) this.clock.clearTimeout(match.timer);
     this.matches.delete(match.id);
     if (match.lobbyId) this.lobbies.delete(match.lobbyId);
     for (const p of match.players) {
       if (this.busy.get(p.id) === match.id) this.busy.delete(p.id);
-      if (p.fake) {
-        this.queue.set(p.id, { ...p });
-        continue;
-      }
-      const where = await this.io.where(p.id).catch(() => null);
-      if (where === this.config.queueChannelId) {
-        this.queue.set(p.id, { ...p });
-      } else if (match.lobbyId && where === match.lobbyId) {
-        this.queue.set(p.id, { ...p }); // before the move, so the join event changes nothing
-        const moved = await this.io.move(p.id, this.config.queueChannelId).catch(() => false);
-        if (!moved) this.queue.delete(p.id);
-      } else {
-        this.queue.delete(p.id);
-      }
+      if (p.id === exclude) this.queue.delete(p.id);
+      else this.queue.set(p.id, { ...p });
     }
     if (match.messageId) await this.safeEdit(match.messageId, views.matchCancelledView(match, reason));
     if (match.lobbyId) await this.removeLobby(match.lobbyId);

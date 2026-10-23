@@ -44,8 +44,8 @@ client.once(Events.ClientReady, async () => {
     const discord = await setupDiscord(client, config, log);
     await discord.guild.commands.set(commandList(config));
     pickup = new Pickup({ io: discord.io, store, config, log });
-    await pickup.start({ members: discord.members });
-    log.info(`Logged in as ${client.user.tag}. Watching "${discord.queue.name}" in ${discord.guild.name}; posting in #${discord.text.name}.`);
+    await pickup.start();
+    log.info(`Logged in as ${client.user.tag}. Queue card in #${discord.text.name} (${discord.guild.name}).`);
     if (config.allowTestPlayers) log.info('Test players are ON (/pickup testfill). Turn ALLOW_TEST_PLAYERS off for real games.');
   } catch (err) {
     log.error(`Start-up failed: ${err.message}`);
@@ -59,9 +59,9 @@ client.on(Events.VoiceStateUpdate, (before, after) => {
   if (before.channelId === after.channelId) return; // mute, deafen, camera...
   const member = after.member ?? before.member;
   if (member?.user.bot) return;
-  // The queue channel, a locked ready-up channel or a team channel: pickup.js sorts it out.
+  // A locked ready-up channel or a team channel: pickup.js sorts it out.
   if (before.channelId) pickup.left(before.channelId, after.id);
-  if (after.channelId) pickup.joined(after.channelId, after.id, member?.displayName ?? after.id);
+  if (after.channelId) pickup.joined(after.channelId, after.id);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -75,6 +75,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isButton()) {
       await interaction.deferUpdate();
       const reply = await pickup.button(interaction.customId, user);
+      if (reply?.ephemeral) await interaction.followUp({ content: reply.ephemeral, flags: MessageFlags.Ephemeral });
+      return;
+    }
+    if (interaction.isStringSelectMenu()) {
+      await interaction.deferUpdate();
+      const reply = await pickup.select(interaction.customId, interaction.values[0], user);
       if (reply?.ephemeral) await interaction.followUp({ content: reply.ephemeral, flags: MessageFlags.Ephemeral });
       return;
     }
