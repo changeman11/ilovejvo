@@ -13,6 +13,7 @@ const ICONS = {
   heart: '<path d="M12 20s-7-4.3-9-8.7C1.6 8 3.6 4.6 7 4.6c2 0 3.3 1.1 5 3 1.7-1.9 3-3 5-3 3.4 0 5.4 3.4 4 6.7-2 4.4-9 8.7-9 8.7z"/>',
   club: '<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.8-2.5 2.2-2.5 3.8M12 17.2v.1"/>',
+  pickup: '<circle cx="12" cy="12" r="9"/><path d="M12 3c-2.5 3-2.5 15 0 18M3.5 9c4 1.5 13 1.5 17 0M5 17.5c3-3 11-3 14 0"/>',
   lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
 };
 const icon = (name, cls) => `<span class="gm-icon ${cls}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg></span>`;
@@ -42,6 +43,7 @@ export function menuCards(state, { active = null, hasClub = false } = {}) {
     ${card({ href: '/stats', iconHtml: icon('stats', 'i-green'), title: 'stats', sub: 'leaderboards &amp; player stats', section: '/stats' })}
     ${card({ href: '/events', iconHtml: icon('events', 'i-pink'), title: 'events', sub: 'exhibition nights &amp; tournaments', section: '/events' })}
     ${card({ href: '/teams', iconHtml: icon('teams', 'i-purple'), title: 'teams &amp; players', sub: 'every club and player in jvo', section: '/teams' })}
+    ${card({ href: '/pickup', iconHtml: icon('pickup', 'i-orange'), title: 'pickup', sub: 'random games, drafts &amp; elo', section: '/pickup' })}
     <div class="gm-pills">
       <a class="gm-pill" href="${steamUrl}" target="_blank" rel="noopener">${icon('heart', 'i-white sm')}<span>get just volleyball on steam</span></a>
       <a class="gm-pill gm-help${active === '/help' ? ' on' : ''}" href="/help" data-link${active === '/help' ? ' aria-current="page"' : ''}>${icon('help', 'i-white sm')}<span>faq &amp; rules</span></a>

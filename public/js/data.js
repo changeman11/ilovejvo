@@ -235,3 +235,30 @@ export async function loadRequests() {
   ]);
   return { ...people, pendingTeams: people.teams.filter((t) => t.status === 'pending'), leaves, claims };
 }
+
+// ---------- Pickup games (the Discord bot in bot/, BOT-SETUP.md) ----------
+// pickupRatings/{discordId}, pickupGames/g{n}, pickupMeta/live: written by the bot, public to read.
+
+// Everyone with a pickup rating and at least one game, best first.
+export const loadPickupRatings = ({ fresh = false } = {}) => {
+  if (fresh) invalidate('pickup:ratings');
+  return cached('pickup:ratings', false, async () => (await getAll('pickupRatings'))
+    .filter((r) => r.games > 0)
+    .sort((x, y) => y.rating - x.rating || y.wins - x.wins || String(x.name).localeCompare(String(y.name))));
+};
+
+// A player's rating and rank, by Discord ID: { rating, rank, total } or null.
+export async function loadPickupRank(discordId) {
+  if (!discordId) return null;
+  const list = await loadPickupRatings().catch(() => []);
+  const i = list.findIndex((r) => r.id === String(discordId));
+  return i < 0 ? null : { rating: list[i], rank: i + 1, total: list.length };
+}
+
+export async function loadPickupGames(count = 15) {
+  const snap = await getDocs(query(collection(db, 'pickupGames'), orderBy('createdAt', 'desc'), limit(count)));
+  return snap.docs.map(asObj);
+}
+
+export const loadPickupLive = () => getOne('pickupMeta/live').catch(() => null);
+export const loadPickupSignup = (discordId) => (discordId ? getOne(`pickupSignups/${discordId}`).catch(() => null) : Promise.resolve(null));

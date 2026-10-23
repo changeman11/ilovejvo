@@ -166,6 +166,8 @@ This lets the website show Elo later. The bot gets **its own Firebase account**.
    - The log should say `[store] Firestore (i-love-jvo): 0 rated players`.
    - Ratings in `bot/data/pickup.json` from Part 4 aren't copied over, so live ratings start fresh.
 
+**The website queue:** with `STORE=firebase` the queue is also on the site's **pickup** page. Players signed in with Discord can sign up or withdraw there. The page also shows the live queue, ready checks, games, recent results, the Elo leaderboard, and Elo on profiles. `SITE_QUEUE=0` in `.env` turns that link off.
+
 **Optional, safer try first:** test against the local emulators. Run `npm run dev` in the repo folder, then set `STORE=firebase` and `FIREBASE_EMULATOR=1` in `bot/.env`. No account or password is needed. You can watch the data at http://127.0.0.1:4000/firestore.
 
 ## Part 6: Always on: Oracle Cloud free server (you, ~25 min)

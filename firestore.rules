@@ -581,6 +581,21 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isPickupBot();
     }
+    // Pickup queue sign-ups from the site. Public to read (the site shows who's queued).
+    // A player signed in with Discord adds or removes their own (doc id = their Discord ID);
+    // the bot adds Discord sign-ups and removes anyone who leaves the queue.
+    match /pickupSignups/{signupId} {
+      allow read: if true;
+      allow create: if (discordId() != '' && signupId == discordId()
+                        && request.resource.data.keys().hasOnly(['discordId', 'name', 'signedUpAt'])
+                        && request.resource.data.discordId == signupId
+                        && request.resource.data.name is string
+                        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+                        && request.resource.data.signedUpAt == request.time)
+                    || (isPickupBot() && request.resource.data.discordId == signupId);
+      allow update: if isPickupBot();
+      allow delete: if (discordId() != '' && signupId == discordId()) || isPickupBot();
+    }
     match /pickupBots/{botUid} {
       allow read, write: if false;
     }

@@ -98,6 +98,7 @@ export const home = {
             <div class="event-links" style="margin-top:16px">
               <a class="btn" href="/fixtures" data-link>Fixtures</a>
               <a class="btn" href="/stats" data-link>Player stats</a>
+              <a class="btn" href="/pickup" data-link>Pickup games</a>
             </div>
           </div>
           <div>

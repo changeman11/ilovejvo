@@ -29,6 +29,7 @@ import { startChatPanel } from './chat-panel.js';
 import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
 import * as help from './pages/help.js';
+import * as pickup from './pages/pickup.js';
 import * as helpEdit from './pages/admin/help-edit.js';
 import { setNav } from './nav.js';
 import { notice, esc, urls } from './ui.js';
@@ -49,6 +50,7 @@ const routes = [
   { path: '/teams', page: teamsList, section: '/teams', up: toMenu, tabbed: true },
   { path: '/team/:teamId', page: team, section: '/teams', up: () => ({ href: '/teams', label: 'teams' }) },
   { path: '/help', page: help, section: '/help', up: toMenu, tabbed: true },
+  { path: '/pickup', page: pickup, section: '/pickup', up: toMenu },
   { path: '/me', page: me, section: '/me', up: toMenu },
   { path: '/club', page: club, section: '/club', up: toMenu, tabbed: true },
   { path: '/auth/discord', page: authCallback, section: '/me' },

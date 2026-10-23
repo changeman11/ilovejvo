@@ -5,7 +5,8 @@ import {
   currentUser, currentAdmin, discordOf, discordReady, startDiscordSignIn, devSignIn, devSignInAvailable, DEV_USERS,
   signOut, lastDiscordProfile,
 } from '../auth.js';
-import { loadMe, isApprovedTeam, loadAllBundles } from '../data.js';
+import { loadMe, isApprovedTeam, loadAllBundles, loadPickupRank } from '../data.js';
+import { pickupBlock } from './pickup.js';
 import { matchesToReport } from './report.js';
 import { fixtureRow } from './parts.js';
 import {
@@ -261,11 +262,18 @@ export async function render() {
         <div class="section-head"><h2>Report your results</h2><span class="muted small">Tap a match to vote</span></div>
         <div class="panel flush fixtures">${toReport.map(({ b, f, voted }) => fixtureRow(b, f, { showEvent: true }).replace('<div class="mid">', `<div class="mid">${voted ? '<span class="tag tag-live">voted</span>' : '<span class="tag tag-draft">vote</span>'}`)).join('')}</div>
       </section>` : '';
+    const pickup = await loadPickupRank(discord?.discordId ?? me.player.discordId);
+    const pickupCard = `
+      <section>
+        <div class="section-head"><h2>Pickup</h2><a href="/pickup" data-link>Queue &amp; leaderboard</a></div>
+        <div class="panel">${pickup ? pickupBlock(pickup) : '<p class="muted">No pickup games yet. <a href="/pickup" data-link>Sign up for one</a>.</p>'}</div>
+      </section>`;
     body = `
       ${profileHead(me, discord)}
       <div class="cols">
         <div class="stack">
           ${clubCard(me, onTeam)}
+          ${pickupCard}
           ${reportBlock}
         </div>
         <div class="stack">${editProfileForm(me.player, onTeam ? me.team : null)}</div>

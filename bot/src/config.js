@@ -84,6 +84,8 @@ export function loadConfig(env = process.env) {
     clubRoles: text('CLUB_ROLES') === '1',
     clubRolesHoist: text('CLUB_ROLES_GROUPED', '1') !== '0',
     clubRolesMinutes: number('CLUB_ROLES_MINUTES', 5, 1, 1440),
+    // The website queue: on whenever ratings are in Firestore, unless SITE_QUEUE=0.
+    siteQueue: store === 'firebase' && text('SITE_QUEUE') !== '0',
     store,
     dataFile: text('DATA_FILE', 'data/pickup.json'),
     firebase,

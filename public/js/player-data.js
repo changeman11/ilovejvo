@@ -224,3 +224,15 @@ export async function submitVote({ uid, eventId, fixtureId, player, sets, player
 export async function cancelLeave({ uid, request }) {
   await commit(uid, [{ type: 'update', path: `leaveRequests/${request.id}`, before: request, data: { status: 'cancelled' } }]);
 }
+
+// ---------- Pickup queue (the Discord bot watches pickupSignups) ----------
+// Sign up: a doc named after the player's Discord ID. The rules only let them write their own.
+export async function pickupSignUp(discordId, name) {
+  const ref = doc(db, 'pickupSignups', String(discordId));
+  if ((await getDoc(ref)).exists()) return;
+  await setDoc(ref, { discordId: String(discordId), name: String(name || 'Player').slice(0, 60), signedUpAt: serverTimestamp() });
+}
+
+export async function pickupWithdraw(discordId) {
+  await deleteDoc(doc(db, 'pickupSignups', String(discordId)));
+}

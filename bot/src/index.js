@@ -10,6 +10,7 @@ import { commandList } from './commands.js';
 import { setupDiscord, isAdmin } from './discord-io.js';
 import { ClubRoles, describe } from './club-roles.js';
 import { SiteReader } from './store/firestore-rest.js';
+import { SiteQueue } from './site-queue.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -41,13 +42,18 @@ if (config.store === 'file') log.info(`[store] ratings file: ${resolve(config.da
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 let pickup = null;
 let clubRoles = null;
+let siteQueue = null;
 
 client.once(Events.ClientReady, async () => {
   try {
     const discord = await setupDiscord(client, config, log);
     await discord.guild.commands.set(commandList(config));
-    pickup = new Pickup({ io: discord.io, store, config, log });
+    // The website queue (sign up / withdraw on the site, live pickup page) needs STORE=firebase.
+    if (config.siteQueue) siteQueue = new SiteQueue({ rest: store.rest, firebase: config.firebase, log });
+    pickup = new Pickup({ io: discord.io, store, config, log, live: siteQueue });
+    siteQueue?.attach(pickup);
     await pickup.start();
+    siteQueue?.start();
     if (config.clubRoles) {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
       clubRoles = new ClubRoles({ io: discord.roleIo, site, store, config, log });
@@ -127,6 +133,7 @@ process.on('unhandledRejection', (err) => log.error('[bot] unhandled:', err));
 async function stop(signal) {
   log.info(`${signal}: shutting down`);
   clubRoles?.stop();
+  siteQueue?.stop();
   if (pickup) await Promise.race([pickup.shutdown(), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

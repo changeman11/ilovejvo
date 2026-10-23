@@ -99,6 +99,13 @@
     - The bot makes two locked team voice channels (that team plus admins), moves the players, and deletes the ready-up channel.
     - Both captains press the winner; if they disagree, admins decide (`/pickup result` can also correct a result later).
   - **Elo:** start 1000, K = 32, team rating = average, the same change for the whole team.
+  - **On the site (added 2026-10-24, needs `STORE=firebase`):**
+    - **Pages:** `/pickup` (`pages/pickup.js`) has the live queue with Sign up / Withdraw for Discord sign-ins, ready checks, drafts and games on, recent games and the Elo leaderboard. It's in the menu cards, top nav and phone Home.
+    - **Elo elsewhere:** shown on player profiles (side "Pickup" block) and the Me page (`pickupBlock()`, `loadPickupRank()` in data.js).
+    - **Sign-ups:** `pickupSignups/{discordId}` `{ discordId, name, signedUpAt }`. Public read; a Discord sign-in creates or deletes only their own; the bot (`isPickupBot()`) adds Discord sign-ups and deletes anyone who leaves the queue.
+    - **Bot link:** `bot/src/site-queue.js` watches the collection with the Firebase SDK (live listener, no polling) and writes through the bot's REST client.
+    - **Live state:** `pickupMeta/live` (`Pickup.liveState()`), re-sent every 5 min as a heartbeat. The site shows "offline" after 12 min without one.
+    - **Order:** sign-ups survive bot restarts (re-read from the collection). `SITE_QUEUE=0` turns the link off.
   - **Club roles (added 2026-10-24, `CLUB_ROLES=1`):**
     - **What:** a cosmetic Discord role per approved non-mix club, named after the club, coloured `colors.primary`, and grouped in the member list (`CLUB_ROLES_GROUPED`).
     - **Who:** given to players whose profile `discordId` matches a server member.
