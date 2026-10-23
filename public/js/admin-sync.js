@@ -16,7 +16,8 @@ export function syncSchedules({ force = false } = {}) {
   if (!force && Date.now() - lastRun < 60000) return Promise.resolve(0);
   lastRun = Date.now();
   running = (async () => {
-    const { user, admin } = await currentAdmin().catch(() => ({}));
+    // ignoreMode: fixtures still get saved at the lock while a Discord admin has admin mode off.
+    const { user, admin } = await currentAdmin({ ignoreMode: true }).catch(() => ({}));
     if (!admin) return 0;
     const bundles = await loadAllBundles({ includeDrafts: true, fresh: true });
     let saved = 0;

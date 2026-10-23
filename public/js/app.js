@@ -256,7 +256,9 @@ window.addEventListener('popstate', show);
 async function adminChanged() {
   let isAdmin = false;
   try {
-    isAdmin = Boolean((await currentAdmin()).admin);
+    const a = await currentAdmin();
+    // The Admin link stays for Discord admins with admin mode off, so they can switch it back on.
+    isAdmin = Boolean(a.admin || a.modeOff);
   } catch { /* stay hidden */ }
   document.querySelectorAll('.admin-only').forEach((el) => { el.hidden = !isAdmin; });
   updateBell({ force: true }); // admin to-dos appear (or go) in the bell
@@ -271,6 +273,12 @@ onUserChange(() => {
 onAdminChange(() => {
   adminChanged();
   startChatPanel();
+});
+// Admin mode switched on or off: redraw everything that shows admin tools.
+document.addEventListener('jvo-admin-mode', () => {
+  adminChanged();
+  startChatPanel();
+  show({ quiet: true });
 });
 
 show();

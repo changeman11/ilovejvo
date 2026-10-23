@@ -58,7 +58,17 @@ export async function discordOf(user) {
 // Admin powers only count for password sign-ins (the security rules insist on the same).
 // Also counts a Discord sign-in whose /admins entry has `discord: true` (the rules check the same);
 // then `via` is 'discord' and admin pages use the player connection (firebase.js setDiscordAdmin).
-export async function currentAdmin() {
+// Admin mode (Discord admins only): switched off, they browse as a normal player: no admin tools,
+// no admin to-dos. Remembered on this device. ignoreMode: background duties that must keep running
+// (saving fixtures at the lock) still count them as admins.
+const MODE_KEY = 'jvo.adminMode';
+export const adminModeOn = () => { try { return localStorage.getItem(MODE_KEY) !== 'off'; } catch { return true; } };
+export function setAdminMode(on) {
+  try { localStorage.setItem(MODE_KEY, on ? 'on' : 'off'); } catch { /* fine */ }
+  document.dispatchEvent(new CustomEvent('jvo-admin-mode'));
+}
+
+export async function currentAdmin({ ignoreMode = false } = {}) {
   await Promise.all([firstAdminState, firstPlayerState]);
   const user = adminAuth.currentUser;
   if (user && user.providerData.some((p) => p.providerId === 'password')) {
@@ -72,6 +82,10 @@ export async function currentAdmin() {
   if (player?.uid?.startsWith('discord:')) {
     const snap = await getDoc(doc(db, 'admins', player.uid)).catch(() => null);
     if (snap?.exists() && snap.data().discord === true) {
+      if (!ignoreMode && !adminModeOn()) {
+        setDiscordAdmin(false);
+        return { user: player, admin: null, account: snap.data(), modeOff: true, via: 'discord' };
+      }
       setDiscordAdmin(true);
       return { user: player, admin: snap.data(), via: 'discord' };
     }
