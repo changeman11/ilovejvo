@@ -1292,3 +1292,11 @@ body.has-reel .featured { bottom: calc(var(--reel-bottom) + var(--reel-h) + 10px
 
 .br-swipe { display: none; }
 @media (max-width: 759px) { .finals-head .br-swipe { display: block; width: 100%; color: var(--yellow); font-weight: 700; font-size: 12px; } }
+
+/* "The site has been updated" banner (app.js) */
+.update-bar {
+  position: fixed; z-index: 95; left: 50%; top: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+  padding: 8px 10px 8px 16px; border-radius: 999px; background: var(--ink); color: #fff; border: 3px solid var(--yellow);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); font-weight: 700; font-size: 14px; max-width: calc(100vw - 32px);
+}
+.update-bar .btn { background: var(--yellow); color: var(--ink); }

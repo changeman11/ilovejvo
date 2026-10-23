@@ -289,7 +289,15 @@ show();
 let updateWaiting = false;
 if ('serviceWorker' in navigator) {
   const hadController = Boolean(navigator.serviceWorker.controller);
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) updateWaiting = true; });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || updateWaiting) return;
+    updateWaiting = true;
+    // Tell them: a banner with a refresh button (the next page change also loads fresh).
+    const bar = Object.assign(document.createElement('div'), { className: 'update-bar', role: 'status' });
+    bar.innerHTML = '<span>✨ The site has been updated.</span><button type="button" class="btn btn-sm">Refresh</button>';
+    bar.querySelector('button').addEventListener('click', () => location.reload());
+    document.body.appendChild(bar);
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((reg) => {
       const check = () => reg.update().catch(() => {});
