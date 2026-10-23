@@ -97,6 +97,16 @@
     - The bot makes two locked team voice channels (that team plus admins), moves the players, and deletes the ready-up channel.
     - Both captains press the winner; if they disagree, admins decide (`/pickup result` can also correct a result later).
   - **Elo:** start 1000, K = 32, team rating = average, the same change for the whole team.
+  - **Club roles (added 2026-10-24, `CLUB_ROLES=1`):**
+    - **What:** a cosmetic Discord role per approved non-mix club, named after the club, coloured `colors.primary`, and grouped in the member list (`CLUB_ROLES_GROUPED`).
+    - **Who:** given to players whose profile `discordId` matches a server member.
+    - **Reading the site:** `teams` and `players` are read with no sign-in (`SiteReader`).
+      - Every `CLUB_ROLES_MINUTES` (5) it reads only docs with `updatedAt` newer than the last read.
+      - A full read runs at start, every 6 hours, and on `/pickup syncroles`.
+    - **Remembered roles:** stored as `clubRoles` `{teamId: roleId}` in the store's meta. The bot never touches other roles.
+    - **Disbanded clubs:** the role is deleted.
+    - **Code:** the plan is in `bot/src/logic/club-roles.js`, the runner in `bot/src/club-roles.js` (both tested).
+    - **Permissions:** needs Manage Roles, with the bot's role above the club roles (they're created just under it).
   - **Code:**
     - Pure logic, tested: `bot/src/logic/`.
     - Game manager: `bot/src/pickup.js`. It has no discord.js and is tested with a fake Discord in `bot/tests/pickup.test.mjs`.

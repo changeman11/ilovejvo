@@ -293,6 +293,35 @@ These are the same as Oracle's steps C to E, with an AWS key instead of an Oracl
 
 ---
 
+## Part 7: Club roles (you, ~2 min)
+
+The bot gives every I<3JVO club a Discord role:
+
+- **Look:** the club's name, in the club's colour. Club members show as their own group in the member list.
+- **Who gets it:** each club player whose site profile has their Discord ID. That's everyone who signed in to the site with Discord.
+
+**How it updates:**
+
+- **Every 5 minutes** it checks the site for changes. When someone joins, leaves or moves club, their role follows. When a club changes its name or colour, the role changes too.
+- **Disbanded clubs** have their role deleted.
+- **Which clubs:** only approved clubs. Pending clubs and one-event mix teams get no role.
+- **Other roles:** it never touches roles it didn't make. Players keep all their other roles.
+
+**Turn it on:**
+
+1. Discord → **Server Settings → Roles** → the bot's role (`i<3JVO`) → **Permissions** → turn on **Manage Roles** → **Save Changes**.
+2. Still in **Roles**, drag the bot's role **near the top of the list**.
+   - It must be above every role whose colour you want the club colour to beat.
+   - Club roles are created just under it, and a bot can only manage roles below its own.
+3. `CLUB_ROLES=1` in `.env` (already set). To refresh straight away, type `/pickup syncroles` in Discord. Otherwise it happens within 5 minutes.
+
+**Settings:**
+
+- `CLUB_ROLES_GROUPED=0`: don't group club members in the member list.
+- `CLUB_ROLES_MINUTES`: how often it checks.
+
+**Cost:** a check only reads what changed. A full check of all clubs and players runs every 6 hours. Together that's a few hundred Firestore reads a day, well inside the free allowance.
+
 ## Commands
 
 | Who | What |
@@ -303,6 +332,7 @@ These are the same as Oracle's steps C to E, with an AWS key instead of an Oracl
 | Captains | Press names on the draft card on your turn. Press the winner (or **Cancel game**) on the game card. |
 | Admins | `/pickup start` (start now, optional `mode`). Press the winner on any game card. Pick for an away captain. |
 | Admins | `/pickup result game:<number> winner:<Team 1, Team 2 or Cancel>`: set or **correct** a result. The old Elo change is undone first. |
+| Admins | `/pickup syncroles`: update club roles from the site now (with `CLUB_ROLES=1`). |
 | Admins (testing) | `/pickup testfill count:<n>` and `/pickup testclear` (only with `ALLOW_TEST_PLAYERS=1`) |
 
 **Changing the rules:** in `.env`, then restart the bot.

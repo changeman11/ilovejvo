@@ -8,6 +8,8 @@ import { FirestoreStore } from './store/firestore-store.js';
 import { Pickup } from './pickup.js';
 import { commandList } from './commands.js';
 import { setupDiscord, isAdmin } from './discord-io.js';
+import { ClubRoles, describe } from './club-roles.js';
+import { SiteReader } from './store/firestore-rest.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -38,6 +40,7 @@ if (config.store === 'file') log.info(`[store] ratings file: ${resolve(config.da
 // Only non-privileged intents: no switches to turn on in the Developer Portal.
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 let pickup = null;
+let clubRoles = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -45,6 +48,11 @@ client.once(Events.ClientReady, async () => {
     await discord.guild.commands.set(commandList(config));
     pickup = new Pickup({ io: discord.io, store, config, log });
     await pickup.start();
+    if (config.clubRoles) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      clubRoles = new ClubRoles({ io: discord.roleIo, site, store, config, log });
+      clubRoles.start().catch((err) => log.error(`[club roles] ${err.message}`));
+    }
     log.info(`Logged in as ${client.user.tag}. Queue card in #${discord.text.name} (${discord.guild.name}).`);
     if (config.allowTestPlayers) log.info('Test players are ON (/pickup testfill). Turn ALLOW_TEST_PLAYERS off for real games.');
   } catch (err) {
@@ -84,6 +92,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (reply?.ephemeral) await interaction.followUp({ content: reply.ephemeral, flags: MessageFlags.Ephemeral });
       return;
     }
+    if (interaction.isChatInputCommand() && interaction.commandName === 'pickup' && interaction.options.getSubcommand(false) === 'syncroles') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      if (!user.isAdmin) return interaction.editReply('Only admins can use /pickup.');
+      if (!clubRoles) return interaction.editReply('Club roles are off (CLUB_ROLES=1 in .env turns them on).');
+      const result = await clubRoles.fullSync().catch((err) => ({ error: err.message }));
+      return interaction.editReply(result?.error ? `Club roles failed: ${result.error}` : `Club roles updated: ${describe(result)}.`);
+    }
     if (interaction.isChatInputCommand()) {
       const publicReply = ['elo', 'leaderboard'].includes(interaction.commandName);
       await interaction.deferReply(publicReply ? {} : { flags: MessageFlags.Ephemeral });
@@ -111,6 +126,7 @@ process.on('unhandledRejection', (err) => log.error('[bot] unhandled:', err));
 
 async function stop(signal) {
   log.info(`${signal}: shutting down`);
+  clubRoles?.stop();
   if (pickup) await Promise.race([pickup.shutdown(), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

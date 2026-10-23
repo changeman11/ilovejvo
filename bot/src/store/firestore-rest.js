@@ -43,6 +43,45 @@ export function fromFields(fields = {}) {
   return out;
 }
 
+// Reads the site's public collections (teams, players) with no sign-in at all: the rules make
+// them public. Used for club roles.
+export class SiteReader {
+  constructor({ projectId, emulator = null, fetchFn = globalThis.fetch }) {
+    this.fetchFn = fetchFn;
+    this.base = `${emulator ? `${emulator.firestore}/v1/` : 'https://firestore.googleapis.com/v1/'}projects/${projectId}/databases/(default)/documents`;
+  }
+
+  async call(method, url, body) {
+    const res = await this.fetchFn(url, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Reading the site failed (${res.status}): ${data.error?.message ?? data[0]?.error?.message ?? ''}`);
+    return data;
+  }
+
+  async list(collection) {
+    const out = [];
+    let pageToken = '';
+    do {
+      const page = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+      const data = await this.call('GET', `${this.base}/${collection}?pageSize=300${page}`);
+      for (const d of data.documents ?? []) out.push({ id: d.name.split('/').pop(), data: fromFields(d.fields) });
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+    return out;
+  }
+
+  // Documents saved after `ms` (every site save stamps updatedAt).
+  async changedSince(collection, ms) {
+    const rows = await this.call('POST', `${this.base}:runQuery`, {
+      structuredQuery: {
+        from: [{ collectionId: collection }],
+        where: { fieldFilter: { field: { fieldPath: 'updatedAt' }, op: 'GREATER_THAN', value: { timestampValue: new Date(ms).toISOString() } } },
+      },
+    });
+    return rows.filter((r) => r.document).map((r) => ({ id: r.document.name.split('/').pop(), data: fromFields(r.document.fields) }));
+  }
+}
+
 export class FirestoreRest {
   // emulator: { firestore: 'http://127.0.0.1:8080', auth: 'http://127.0.0.1:9099' } or null
   constructor({ projectId, apiKey, email, password, emulator = null, fetchFn = globalThis.fetch }) {

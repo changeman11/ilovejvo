@@ -64,6 +64,7 @@ export function commandList(config) {
             },
           ],
         },
+        ...(config.clubRoles ? [{ type: SUB, name: 'syncroles', description: 'Update club roles from the I<3JVO site now' }] : []),
         ...testing,
       ],
     },

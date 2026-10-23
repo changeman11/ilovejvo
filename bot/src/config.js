@@ -80,6 +80,10 @@ export function loadConfig(env = process.env) {
     startRating: number('ELO_START', DEFAULT_START, 0, 10000),
     k: number('ELO_K', DEFAULT_K, 1, 200),
     allowTestPlayers: text('ALLOW_TEST_PLAYERS') === '1',
+    // Club roles: a cosmetic role per site club, given to its players (needs Manage Roles).
+    clubRoles: text('CLUB_ROLES') === '1',
+    clubRolesHoist: text('CLUB_ROLES_GROUPED', '1') !== '0',
+    clubRolesMinutes: number('CLUB_ROLES_MINUTES', 5, 1, 1440),
     store,
     dataFile: text('DATA_FILE', 'data/pickup.json'),
     firebase,

@@ -34,6 +34,7 @@ export async function setupDiscord(client, config, log = console) {
   check(category ?? guild, ['ViewChannel', 'ManageChannels', 'Connect', 'MoveMembers'], category ? `the ${category.name} category` : 'the server');
   // Locked channels can only grant permissions the bot has server-wide.
   check(guild, ['ViewChannel', 'Connect'], 'its server role');
+  if (config.clubRoles) check(guild, ['ManageRoles'], 'its server role (needed for club roles)');
 
   // Locked = everyone can see it, but only these players, admins and the bot can join.
   const lockedOverwrites = (allow) => [
@@ -86,7 +87,43 @@ export async function setupDiscord(client, config, log = console) {
     log.info?.(`Removed a leftover ready-up channel (${channel.name}).`);
   }
 
-  return { guild, text, category, io };
+  // Club roles (club-roles.js). Roles are made just under the bot's own role so their colour
+  // shows; the bot can only manage roles below its own.
+  const roleIo = {
+    async roles() {
+      const all = await guild.roles.fetch();
+      return new Map(all.map((r) => [r.id, { name: r.name, color: r.colors?.primaryColor ?? r.color ?? 0, hoist: r.hoist }]));
+    },
+    async createRole({ name, color, hoist }) {
+      const role = await guild.roles.create({ name, colors: { primaryColor: color }, hoist, mentionable: false, permissions: [], reason: 'I<3JVO club role' });
+      const top = (await guild.members.fetchMe({ force: true })).roles.highest;
+      await guild.roles.setPosition(role, Math.max(1, top.position - 1)).catch((err) => log.warn(`Couldn't move the ${name} role up: ${err.message}`));
+      return role.id;
+    },
+    async editRole(roleId, { name, color, hoist }) {
+      await guild.roles.edit(roleId, { name, colors: { primaryColor: color }, hoist, reason: 'I<3JVO club changed' });
+    },
+    async deleteRole(roleId) {
+      await guild.roles.delete(roleId, 'I<3JVO club no longer active');
+    },
+    async memberRoles(userId) {
+      try {
+        const member = await guild.members.fetch({ user: userId, force: true });
+        return new Set(member.roles.cache.keys());
+      } catch (err) {
+        if (err.code === 10007 || err.code === 10013) return null; // not in this server
+        throw err;
+      }
+    },
+    async addRole(userId, roleId) {
+      await guild.members.addRole({ user: userId, role: roleId, reason: 'I<3JVO club' });
+    },
+    async removeRole(userId, roleId) {
+      await guild.members.removeRole({ user: userId, role: roleId, reason: 'I<3JVO club changed' });
+    },
+  };
+
+  return { guild, text, category, io, roleIo };
 }
 
 // Admins: anyone with Manage Server, or one of ADMIN_ROLE_IDS.
