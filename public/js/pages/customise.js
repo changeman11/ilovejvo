@@ -35,7 +35,7 @@ function imageField(k, current, frame) {
           <label class="btn btn-sm">Choose…<input type="file" name="file-${k}" accept="image/png,image/jpeg,image/webp,image/gif" hidden></label>
           <button type="button" class="btn btn-sm btn-danger" data-img-remove ${url ? '' : 'hidden'}>✕ Remove</button>
         </div>` : ''}
-      <span class="muted small">${spec.hint} GIFs up to ${spec.gifMb} MB.</span>
+      <span class="muted small">${spec.hint} GIFs up to ${spec.gifInMb} MB (shrunk to fit).</span>
     </div>`;
 }
 

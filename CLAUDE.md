@@ -22,7 +22,7 @@
   - **Saved as:** optional `avatarFrame` / `logoFrame` / `bannerFrame` / `backgroundFrame` = `{ x, y, zoom }`, the point to centre on (0-100 %) and a zoom from 1 to 4. They're checked by `optFrame()` in firestore.rules.
   - **Shown with:** `framedImg()` / `frameStyle()` in `ui.js` on every picture.
   - **Editing:** in `pages/customise.js`, players drag to move, use a zoom slider, press Centre, or press ✕ Remove.
-  - **GIF size:** up to 15 MB, except match screenshots (`MEDIA[].gifMb` in `media.js` and `maxBytes()` in storage.rules). Still pictures are shrunk as before.
+  - **GIF size:** players can pick GIFs up to 30 MB. They're shrunk in the browser before upload (`js/gif-shrink.js`, using gifuct-js + gifenc from jsDelivr) to the size they're shown at (256 / 800 / 960 px), keeping the animation. Every other frame is dropped only if needed. Stored files keep the 2 / 4 / 6 MB limits (storage.rules), so serving stays cheap.
 - **Search:** top bar, players and teams (`js/search.js`), "/" focuses it.
 - **Desktop side menu:** the Home menu cards stay down the left on every other page (`js/menu.js`, `setSection()` in `shell.js`).
 - **Added 2026-10-22:**
