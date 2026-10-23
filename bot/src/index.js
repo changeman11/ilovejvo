@@ -59,9 +59,9 @@ client.on(Events.VoiceStateUpdate, (before, after) => {
   if (before.channelId === after.channelId) return; // mute, deafen, camera...
   const member = after.member ?? before.member;
   if (member?.user.bot) return;
-  if (after.channelId === config.queueChannelId) pickup.join(after.id, member?.displayName ?? after.id);
-  else if (before.channelId === config.queueChannelId) pickup.leave(after.id);
-  if (before.channelId && before.channelId !== config.queueChannelId) pickup.channelLeft(before.channelId);
+  // The queue channel, a locked ready-up channel or a team channel: pickup.js sorts it out.
+  if (before.channelId) pickup.left(before.channelId, after.id);
+  if (after.channelId) pickup.joined(after.channelId, after.id, member?.displayName ?? after.id);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -105,7 +105,7 @@ process.on('unhandledRejection', (err) => log.error('[bot] unhandled:', err));
 
 async function stop(signal) {
   log.info(`${signal}: shutting down`);
-  if (pickup) await Promise.race([pickup.shutdown(), new Promise((r) => setTimeout(r, 4000))]);
+  if (pickup) await Promise.race([pickup.shutdown(), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);
 }

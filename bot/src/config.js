@@ -67,7 +67,8 @@ export function loadConfig(env = process.env) {
   const config = {
     token,
     guildId: discordId('GUILD_ID', 'your Discord server ID (right-click the server icon -> Copy Server ID)'),
-    queueChannelId: discordId('QUEUE_CHANNEL_ID', 'the "ready up" voice channel ID'),
+    // Optional: when empty, the bot finds or makes a voice channel called "🏐 pickup queue".
+    queueChannelId: discordId('QUEUE_CHANNEL_ID', '', false),
     pickupChannelId: discordId('PICKUP_CHANNEL_ID', 'the text channel where the bot posts drafts and results'),
     teamCategoryId: discordId('TEAM_CATEGORY_ID', '', false),
     adminRoleIds: text('ADMIN_ROLE_IDS')
@@ -77,6 +78,7 @@ export function loadConfig(env = process.env) {
     draftOrder,
     countdownSeconds: number('COUNTDOWN_SECONDS', 30, 0, 600),
     pickSeconds: number('PICK_SECONDS', 60, 10, 600),
+    readySeconds: number('READY_SECONDS', 60, 10, 600),
     startRating: number('ELO_START', DEFAULT_START, 0, 10000),
     k: number('ELO_K', DEFAULT_K, 1, 200),
     allowTestPlayers: text('ALLOW_TEST_PLAYERS') === '1',

@@ -38,6 +38,12 @@ export const teamName = (game, side) => {
 
 export const teamChannelName = (game, side) => `🏐 #${game.number} ${teamName(game, side)}`.slice(0, 100);
 
+// Channel names. The bot makes the queue channel if QUEUE_CHANNEL_ID is empty, and tidies up
+// leftover ready-up channels (names starting with LOBBY_PREFIX) when it starts.
+export const QUEUE_CHANNEL_NAME = '🏐 pickup queue';
+export const LOBBY_PREFIX = '🏐 ready up · ';
+export const lobbyChannelName = (match) => `${LOBBY_PREFIX}${modeLabel(match.size)}`;
+
 // ---------- queue ----------
 // snapshot: { ready: [{id, name, fake}], drafting, countdownEndsAt, games: [{number, size, status}] }
 export function queueView(snapshot, config) {
@@ -54,7 +60,7 @@ export function queueView(snapshot, config) {
       value: ready.length ? ready.slice(0, 30).map((p, i) => `${i + 1}. ${esc(p.name)}`).join('\n') + (ready.length > 30 ? `\n…and ${ready.length - 30} more` : '') : 'Nobody yet.',
     },
   ];
-  if (drafting) fields.push({ name: 'Drafting', value: `${drafting} draft${drafting === 1 ? '' : 's'} being picked right now.` });
+  if (drafting) fields.push({ name: 'Getting ready', value: `${drafting} game${drafting === 1 ? '' : 's'} in a ready check or draft right now.` });
   const live = games.filter((g) => g.status === 'playing' || g.status === 'disputed');
   if (live.length) {
     fields.push({
@@ -68,7 +74,7 @@ export function queueView(snapshot, config) {
       {
         title: '🏐 Pickup games: ready up',
         color: BLUE,
-        description: `Join <#${config.queueChannelId}> to ready up. Each game is a random mode (${config.modes.map(modeLabel).join(', ')}) that fits how many are ready.\n\n${status}`,
+        description: `Join <#${config.queueChannelId}> to queue. Each game is a random mode (${config.modes.map(modeLabel).join(', ')}) that fits how many are queued. When you're picked, join your locked ready-up channel within ${config.readySeconds} seconds.\n\n${status}`,
         fields,
         footer: { text: 'I<3JVO pickups · /elo · /leaderboard' },
       },
@@ -78,8 +84,65 @@ export function queueView(snapshot, config) {
   };
 }
 
+// ---------- ready check ----------
+// match: { size, players: [{id, name, fake}], confirmed: Set, dropped: [names], lobbyId, deadline }
+export function checkView(match, config, { ping = [] } = {}) {
+  const ready = match.players.filter((p) => match.confirmed.has(p.id));
+  const waiting = match.players.filter((p) => !match.confirmed.has(p.id));
+  const lines = [
+    `Join <#${match.lobbyId}> to confirm. Time's up <t:${unix(match.deadline)}:R>.`,
+    'Anyone who isn\'t in it by then is dropped, and the next player in the queue takes their place.',
+  ];
+  if (match.dropped.length) lines.push(`\nDropped (didn't join in time): ${match.dropped.map(esc).join(', ')}`);
+  return {
+    content: ping.length
+      ? `🏐 **${modeLabel(match.size)} found!** ${ping.map((id) => `<@${id}>`).join(' ')} join <#${match.lobbyId}> within ${config.readySeconds} seconds.`
+      : `🏐 **${modeLabel(match.size)} found!** Ready check in <#${match.lobbyId}>.`,
+    embeds: [
+      {
+        title: `${modeLabel(match.size)}: ready check (${ready.length}/${match.players.length})`,
+        color: YELLOW,
+        description: lines.join('\n'),
+        fields: [
+          { name: `✅ Ready (${ready.length})`, value: ready.length ? ready.map((p) => esc(p.name)).join('\n') : '—', inline: true },
+          { name: `⏳ Waiting for (${waiting.length})`, value: waiting.length ? waiting.map((p) => esc(p.name)).join('\n') : '—', inline: true },
+        ],
+        footer: { text: 'The ready-up channel is locked: only these players (and admins) can join.' },
+      },
+    ],
+    components: [],
+    allowedMentions: { users: ping },
+  };
+}
+
+export function replacementView(match, ids, config) {
+  return {
+    content: `🏐 ${ids.map((id) => `<@${id}>`).join(' ')} you're in the ${modeLabel(match.size)}! Join <#${match.lobbyId}> within ${config.readySeconds} seconds to confirm.`,
+    embeds: [],
+    components: [],
+    allowedMentions: { users: ids },
+  };
+}
+
+export function matchCancelledView(match, reason) {
+  const what = match.phase === 'draft' ? 'draft' : 'ready check';
+  return {
+    content: `🏐 ${modeLabel(match.size)} ${what} cancelled: ${reason}.`,
+    embeds: [
+      {
+        title: `${modeLabel(match.size)} ${what} cancelled`,
+        color: GREY,
+        description: `${reason}. Everyone else is back in the queue, in the same order.`,
+        fields: [{ name: 'Players', value: match.players.map((p) => esc(p.name)).join(', ') || '—' }],
+      },
+    ],
+    components: [],
+    allowedMentions: noMentions,
+  };
+}
+
 // ---------- draft ----------
-// draft: { id, state, names, fakes, deadline, note }
+// draft (a match in its draft phase): { id, state, names, fakes, deadline, note }
 export function draftView(draft) {
   const { state, names } = draft;
   const person = (id) => ({ id, name: names[id], fake: draft.fakes.has(id) });
@@ -109,23 +172,6 @@ export function draftView(draft) {
       state.pool.map((id) => ({ type: BUTTON, style: STYLE.secondary, label: short(names[id], 80), custom_id: `pick:${draft.id}:${id}` })),
     ),
     allowedMentions: { users: [state.captains.a, state.captains.b].filter((id) => !draft.fakes.has(id)) },
-  };
-}
-
-export function draftCancelledView(draft, reason) {
-  const { state, names } = draft;
-  return {
-    content: `🏐 ${modeLabel(state.size)} draft cancelled: ${reason}.`,
-    embeds: [
-      {
-        title: `${modeLabel(state.size)} draft cancelled`,
-        color: GREY,
-        description: `${reason}. Everyone still in the ready-up channel is back in the queue, in the same order.`,
-        fields: [{ name: 'Players', value: state.players.map((id) => esc(names[id])).join(', ') }],
-      },
-    ],
-    components: [],
-    allowedMentions: noMentions,
   };
 }
 
