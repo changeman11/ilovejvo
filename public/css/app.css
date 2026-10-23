@@ -1121,3 +1121,15 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
 .group-col li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .group-col li .team { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-col select { min-height: 30px; border-radius: 8px; width: auto; max-width: 74px; flex: none; padding: 2px 4px; }
+
+/* Ticker tabs: results | transfers (js/reel.js) */
+.reel-tabs { flex: none; display: flex; align-items: stretch; }
+.reel-tabs button {
+  border: 0; padding: 0 10px; cursor: pointer; font: 700 12px var(--font-head); text-transform: lowercase;
+  background: transparent; color: #b9bdd0; border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+.reel-tabs button[aria-selected="true"] { background: var(--yellow); color: var(--ink); }
+@media (min-width: 1024px) { .reel-tabs button[aria-selected="true"] { background: var(--g-yellow); color: #1b1b1f; } }
+.reel-item .reel-when { color: #8e93a6; font-size: 11px; margin-left: 4px; }
+.reel-empty { padding: 0 12px; color: #b9bdd0; font-size: 13px; white-space: nowrap; }
+@media (max-width: 420px) { .reel-tabs button { padding: 0 7px; font-size: 11px; } }

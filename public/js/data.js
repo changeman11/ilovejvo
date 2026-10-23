@@ -6,7 +6,7 @@
 // requests. Everything else reads through the public/player connection.
 
 import {
-  doc, getDoc, getDocs, collection, query, where,
+  doc, getDoc, getDocs, collection, query, where, orderBy, limit,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db, adminDatabase } from './firebase.js';
 import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './rules/defaults.js';
@@ -195,6 +195,16 @@ export async function loadMe(uid) {
 // A player's join request to one team (id "<teamId>__<playerId>"), or null. Only they can read it.
 export function loadJoinRequest(teamId, playerId) {
   return getOne(`joinRequests/${teamId}__${playerId}`).catch(() => null);
+}
+
+// ---------- Transfer news (newest first; kept for a minute so page changes stay cheap) ----------
+
+let transfersCache = { at: 0, list: null };
+export async function loadTransfers({ fresh = false } = {}) {
+  if (!fresh && transfersCache.list && Date.now() - transfersCache.at < 60000) return transfersCache.list;
+  const snap = await getDocs(query(collection(db, 'transfers'), orderBy('at', 'desc'), limit(30)));
+  transfersCache = { at: Date.now(), list: snap.docs.map(asObj) };
+  return transfersCache.list;
 }
 
 // ---------- Comments on a team or player page (never cached, so new ones show straight away) ----------

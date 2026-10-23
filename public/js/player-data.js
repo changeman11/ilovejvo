@@ -6,6 +6,7 @@ import { doc, collection, setDoc, deleteDoc, getDoc } from 'https://www.gstatic.
 import { db } from './firebase.js';
 import { invalidate } from './data.js';
 import { slugId } from './admin-data.js';
+import { transferOp } from './transfers.js';
 
 // New profile for a Discord user (id "d<discordId>"), starting as a free agent.
 export async function createProfile({ uid, discordId, discordName, avatarUrl, displayName, number }) {
@@ -108,7 +109,10 @@ export async function withdrawJoinRequest({ uid, request }) {
 // Manager answers a join request. Accepting puts the player on the team in the same save.
 export async function answerJoinRequest({ uid, request, player, accept }) {
   const ops = [{ type: 'update', path: `joinRequests/${request.id}`, before: request, data: { status: accept ? 'accepted' : 'declined' } }];
-  if (accept) ops.push({ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: request.teamId, joinRequestId: request.id } });
+  if (accept) {
+    ops.push({ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: request.teamId, joinRequestId: request.id } });
+    ops.push(transferOp({ playerId: player.id, from: player.teamId, to: request.teamId, kind: 'joined' }));
+  }
   await commit(uid, ops);
   invalidate();
 }
@@ -129,14 +133,20 @@ export async function withdrawOffer({ uid, offer }) {
 // Player answers an offer. Accepting joins the team in the same save (the rules check both).
 export async function answerOffer({ uid, offer, player, accept }) {
   const ops = [{ type: 'update', path: `offers/${offer.id}`, before: offer, data: { status: accept ? 'accepted' : 'declined' } }];
-  if (accept) ops.push({ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: offer.teamId, joinOfferId: offer.id } });
+  if (accept) {
+    ops.push({ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: offer.teamId, joinOfferId: offer.id } });
+    ops.push(transferOp({ playerId: player.id, from: player.teamId, to: offer.teamId, kind: 'joined' }));
+  }
   await commit(uid, ops);
   invalidate();
 }
 
 // Manager releases a player from their team.
 export async function releasePlayer({ uid, player }) {
-  await commit(uid, [{ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: null } }]);
+  await commit(uid, [
+    { type: 'update', path: `players/${player.id}`, before: player, data: { teamId: null } },
+    transferOp({ playerId: player.id, from: player.teamId, to: null, kind: 'released' }),
+  ]);
   invalidate();
 }
 

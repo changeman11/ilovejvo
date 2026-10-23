@@ -3,6 +3,7 @@
 import { commit as save, ts, newId, serverTimestamp } from './writes.js';
 import { invalidate } from './data.js';
 import { deleteImage } from './media.js';
+import { transferOp } from './transfers.js';
 
 // Admin saves always go through the admin (password) sign-in.
 const commit = (uid, ops) => save(uid, ops, { admin: true });
@@ -63,6 +64,7 @@ export async function saveTeam({ id, uid, team, existing, joinPlayer = null }) {
   const ops = [{ type: 'set', path: `teams/${id}`, before: existing, data: team }];
   if (joinPlayer && joinPlayer.teamId !== id) {
     ops.push({ type: 'update', path: `players/${joinPlayer.id}`, before: joinPlayer, data: { teamId: id } });
+    ops.push(transferOp({ playerId: joinPlayer.id, from: joinPlayer.teamId, to: id, kind: 'joined' }));
   }
   await commit(uid, ops);
   invalidate();
@@ -72,7 +74,12 @@ export async function deleteTeam({ id, uid, existing }) {
   invalidate();
 }
 export async function savePlayer({ id, uid, player, existing }) {
-  await commit(uid, [{ type: 'set', path: `players/${id}`, before: existing, data: player }]);
+  const ops = [{ type: 'set', path: `players/${id}`, before: existing, data: player }];
+  // An admin moving a player between clubs shows in the transfer news too.
+  const from = existing?.teamId ?? null;
+  const to = player.teamId ?? null;
+  if (from !== to) ops.push(transferOp({ playerId: id, from, to, kind: to ? 'joined' : 'left' }));
+  await commit(uid, ops);
   invalidate();
 }
 export async function deletePlayer({ id, uid, existing }) {
@@ -232,7 +239,10 @@ export async function saveResult({ eventId, fixture, uid, result, existing, swap
 export async function decideTeam({ uid, team, approve }) {
   const ops = [{ type: 'update', path: `teams/${team.id}`, before: team, data: { status: approve ? 'approved' : 'rejected' } }];
   // The player who registered it becomes its manager and first squad member.
-  if (approve && team.managerPlayerId) ops.push({ type: 'update', path: `players/${team.managerPlayerId}`, data: { teamId: team.id } });
+  if (approve && team.managerPlayerId) {
+    ops.push({ type: 'update', path: `players/${team.managerPlayerId}`, data: { teamId: team.id } });
+    ops.push(transferOp({ playerId: team.managerPlayerId, to: team.id, kind: 'founded' }));
+  }
   await commit(uid, ops);
   invalidate();
 }
@@ -241,6 +251,7 @@ export async function decideLeave({ uid, request, approve, team }) {
   const ops = [{ type: 'update', path: `leaveRequests/${request.id}`, before: request, data: { status: approve ? 'approved' : 'declined', decidedBy: uid } }];
   if (approve) {
     ops.push({ type: 'update', path: `players/${request.playerId}`, data: { teamId: null } });
+    ops.push(transferOp({ playerId: request.playerId, from: request.teamId, to: null, kind: 'left' }));
     // A manager who leaves stops being the manager; an admin picks the next one.
     if (team?.managerPlayerId === request.playerId) {
       ops.push({ type: 'update', path: `teams/${team.id}`, before: team, data: { managerUid: null, managerPlayerId: null } });

@@ -23,6 +23,7 @@
   - **Shown with:** `framedImg()` / `frameStyle()` in `ui.js` on every picture.
   - **Editing:** in `pages/customise.js`, players drag to move, use a zoom slider, press Centre, or press ✕ Remove.
   - **GIF size:** players can pick GIFs up to 30 MB. They're shrunk in the browser before upload (`js/gif-shrink.js`, using gifuct-js + gifenc from jsDelivr) to the size they're shown at (256 / 800 / 960 px), keeping the animation. Every other frame is dropped only if needed. Stored files keep the 2 / 4 / 6 MB limits (storage.rules), so serving stays cheap.
+- **Transfer news (added 2026-10-24):** public, append-only `transfers/{id}` `{ playerId, fromTeamId, toTeamId, kind: joined|left|released|founded, at }`, written in the same save as each club move (`js/transfers.js` `transferOp`; invites, join requests, releases, leave approvals, new clubs, admin edits). The rules check a player/manager entry matches the player's club before and after that save. Shown in the bottom ticker's **transfers** tab (`js/reel.js`, tabs results | transfers).
 - **Search:** top bar, players and teams (`js/search.js`), "/" focuses it.
 - **Desktop side menu:** the Home menu cards stay down the left on every other page (`js/menu.js`, `setSection()` in `shell.js`).
 - **Added 2026-10-22:**

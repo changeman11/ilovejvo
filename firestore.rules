@@ -296,6 +296,23 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- Transfer news (public, append-only) ----------
+    // Written in the same save as a player's club change. For players and managers, the entry must
+    // match that change: the player's club before this save is `fromTeamId` and after it `toTeamId`.
+    match /transfers/{transferId} {
+      allow read: if true;
+      allow create: if signedIn() && stampedByMe()
+        && request.resource.data.keys().hasOnly(['playerId', 'fromTeamId', 'toTeamId', 'kind', 'at', 'updatedBy', 'updatedAt'])
+        && request.resource.data.at == request.time
+        && (isAdmin()
+            || (request.resource.data.kind in ['joined', 'released']
+                && exists(/databases/$(database)/documents/players/$(request.resource.data.playerId))
+                && playerDoc(request.resource.data.playerId).get('teamId', null) == request.resource.data.fromTeamId
+                && getAfter(/databases/$(database)/documents/players/$(request.resource.data.playerId)).data.get('teamId', null) == request.resource.data.toTeamId
+                && request.resource.data.fromTeamId != request.resource.data.toTeamId));
+      allow update, delete: if isAdmin();
+    }
+
     // ---------- Chat: no slurs ----------
     // Same pattern as SEVERE_PATTERN in public/js/rules/profanity.js (a test checks they match).
     // Ordinary swearing is allowed and starred out on screen; slurs are refused here.
