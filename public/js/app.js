@@ -206,6 +206,11 @@ async function show({ quiet = false } = {}) {
 }
 
 function navigate(href, { keepScroll = false, replace = false } = {}) {
+  // A new version was published while this tab was open: load the next page fresh.
+  if (updateWaiting && href !== here()) {
+    location.assign(href);
+    return;
+  }
   if (href !== here()) {
     const samePage = pathOf(href) === pathOf(here());
     const trail = replace ? trailNow().filter((t) => t.href !== href) : trailFor(href);
@@ -268,6 +273,18 @@ onAdminChange(() => {
 
 show();
 
+// Updates: the service worker is re-checked every 10 minutes (and when the tab comes back). When a
+// new version of the site has been published, the next page change does a full load, so a tab left
+// open never keeps running old code.
+let updateWaiting = false;
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) updateWaiting = true; });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      const check = () => reg.update().catch(() => {});
+      setInterval(check, 10 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    }).catch(() => {});
+  });
 }
