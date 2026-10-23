@@ -84,7 +84,24 @@ export function avatarImg(player, cls = 'avatar') {
 
 export function playerLink(player, fallbackId = '') {
   const id = player?.id ?? fallbackId;
-  return `<a class="plink" href="${urls.player(id)}" data-link>${esc(player?.displayName ?? fallbackId)}</a>`;
+  return `<a class="plink" href="${urls.player(id)}" data-link>${esc(player?.displayName ?? fallbackId)}${staffTag(player)}</a>`;
+}
+
+// JVO staff (players.staff, set by admins on /admin/people). A small icon next to the name
+// everywhere; `label: true` adds the role name (profile pages, chat, comments).
+export const STAFF_ROLES = {
+  admin: { label: 'Admin', icon: '🛡️' },
+  mod: { label: 'Mod', icon: '🔨' },
+  caster: { label: 'Caster', icon: '🎙️' },
+};
+export const staffRole = (player) => (Object.hasOwn(STAFF_ROLES, player?.staff ?? '') ? STAFF_ROLES[player.staff] : null);
+export function staffTag(player, { label = false } = {}) {
+  const role = staffRole(player);
+  if (!role) return '';
+  const title = `JVO staff: ${role.label}`;
+  return label
+    ? `<span class="staff-tag with-label staff-${player.staff}" title="${title}"><span aria-hidden="true">${role.icon}</span> ${role.label}</span>`
+    : `<span class="staff-tag staff-${player.staff}" title="${title}" role="img" aria-label="${title}"><span aria-hidden="true">${role.icon}</span></span>`;
 }
 
 export function skeleton(heights) {

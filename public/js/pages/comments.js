@@ -5,7 +5,7 @@
 import { loadComments, loadPeople } from '../data.js';
 import { currentUser, currentAdmin, discordOf } from '../auth.js';
 import { postComment, deleteComment } from '../player-data.js';
-import { esc, avatarImg, urls, fmtDay, fmtTime } from '../ui.js';
+import { esc, avatarImg, urls, fmtDay, fmtTime, staffTag } from '../ui.js';
 
 const SHOW = 50;
 let ctx = null; // { kind, targetId, ownerUid, user, me, adminUid }
@@ -29,7 +29,7 @@ function listHtml(comments, playersById) {
         ${author ? `<a href="${urls.player(author.id)}" data-link>${avatarImg(author, 'avatar')}</a>` : avatarImg({ displayName: '?' }, 'avatar')}
         <div class="comment-main">
           <div class="comment-head">
-            ${author ? `<a href="${urls.player(author.id)}" data-link><b>${esc(author.displayName)}</b></a>` : '<b>Removed player</b>'}
+            ${author ? `<a href="${urls.player(author.id)}" data-link><b>${esc(author.displayName)}</b></a>${staffTag(author, { label: true })}` : '<b>Removed player</b>'}
             <span class="muted small">${esc(when(c.createdAt))}</span>
             ${canDelete ? `<button class="link-btn small" type="button" data-del-comment="${esc(c.id)}">Delete</button>` : ''}
           </div>

@@ -2,7 +2,7 @@
 // Uses the same cached player/team lists as the pages, so typing is instant.
 
 import { loadPeople, isApprovedTeam } from './data.js';
-import { esc, avatarImg, teamDot, urls } from './ui.js';
+import { esc, avatarImg, teamDot, urls, staffTag } from './ui.js';
 import { navigate } from './nav.js';
 
 const box = document.querySelector('[data-search]');
@@ -42,7 +42,7 @@ function row(item, i) {
   const p = item.player;
   const team = p.teamId ? people.teamsById[p.teamId] : null;
   return `<a class="sr${i === active ? ' on' : ''}" href="${urls.player(p.id)}" data-link role="option">
-    ${avatarImg(p, 'avatar sm')}<span class="sr-main"><b>${esc(p.displayName)}</b><small>${isApprovedTeam(team) ? esc(team.name) : 'free agent'}</small></span></a>`;
+    ${avatarImg(p, 'avatar sm')}<span class="sr-main"><b>${esc(p.displayName)}${staffTag(p)}</b><small>${isApprovedTeam(team) ? esc(team.name) : 'free agent'}</small></span></a>`;
 }
 
 let results = [];

@@ -1145,6 +1145,22 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
 
 /* LFT (looking for a team) */
 .lft-tag { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--teal); color: var(--ink); border: 2px solid var(--ink); font: 800 11px/1.5 var(--font-body); letter-spacing: 0.05em; vertical-align: middle; }
+/* JVO staff badge (ui.js staffTag): a round icon next to the name; with the role name on profiles,
+   chat and comments. The ring colour shows the role. */
+.staff-tag {
+  --staff: var(--blue); --staff-tint: var(--tint-blue);
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  width: 22px; height: 22px; margin: -3px 0 -3px 6px; border-radius: 999px; /* no taller rows */
+  background: var(--staff-tint); border: 2px solid var(--staff);
+  font: 800 10px/1 var(--font-body); color: var(--ink); vertical-align: middle; white-space: nowrap;
+  text-decoration: none; flex: none;
+}
+.staff-tag > span { font-size: 13px; line-height: 1; }
+.staff-tag.with-label { width: auto; height: auto; padding: 2px 8px 2px 5px; font-size: 11px; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.04em; }
+.staff-tag.staff-mod { --staff: var(--coral); --staff-tint: var(--tint-coral); }
+.staff-tag.staff-caster { --staff: var(--purple); --staff-tint: var(--tint-purple); }
+h1 .staff-tag.with-label { font-size: 12px; margin-left: 10px; position: relative; top: -2px; }
+.chat-meta .staff-tag, .comment-head .staff-tag { margin-left: 0; }
 .lft-switch { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 4px 0 12px; border: 2px dashed var(--teal); border-radius: var(--radius-sm); background: var(--tint-teal); }
 .lft-switch input { margin-top: 4px; }
 

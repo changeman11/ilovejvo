@@ -4,7 +4,7 @@
 import { loadPeople, loadAllBundles } from '../../data.js';
 import { saveTeam, deleteTeam, savePlayer, deletePlayer, slugId, removeProfileImage, clearProfileText } from '../../admin-data.js';
 import { navigate } from '../../nav.js';
-import { esc, skeleton, teamDot, urls } from '../../ui.js';
+import { esc, skeleton, teamDot, urls, staffTag, STAFF_ROLES } from '../../ui.js';
 import { mediaUrl, MEDIA, inFirebase, copyOldImage } from '../../media.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
@@ -79,6 +79,7 @@ function playerForm(p) {
         <label class="field"><span>Jersey number (optional)</span><input type="number" name="number" min="0" max="99" inputmode="numeric" value="${esc(p?.number ?? '')}"></label>
       </div>
       <label class="field"><span>Team</span><select name="teamId"><option value="">Free agent</option>${page.people.teams.filter((t) => (t.status ?? 'approved') === 'approved').sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<option value="${esc(t.id)}"${p?.teamId === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
+      <label class="field"><span>Staff badge (shown next to their name everywhere)</span><select name="staff"><option value="">Not staff</option>${Object.entries(STAFF_ROLES).map(([k, r]) => `<option value="${k}"${p?.staff === k ? ' selected' : ''}>${r.icon} ${r.label}</option>`).join('')}</select></label>
       <label class="check"><input type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}> Active</label>
       ${p?.uid ? `<label class="check"><input type="checkbox" name="unlink"> Unlink Discord account ${esc(p.discordName ?? '')} (ID ${esc(p.discordId ?? '')})</label>` : ''}
       ${moderation('players', p)}
@@ -137,7 +138,7 @@ export async function render() {
 
   const playerRows = players.map((p) => `
     <a class="row" href="/admin/people?edit=player:${encodeURIComponent(p.id)}" data-link data-keep-scroll>
-      <span class="row-main"><b>${esc(p.displayName)}</b></span>
+      <span class="row-main"><b>${esc(p.displayName)}${staffTag(p, { label: true })}</b></span>
       <span class="row-side">${p.number != null ? `<span class="muted small">#${esc(p.number)}</span>` : ''}${p.active === false ? '<span class="tag">Inactive</span>' : ''}</span>
     </a>
     ${kind === 'player' && id === p.id ? playerForm(p) : ''}`).join('');
@@ -243,6 +244,7 @@ export function mount(el) {
             ...strip(existing), displayName, number,
             active: form.querySelector('[name=active]').checked,
             teamId: form.querySelector('[name=teamId]').value || null,
+            staff: form.querySelector('[name=staff]').value || null,
             ...(unlink ? { uid: null, discordId: null, discordName: null } : {}),
           },
         });

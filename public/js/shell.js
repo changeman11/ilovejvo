@@ -8,7 +8,7 @@ import { loadPeople, loadAllBundles, isApprovedTeam } from './data.js';
 import { careerStats } from './pages/career.js';
 import { playerXp, levelFor } from './rules/badges.js';
 import { allFixtures, resultOf } from './pages/parts.js';
-import { esc, avatarImg, teamDot, fmtDay, fmtTime, fmtNum, urls } from './ui.js';
+import { esc, avatarImg, teamDot, fmtDay, fmtTime, fmtNum, urls, staffTag } from './ui.js';
 import { discordLogo } from './pages/discord-cta.js';
 import { discordInviteUrl, steamUrl } from './config.js';
 import { navigate } from './nav.js';
@@ -107,7 +107,7 @@ function barHtml({ signedIn, player, team, career, lvl, next, people }) {
   const who = player
     ? `<a class="pb-who" href="${urls.player(player.id)}" data-link>${avatarImg(player, 'pb-avatar')}</a>
        <div class="pb-id">
-         <a class="pb-name" href="${urls.player(player.id)}" data-link>${esc(player.displayName)}</a>
+         <a class="pb-name" href="${urls.player(player.id)}" data-link>${esc(player.displayName)}${staffTag(player)}</a>
          <div class="pb-xp"><span class="lv">lv ${lvl.level}</span><span class="xpbar"><i style="width:${pct}%"></i></span><span class="xpnum">${lvl.xp} / ${lvl.next} xp</span></div>
        </div>
        <span class="pb-gem" title="Points scored">${icon.gem}<b class="num">${fmtNum(career?.totals.pts ?? 0)}</b></span>`

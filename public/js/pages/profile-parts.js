@@ -81,7 +81,7 @@ function socialsRow(socials) {
 
 // doc: the team or player (for banner/background/theme/tagline/socials/bio)
 // mark: logo or picture HTML. sub: line under the name (HTML). lvl: { level, xp, next }
-export function profileShell({ doc, fallbackTheme, mark, name, sub, lvl, main, side }) {
+export function profileShell({ doc, fallbackTheme, mark, name, nameTag = '', sub, lvl, main, side }) {
   const theme = validTheme(doc.theme) ?? validTheme(fallbackTheme) ?? '#1438d8';
   const background = mediaUrl(doc.backgroundPath);
   const banner = mediaUrl(doc.bannerPath);
@@ -94,7 +94,7 @@ export function profileShell({ doc, fallbackTheme, mark, name, sub, lvl, main, s
         <div class="pro-id">
           ${mark}
           <div class="pro-name">
-            <h1>${esc(name)}</h1>
+            <h1>${esc(name)}${nameTag}</h1>
             <p class="muted">${sub}</p>
             ${doc.tagline ? `<p class="pro-tagline">${esc(doc.tagline)}</p>` : ''}
           </div>

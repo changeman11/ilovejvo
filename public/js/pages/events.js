@@ -9,7 +9,7 @@ import { characterSpot, characterPicker, charactersOn, startCharacters } from '.
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
 import { formatFor } from '../rules/season.js';
-import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag } from '../ui.js';
+import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag, staffTag } from '../ui.js';
 import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupTablesHtml, groupFixturesHtml, bracketHtml, stageOrder } from './parts.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
@@ -247,7 +247,7 @@ async function signupBox(b) {
   const list = entered.length ? `<ul class="signup-list">${entered.map((t) => {
     const boss = managerOf(t);
     return `<li><span class="team">${teamDot(t)}<a href="${urls.team(t.id)}" data-link>${esc(t.name)}</a></span>
-      ${boss ? `<span class="muted small">${managerTag()} ${esc(boss.displayName)}</span>` : ''}
+      ${boss ? `<span class="muted small">${managerTag()} ${esc(boss.displayName)}${staffTag(boss)}</span>` : ''}
       ${adminUid ? `<button class="link-btn small" type="button" data-act="admin-remove" data-id="${esc(t.id)}">Remove</button>` : ''}</li>`;
   }).join('')}</ul>` : '';
 

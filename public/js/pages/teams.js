@@ -5,7 +5,7 @@ import { loadAllBundles, loadPeople, isApprovedTeam, loadMe } from '../data.js';
 import { currentUser } from '../auth.js';
 import { requestToJoin, withdrawJoinRequest } from '../player-data.js';
 import { refresh } from '../nav.js';
-import { esc, skeleton, notice, pageTitle, urls, avatarImg, teamDot, fmtNum, managerTag, framedImg, frameStyle, isLft, lftTag } from '../ui.js';
+import { esc, skeleton, notice, pageTitle, urls, avatarImg, teamDot, fmtNum, managerTag, framedImg, frameStyle, isLft, lftTag, staffTag } from '../ui.js';
 import { mediaUrl } from '../media.js';
 import { seasonMatches } from '../rules/season.js';
 import { teamCareer, teamXp, playerXp, levelFor } from '../rules/badges.js';
@@ -89,7 +89,7 @@ function teamCards(teams, people, records) {
         <div class="tc-squad">
           <div class="tc-squad-head"><b>Squad</b><span class="muted small">${squad.length}/${SQUAD_MAX}</span></div>
           ${squad.length ? `<ul>${squad.map((p) => `
-            <li><a href="${urls.player(p.id)}" data-link>${avatarImg(p, 'avatar')}<span class="tc-pname">${esc(p.displayName)}</span></a>
+            <li><a href="${urls.player(p.id)}" data-link>${avatarImg(p, 'avatar')}<span class="tc-pname">${esc(p.displayName)}</span>${staffTag(p)}</a>
               ${p.id === t.managerPlayerId ? managerTag('MGR') : ''}${p.number != null ? `<span class="tc-num num">#${esc(p.number)}</span>` : ''}</li>`).join('')}</ul>`
             : '<p class="muted small" style="margin:0">No players yet.</p>'}
         </div>
@@ -109,7 +109,7 @@ function playerList(players, people, careers, emptyText) {
       <li><a href="${urls.player(p.id)}" data-link>
         ${avatarImg(p, 'avatar')}
         <span class="pl-main">
-          <b>${esc(p.displayName)}${p.number != null ? ` <span class="muted num">#${esc(p.number)}</span>` : ''}</b>
+          <b>${esc(p.displayName)}${staffTag(p)}${p.number != null ? ` <span class="muted num">#${esc(p.number)}</span>` : ''}</b>
           <small>${team ? `<span class="team">${teamDot(team)}${esc(team.name)}</span>${team.managerPlayerId === p.id ? ` ${managerTag()}` : ''}` : `<span class="fa-tag">Free agent</span>${isLft(p) ? ` ${lftTag()}` : ''}`}${p.tagline ? ` · ${esc(p.tagline)}` : ''}</small>
         </span>
         <span class="pl-side"><b class="num">lv ${lvl}</b><small>${fmtNum(c?.matches ?? 0)} match${c?.matches === 1 ? '' : 'es'}</small></span>

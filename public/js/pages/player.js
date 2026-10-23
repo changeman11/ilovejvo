@@ -2,7 +2,7 @@
 // upcoming fixtures, career totals, stats per event and every match.
 
 import { loadAllBundles, loadPeople, NotFoundError, isApprovedTeam } from '../data.js';
-import { esc, fmtNum, skeleton, avatarImg, teamLink, urls, managerTag, isLft, lftTag } from '../ui.js';
+import { esc, fmtNum, skeleton, avatarImg, teamLink, urls, managerTag, isLft, lftTag, staffTag } from '../ui.js';
 import { playerBadges, playerXp, levelFor } from '../rules/badges.js';
 import { statHeads, statCells, allFixtures, resultOf, fixtureRow } from './parts.js';
 import { careerStats, statDefsFor } from './career.js';
@@ -104,7 +104,7 @@ export async function render({ playerId }) {
     title: player.displayName,
     html: profileShell({
       doc: player, fallbackTheme: team?.theme ?? team?.colors?.primary, mark: avatarImg(player, 'avatar pro-mark'),
-      name: player.displayName, sub, lvl: career ? lvl : null, main, side,
+      name: player.displayName, nameTag: staffTag(player, { label: true }), sub, lvl: career ? lvl : null, main, side,
     }),
   };
 }

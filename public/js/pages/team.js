@@ -7,7 +7,7 @@ import { requestToJoin, withdrawJoinRequest } from '../player-data.js';
 import { refresh } from '../nav.js';
 
 let joinCtx = null; // { user, me, team, req } when the visitor can ask to join
-import { esc, skeleton, avatarImg, urls, managerTag, framedImg } from '../ui.js';
+import { esc, skeleton, avatarImg, urls, managerTag, framedImg, staffTag } from '../ui.js';
 import { mediaUrl } from '../media.js';
 import { seasonMatches } from '../rules/season.js';
 import { seasonTeamStats } from '../rules/stats.js';
@@ -75,7 +75,7 @@ export async function render({ teamId }) {
     ? framedImg({ src: logoUrl, cls: 'pro-mark team-logo', frame: team.logoFrame, lazy: false })
     : `<span class="pro-mark team-logo mono" style="background:${esc(team.colors?.primary ?? '#ffffff')}">${esc((team.shortName ?? team.name).slice(0, 4))}</span>`;
   const boss = team.managerPlayerId ? people.playersById[team.managerPlayerId] : null;
-  const sub = `${esc(team.shortName ?? '')}${squad.length ? ` · ${squad.length} player${squad.length === 1 ? '' : 's'}` : ''}${boss ? ` · ${managerTag()} <a href="${urls.player(boss.id)}" data-link>${esc(boss.displayName)}</a>` : ''}`;
+  const sub = `${esc(team.shortName ?? '')}${squad.length ? ` · ${squad.length} player${squad.length === 1 ? '' : 's'}` : ''}${boss ? ` · ${managerTag()} <a href="${urls.player(boss.id)}" data-link>${esc(boss.displayName)}${staffTag(boss)}</a>` : ''}`;
 
   const main = `
     ${disbanded ? `<section class="panel"><p style="margin:0"><b>🏳️ This club has disbanded.</b> Its results and stats are kept here.</p></section>` : ''}
@@ -104,7 +104,7 @@ export async function render({ teamId }) {
       </dl>
       ${rec.form.length ? `<p class="small" style="margin-top:10px">Form ${rec.form.map((r) => `<span class="res ${r}">${r}</span>`).join(' ')}</p>` : ''}`)}
     ${sideBlock('Squad', squad.length ? `<ul class="squad">${squad.map((p) => `
-      <li><a href="${urls.player(p.id)}" data-link>${avatarImg(p, 'avatar sm')}<span>${esc(p.displayName)}</span></a>
+      <li><a href="${urls.player(p.id)}" data-link>${avatarImg(p, 'avatar sm')}<span>${esc(p.displayName)}</span>${staffTag(p)}</a>
         ${p.id === team.managerPlayerId ? managerTag() : ''}${p.number != null ? `<span class="muted small">#${esc(p.number)}</span>` : ''}</li>`).join('')}</ul>`
       : '<p class="muted small">No players signed yet.</p>')}`;
 

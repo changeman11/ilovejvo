@@ -11,7 +11,7 @@ import {
   requestLeave, cancelLeave, withdrawJoinRequest, answerJoinRequest, requestToJoin,
 } from '../player-data.js';
 import { refresh, navigate } from '../nav.js';
-import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag, frameStyle, isLft, lftTag } from '../ui.js';
+import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag, frameStyle, isLft, lftTag, staffTag } from '../ui.js';
 import { prepareImage, FriendlyError, mediaUrl } from '../media.js';
 import { DEFAULT_STATS, SQUAD_MAX, squadSize } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
@@ -91,7 +91,7 @@ function findClubBlock(me) {
             ? `<span class="small">✓ Asked</span><button class="btn btn-sm" data-act="withdraw-request" data-id="${esc(req.id)}">Withdraw</button>`
             : `<button class="btn btn-sm btn-primary" data-act="request-join" data-id="${esc(t.id)}">Request to join</button>`;
         return `<div class="row">
-          <span class="row-main"><b>${teamLink(t)}</b><span class="muted small">${size}/${SQUAD_MAX} players${boss ? ` · ${managerTag()} ${esc(boss.displayName)}` : ''}</span></span>
+          <span class="row-main"><b>${teamLink(t)}</b><span class="muted small">${size}/${SQUAD_MAX} players${boss ? ` · ${managerTag()} ${esc(boss.displayName)}${staffTag(boss)}` : ''}</span></span>
           <span class="row-side">${button}</span>
         </div>`;
       }).join('') || '<p class="muted" style="padding:16px">No clubs yet. Start one!</p>'}</div>

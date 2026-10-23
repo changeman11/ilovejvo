@@ -17,7 +17,7 @@ import { DEFAULT_STATS, SQUAD_MAX, squadSize } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
 import { makeProfileCard } from './discord-cta.js';
 import { refresh, navigate } from '../nav.js';
-import { esc, skeleton, notice, teamDot, teamLink, avatarImg, urls } from '../ui.js';
+import { esc, skeleton, notice, teamDot, teamLink, avatarImg, urls, staffTag } from '../ui.js';
 
 export const title = 'Me';
 
@@ -47,7 +47,7 @@ function profileHead(me, discord) {
     <section class="panel profile">
       ${avatar}
       <div style="flex:1;min-width:0">
-        <h1>${esc(p.displayName)}</h1>
+        <h1>${esc(p.displayName)}${staffTag(p, { label: true })}</h1>
         <p class="muted">${team}${p.number != null ? ` · #${esc(p.number)}` : ''}</p>
         <p class="small" style="margin-top:6px"><a href="${urls.player(p.id)}" data-link>View public profile</a> · <button class="link-btn" data-act="sign-out">Sign out</button></p>
       </div>

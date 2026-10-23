@@ -9,7 +9,7 @@ import {
 import { db, adminDatabase } from './firebase.js';
 import { loadPeople } from './data.js';
 import { checkText, censor } from './rules/profanity.js';
-import { esc, avatarImg, fmtDay, fmtTime, urls } from './ui.js';
+import { esc, avatarImg, fmtDay, fmtTime, urls, staffTag } from './ui.js';
 
 const FILTER_KEY = 'jvo.chatFilter';
 export const filterOn = () => { try { return localStorage.getItem(FILTER_KEY) !== 'off'; } catch { return true; } };
@@ -76,7 +76,7 @@ export function mountChatbox(root, opts) {
         <div class="chat-msg${mine ? ' mine' : ''}">
           ${mine ? '' : `<a href="${urls.player(m.authorPlayerId)}" data-link>${avatarImg(p ?? { displayName: '?' }, 'avatar')}</a>`}
           <div class="chat-bubble">
-            <div class="chat-meta">${mine ? '' : `<a href="${urls.player(m.authorPlayerId)}" data-link><b>${esc(p?.displayName ?? 'Player')}</b></a>`}<span>${esc(timeOf(m.createdAt))}</span>
+            <div class="chat-meta">${mine ? '' : `<a href="${urls.player(m.authorPlayerId)}" data-link><b>${esc(p?.displayName ?? 'Player')}</b></a>${staffTag(p, { label: true })}`}<span>${esc(timeOf(m.createdAt))}</span>
               ${rude && opts.adminUid ? '<span class="chat-flag" title="Contains swearing">⚑</span>' : ''}
               ${canDelete ? `<button class="link-btn" type="button" data-del-chat="${esc(m.id)}" aria-label="Delete message" title="Delete">×</button>` : ''}</div>
             <p>${esc(body).replace(/\n/g, '<br>')}</p>
