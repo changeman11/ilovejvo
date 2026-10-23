@@ -11,7 +11,7 @@ import {
   requestLeave, cancelLeave, withdrawJoinRequest, answerJoinRequest, requestToJoin,
 } from '../player-data.js';
 import { refresh, navigate } from '../nav.js';
-import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag } from '../ui.js';
+import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag, frameStyle } from '../ui.js';
 import { prepareImage, FriendlyError, mediaUrl } from '../media.js';
 import { DEFAULT_STATS } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
@@ -136,7 +136,7 @@ function clubHeader(team, squad, isManager) {
   const banner = mediaUrl(team.bannerPath);
   return `
     <section class="panel club-head" style="--theme:${esc(team.theme ?? team.colors?.primary ?? '#1438d8')}">
-      <div class="club-banner">${banner ? `<img src="${esc(banner)}" alt="">` : ''}</div>
+      <div class="club-banner">${banner ? `<img src="${esc(banner)}" alt="" style="${frameStyle(team.bannerFrame)}">` : ''}</div>
       <div class="club-id">
         ${teamDot(team, 'xl')}
         <div><h1>${esc(team.name)}</h1><p class="muted small">${esc(team.shortName ?? '')} · ${squad.length} player${squad.length === 1 ? '' : 's'}${isManager ? ' · you’re the manager' : ''}</p></div>

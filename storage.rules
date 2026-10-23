@@ -17,9 +17,12 @@ service firebase.storage {
           && (request.auth.token.firebase.sign_in_provider == 'password'
               || firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.get('discord', false) == true);
     }
-    // Size limits: pictures 2 MB, banners and match screenshots 4 MB, backgrounds 6 MB.
+    // Size limits: still pictures 2 MB (banners and match screenshots 4 MB, backgrounds 6 MB);
+    // they're shrunk before upload so they're normally far smaller. Animated GIFs up to 15 MB
+    // (match screenshots 4 MB). Same numbers as MEDIA in public/js/media.js.
     function maxBytes(kind) {
-      return (kind == 'background' ? 6 : (kind in ['banner', 'shot'] ? 4 : 2)) * 1024 * 1024;
+      return (request.resource.contentType == 'image/gif' && kind != 'shot' ? 15
+              : (kind == 'background' ? 6 : (kind in ['banner', 'shot'] ? 4 : 2))) * 1024 * 1024;
     }
     function validImage(kind) {
       return request.resource.size <= maxBytes(kind)

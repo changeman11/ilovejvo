@@ -2,7 +2,7 @@
 // page background, banner, logo/picture, level, tagline, socials, showcase stats and badges.
 // Everything a team or player can customise is optional; sensible defaults fill the gaps.
 
-import { esc, safeUrl, paragraphs, fmtNum, pct } from '../ui.js';
+import { esc, safeUrl, paragraphs, fmtNum, pct, frameStyle } from '../ui.js';
 import { mediaUrl } from '../media.js';
 
 export const SOCIALS = [
@@ -88,9 +88,9 @@ export function profileShell({ doc, fallbackTheme, mark, name, sub, lvl, main, s
   const progress = lvl ? Math.round(((lvl.xp - lvl.from) / (lvl.next - lvl.from)) * 100) : 0;
   return `
     <div class="pro" style="--theme:${theme}">
-      ${background ? `<img class="pro-bg" src="${esc(background)}" alt="" decoding="async">` : ''}
+      ${background ? `<div class="pro-bg-wrap"><img class="pro-bg" src="${esc(background)}" alt="" decoding="async" style="${frameStyle(doc.backgroundFrame)}"></div>` : ''}
       <section class="panel pro-head">
-        <div class="pro-banner">${banner ? `<img src="${esc(banner)}" alt="" decoding="async">` : ''}</div>
+        <div class="pro-banner">${banner ? `<img src="${esc(banner)}" alt="" decoding="async" style="${frameStyle(doc.bannerFrame)}">` : ''}</div>
         <div class="pro-id">
           ${mark}
           <div class="pro-name">

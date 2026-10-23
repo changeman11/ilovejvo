@@ -74,9 +74,18 @@ service cloud.firestore {
       return !(field in d) || d[field] == null
           || (d[field] is string && d[field].matches(folder + '[A-Za-z0-9_-]+[.](png|jpg|webp|gif)'));
     }
+    // Picture framing from the profile editor: { x, y } = point to centre on (0-100 %), zoom 1-4.
+    function optFrame(field) {
+      let d = request.resource.data;
+      return !(field in d) || d[field] == null
+          || (d[field] is map && d[field].keys().hasOnly(['x', 'y', 'zoom']) && d[field].keys().hasAll(['x', 'y', 'zoom'])
+              && d[field].x is number && d[field].x >= 0 && d[field].x <= 100
+              && d[field].y is number && d[field].y >= 0 && d[field].y <= 100
+              && d[field].zoom is number && d[field].zoom >= 1 && d[field].zoom <= 4);
+    }
     function validCustomise(base) {
       let d = request.resource.data;
-      return optText('tagline', 80) && validBio()
+      return optText('tagline', 80) && validBio() && optFrame('bannerFrame') && optFrame('backgroundFrame')
           && (!('theme' in d) || d.theme == null || (d.theme is string && d.theme.matches('#[0-9a-fA-F]{6}')))
           && (!('showcase' in d) || d.showcase == null || (d.showcase is list && d.showcase.size() <= 4))
           && (!('socials' in d) || d.socials == null
@@ -87,10 +96,10 @@ service cloud.firestore {
           && optMedia('bannerPath', base + '/banner/') && optMedia('backgroundPath', base + '/background/');
     }
     function validTeamProfile(teamId) {
-      return validCustomise('teams/' + teamId) && optMedia('logoPath', 'teams/' + teamId + '/logo/');
+      return validCustomise('teams/' + teamId) && optMedia('logoPath', 'teams/' + teamId + '/logo/') && optFrame('logoFrame');
     }
     function validPlayerProfile(playerId) {
-      return validCustomise('players/' + playerId) && optMedia('avatarPath', 'players/' + playerId + '/avatar/');
+      return validCustomise('players/' + playerId) && optMedia('avatarPath', 'players/' + playerId + '/avatar/') && optFrame('avatarFrame');
     }
     function validEvent() {
       let d = request.resource.data;
@@ -218,6 +227,7 @@ service cloud.firestore {
             && validName('displayName') && validPlayerProfile(playerId)
             && changedOnly(['displayName', 'number', 'bio', 'avatarUrl', 'discordName',
                             'tagline', 'theme', 'showcase', 'socials', 'avatarPath', 'bannerPath', 'backgroundPath',
+                            'avatarFrame', 'bannerFrame', 'backgroundFrame',
                             'updatedBy', 'updatedAt']))
         // Owner joins a team, only by accepting a pending offer in the same save.
         || (signedIn() && resource.data.get('uid', null) == uid() && stampedByMe()
@@ -268,6 +278,7 @@ service cloud.firestore {
         || (managesTeam(teamId) && stampedByMe() && validName('name') && validTeamProfile(teamId)
             && changedOnly(['name', 'shortName', 'colors',
                             'tagline', 'bio', 'theme', 'showcase', 'socials', 'logoPath', 'bannerPath', 'backgroundPath',
+                            'logoFrame', 'bannerFrame', 'backgroundFrame',
                             'updatedBy', 'updatedAt']))
         // The manager hands the club over to another player in the squad (who has a Discord sign-in).
         || (managesTeam(teamId) && stampedByMe()
@@ -279,6 +290,7 @@ service cloud.firestore {
         || (signedIn() && resource.data.status == 'pending' && resource.data.managerUid == uid()
             && stampedByMe() && validTeamProfile(teamId)
             && changedOnly(['tagline', 'bio', 'theme', 'showcase', 'socials', 'logoPath', 'bannerPath', 'backgroundPath',
+                            'logoFrame', 'bannerFrame', 'backgroundFrame',
                             'updatedBy', 'updatedAt']));
 
       allow delete: if isAdmin();

@@ -5,7 +5,7 @@ import { loadAllBundles, loadPeople, isApprovedTeam, loadMe } from '../data.js';
 import { currentUser } from '../auth.js';
 import { requestToJoin, withdrawJoinRequest } from '../player-data.js';
 import { refresh } from '../nav.js';
-import { esc, skeleton, notice, pageTitle, urls, avatarImg, teamDot, fmtNum, managerTag } from '../ui.js';
+import { esc, skeleton, notice, pageTitle, urls, avatarImg, teamDot, fmtNum, managerTag, framedImg, frameStyle } from '../ui.js';
 import { mediaUrl } from '../media.js';
 import { seasonMatches } from '../rules/season.js';
 import { teamCareer, teamXp, playerXp, levelFor } from '../rules/badges.js';
@@ -63,9 +63,9 @@ function teamCards(teams, people, records) {
     return `
       <div class="team-card-wrap">
       <a class="panel team-card" href="${urls.team(t.id)}" data-link style="--theme:${esc(t.theme ?? t.colors?.primary ?? '#1438d8')}">
-        <div class="tc-banner">${banner ? `<img src="${esc(banner)}" alt="" loading="lazy" decoding="async">` : ''}</div>
+        <div class="tc-banner">${banner ? `<img src="${esc(banner)}" alt="" loading="lazy" decoding="async" style="${frameStyle(t.bannerFrame)}">` : ''}</div>
         <div class="tc-body">
-          ${logo ? `<img class="tc-logo" src="${esc(logo)}" alt="" loading="lazy" decoding="async">`
+          ${logo ? framedImg({ src: logo, cls: 'tc-logo', frame: t.logoFrame })
             : `<span class="tc-logo mono" style="background:${esc(t.colors?.primary ?? '#ffffff')}">${esc((t.shortName ?? t.name).slice(0, 4))}</span>`}
           <div class="tc-text">
             <h3>${esc(t.name)}</h3>

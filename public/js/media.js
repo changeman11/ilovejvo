@@ -14,14 +14,15 @@ const MB = 1024 * 1024;
 // An error whose message is safe and useful to show to the person.
 export class FriendlyError extends Error {}
 
-// What each kind of image is for, its size limit (the Worker checks the same) and how big
-// still pictures are resized to. GIFs are uploaded as they are, so they keep moving.
+// What each kind of image is for, its size limits and how big still pictures are resized to.
+// GIFs are uploaded as they are, so they keep moving: they can be up to gifMb (storage.rules checks
+// the same). Still pictures are shrunk and saved as WebP, so they end up well under maxMb.
 export const MEDIA = {
-  logo: { label: 'Logo', maxMb: 2, maxSide: 512, hint: 'Square works best.' },
-  avatar: { label: 'Profile picture', maxMb: 2, maxSide: 512, hint: 'Square works best. Leave empty to use your Discord picture.' },
-  banner: { label: 'Banner', maxMb: 4, maxSide: 1600, hint: 'Wide, about 4 : 1 (e.g. 1600 × 400).' },
-  background: { label: 'Page background', maxMb: 6, maxSide: 1920, hint: 'Fills the page behind your profile.' },
-  shot: { label: 'Screenshot', maxMb: 4, maxSide: 1920, hint: 'The end-of-match stats screen.' },
+  logo: { label: 'Logo', maxMb: 2, gifMb: 15, maxSide: 512, hint: 'Square works best.' },
+  avatar: { label: 'Profile picture', maxMb: 2, gifMb: 15, maxSide: 512, hint: 'Square works best. Leave empty to use your Discord picture.' },
+  banner: { label: 'Banner', maxMb: 4, gifMb: 15, maxSide: 1600, hint: 'Wide, about 4 : 1 (e.g. 1600 × 400).' },
+  background: { label: 'Page background', maxMb: 6, gifMb: 15, maxSide: 1920, hint: 'Fills the page behind your profile.' },
+  shot: { label: 'Screenshot', maxMb: 4, gifMb: 4, maxSide: 1920, hint: 'The end-of-match stats screen.' },
 };
 
 const storageHost = useEmulators ? `http://${location.hostname}:${emulatorPorts.storage}` : 'https://firebasestorage.googleapis.com';
@@ -66,7 +67,7 @@ export async function prepareImage(file, kind) {
   const spec = MEDIA[kind];
   if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) throw new FriendlyError(`${spec.label}: use a PNG, JPG, WebP or GIF image.`);
   if (file.type === 'image/gif') {
-    if (file.size > spec.maxMb * MB) throw new FriendlyError(`${spec.label}: GIFs can be up to ${spec.maxMb} MB. Try a shorter or smaller GIF.`);
+    if (file.size > spec.gifMb * MB) throw new FriendlyError(`${spec.label}: GIFs can be up to ${spec.gifMb} MB. Try a shorter or smaller GIF.`);
     return { blob: file, ext: 'gif', type: 'image/gif' };
   }
   let bitmap;
