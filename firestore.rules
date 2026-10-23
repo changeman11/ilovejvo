@@ -559,6 +559,32 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---------- Pickup games: the Discord bot in bot/ (BOT-SETUP.md). ----------
+    // Public to read (the site can show Elo later). Only the bot writes, signed in with its own
+    // email/password account whose uid has a /pickupBots doc (added in the Firebase console).
+    // So the bot's password can't touch anything else.
+    function isPickupBot() {
+      return signedIn()
+          && request.auth.token.firebase.sign_in_provider == 'password'
+          && exists(/databases/$(database)/documents/pickupBots/$(request.auth.uid));
+    }
+    match /pickupRatings/{discordId} {
+      allow read: if true;
+      allow create, update: if isPickupBot() && request.resource.data.discordId == discordId
+                            && request.resource.data.rating is number;
+    }
+    match /pickupGames/{gameId} {
+      allow read: if true;
+      allow create, update: if isPickupBot() && request.resource.data.id == gameId;
+    }
+    match /pickupMeta/{docId} {
+      allow read: if true;
+      allow create, update: if isPickupBot();
+    }
+    match /pickupBots/{botUid} {
+      allow read, write: if false;
+    }
+
     // Everything else is closed.
   }
 }

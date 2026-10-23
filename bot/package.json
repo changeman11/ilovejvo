@@ -1,0 +1,19 @@
+{
+  "name": "jvo-pickup-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "I<3JVO pickup bot: ready up in voice, random 2v2-6v6 modes, captains draft, team voice channels, Elo",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "test": "node --test \"tests/*.test.mjs\"",
+    "upload": "powershell -NoProfile -ExecutionPolicy Bypass -File deploy/upload.ps1"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "dependencies": {
+    "discord.js": "14.27.0"
+  }
+}

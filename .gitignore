@@ -13,3 +13,9 @@ worker/.wrangler/
 
 # Local test copies (not deployed)
 public/dev/
+
+# Pickup bot (bot/): local ratings file and the upload script's saved server address
+bot/data/
+bot/deploy/upload.local.json
+# ...but the example settings file (no secrets in it) is part of the repo
+!bot/.env.example

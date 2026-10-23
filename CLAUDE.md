@@ -84,6 +84,21 @@
     - Swearing is allowed but starred out while the reader's filter is on (default on, toggle in the panel, saved on the device).
     - Admins see ⚑ on rude messages, can delete any message, and get a bell to-do when global chat had swearing in the last day.
 - **Audit log:** written by the browser in the same batch as each admin change; rules force `by == uid` and make it append-only.
+- **Pickup bot (added 2026-10-23):** a Discord bot in `bot/` (its own `package.json`, discord.js 14.27.0). Setup: `BOT-SETUP.md`.
+  - **Flow:**
+    - Players ready up by joining a voice channel. At 4+ ready, a 30 s countdown runs, then the bot picks a random mode (2v2 to 6v6) from those that fit. The longest-waiting players get in; 12 ready starts at once.
+    - Two random captains; a coin flip decides the first pick, then alternating picks (A B A B) with buttons, 60 s each or the pick is random.
+    - The bot makes two temporary team voice channels and moves the players.
+    - Both captains press the winner; if they disagree, admins decide (`/pickup result` can also correct a result later).
+  - **Elo:** start 1000, K = 32, team rating = average, the same change for the whole team.
+  - **Code:**
+    - Pure logic, tested: `bot/src/logic/`.
+    - Game manager: `bot/src/pickup.js`. It has no discord.js and is tested with a fake Discord in `bot/tests/pickup.test.mjs`.
+    - Root `npm test` runs `bot/tests` too.
+  - **Storage:** `STORE=file` (JSON on the PC) or `STORE=firebase`. Firebase writes go over the REST API, signed in as the bot's own email/password account whose uid has a `/pickupBots` doc.
+  - **Firestore collections:** `pickupRatings/{discordId}`, `pickupGames/g{n}`, `pickupMeta/bot`. Public read; only the bot writes (`isPickupBot()` in firestore.rules). The site may show Elo later (keyed by Discord ID, like `d<discordId>` players).
+  - **Hosting:** Oracle Cloud Always Free VM (Sydney, VM.Standard.E2.1.Micro, systemd service `jvo-bot`; `bot/deploy/`). Not Google's free VM: its IPv4 address costs about US$3.65 a month, and Discord has no IPv6.
+  - **Secrets:** the token and password live only in `bot/.env` (git-ignored) on the PC and the server.
 - **Look:** light "beach day" theme in the style of the game *just volleyball* (temkosoft): ball-blue `#1438d8` header, sky background, deep navy `#18204a` outlines (not black), accents sky / teal / coral / purple, yellow `#ffe200` for small highlights only (big yellow + black areas looked like an adult site, per users, 2026-10-21). Teal wins, pink losses, outlined "sticker" panels, Fredoka headings, Graduate (jersey-style) numbers. The official logo is used with the developer's OK (`public/images/game/`, credited and linked to Steam). Avoid generic "AI dashboard" styling.
 - The match engine (`public/js/rules/`) is unchanged: Bo3 sets to 10 win by 2, a fixture can be Bo5; forfeit = 2–0, 10–0. The engine's "season" is built from an event by `engineSeason()` in `data.js`.
 
