@@ -170,9 +170,14 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
           <div class="section-head"><h2>Next matches</h2><a href="/fixtures?team=${encodeURIComponent(team.id)}" data-link>All</a></div>
           <div class="panel flush fixtures">${upcoming.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('') || '<p class="muted" style="padding:16px">Nothing scheduled.</p>'}</div>
         </section>
-        ${isManager ? '' : `
+        ${isManager && squad.length > 1 ? `
         <section>
           <div class="section-head"><h2>Leaving the club</h2></div>
+          <div class="panel"><p class="small" style="margin:0">To leave, first hand the club to another player: <a href="/club?tab=manager#mgr-squad" data-link>Manager → Squad → Make manager</a>.</p></div>
+        </section>` : `
+        <section>
+          <div class="section-head"><h2>Leaving the club</h2></div>
+          ${isManager && !pendingLeave ? '<p class="small" style="margin:0 0 8px"><b>You’re the only player left.</b> If you leave, the club disbands (its results are kept).</p>' : ''}
           ${pendingLeave
             ? `<div class="panel"><p><b>You’ve asked to leave.</b> An admin will decide soon.</p>
                 <button class="btn btn-sm" data-act="cancel-leave" data-id="${esc(pendingLeave.id)}" style="margin-top:10px">Cancel request</button></div>`
@@ -450,7 +455,7 @@ export function mount(el) {
       if (form.dataset.form === 'register') {
         const name = val('name');
         if (!name) return showError('Give your club a name.', form);
-        if (me.teams.some((t) => t.name.toLowerCase() === name.toLowerCase())) return showError('That name is taken.', form);
+        if (me.teams.some((t) => t.status !== 'disbanded' && t.name.toLowerCase() === name.toLowerCase())) return showError('That name is taken.', form);
         for (const input of form.querySelectorAll('input[type=file][name^="file-"]')) {
           if (input.files?.[0]) await prepareImage(input.files[0], input.name.slice(5));
         }

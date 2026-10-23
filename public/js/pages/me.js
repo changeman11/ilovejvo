@@ -361,7 +361,7 @@ export function mount(el) {
       if (form.dataset.form === 'team') {
         const name = val('name');
         if (!name) return showError(form, 'Give your team a name.');
-        if (me.teams.some((t) => t.name.toLowerCase() === name.toLowerCase())) return showError(form, 'That team name is taken.');
+        if (me.teams.some((t) => t.status !== 'disbanded' && t.name.toLowerCase() === name.toLowerCase())) return showError(form, 'That team name is taken.');
         // Check chosen pictures first, so a bad file is caught before the team is registered.
         for (const input of form.querySelectorAll('input[type=file][name^="file-"]')) {
           if (input.files?.[0]) await prepareImage(input.files[0], input.name.slice(5));

@@ -26,14 +26,16 @@ export function loading() {
 export async function render({ teamId }) {
   const [bundles, people] = await Promise.all([loadAllBundles(), loadPeople()]);
   const team = people.teamsById[teamId];
-  if (!isApprovedTeam(team)) throw new NotFoundError('That team doesn’t exist');
+  const disbanded = team?.status === 'disbanded';
+  // Disbanded clubs keep their page (old results link here), with a note.
+  if (!isApprovedTeam(team) && !disbanded) throw new NotFoundError('That team doesn’t exist');
 
   // Signed-in free agents can ask to join (the manager accepts in their Club hub).
   joinCtx = null;
   let joinBlock = '';
   const user = await currentUser().catch(() => null);
   const me = user ? people.players.find((p) => p.uid === user.uid) : null;
-  if (me && !me.teamId) {
+  if (me && !me.teamId && !disbanded) {
     const req = await loadJoinRequest(teamId, me.id);
     joinCtx = { user, me, team, req };
     joinBlock = req?.status === 'pending'
@@ -72,6 +74,7 @@ export async function render({ teamId }) {
   const sub = `${esc(team.shortName ?? '')}${squad.length ? ` · ${squad.length} player${squad.length === 1 ? '' : 's'}` : ''}${boss ? ` · ${managerTag()} <a href="${urls.player(boss.id)}" data-link>${esc(boss.displayName)}</a>` : ''}`;
 
   const main = `
+    ${disbanded ? `<section class="panel"><p style="margin:0"><b>🏳️ This club has disbanded.</b> Its results and stats are kept here.</p></section>` : ''}
     ${joinBlock ? `<section class="panel">${joinBlock}<p class="form-error" role="alert" hidden></p></section>` : ''}
     ${showcaseTiles('team', team.showcase, defs, { ...rec, totals, level: lvl.level })}
     ${aboutBlock(team.bio)}

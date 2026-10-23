@@ -1,7 +1,7 @@
 // Admin writes. Every change is saved together with an audit log entry (see writes.js).
 
 import { commit as save, ts, newId, serverTimestamp } from './writes.js';
-import { invalidate } from './data.js';
+import { invalidate, loadPeople, loadAllBundles } from './data.js';
 import { deleteImage } from './media.js';
 import { transferOp } from './transfers.js';
 
@@ -78,7 +78,10 @@ export async function savePlayer({ id, uid, player, existing }) {
   // An admin moving a player between clubs shows in the transfer news too.
   const from = existing?.teamId ?? null;
   const to = player.teamId ?? null;
-  if (from !== to) ops.push(transferOp({ playerId: id, from, to, kind: to ? 'joined' : 'left' }));
+  if (from !== to) {
+    ops.push(transferOp({ playerId: id, from, to, kind: to ? 'joined' : 'left' }));
+    if (from) ops.push(...await disbandIfEmpty({ teamId: from, leavingPlayerId: id }));
+  }
   await commit(uid, ops);
   invalidate();
 }
@@ -234,6 +237,28 @@ export async function saveResult({ eventId, fixture, uid, result, existing, swap
   invalidate(`event:${eventId}`);
 }
 
+// ---------- Disbanding: a club with no players left ----------
+// When a club's last player leaves, the club is marked 'disbanded' (not deleted: past results still
+// show its name and logo), its manager is cleared, it's taken out of upcoming events it signed up to,
+// and the transfer news says so. Returns the save steps to add to the same commit ([] if players remain).
+export async function disbandIfEmpty({ teamId, leavingPlayerId }) {
+  const people = await loadPeople({ fresh: true, admin: true });
+  const team = people.teamsById[teamId];
+  if (!team || team.status === 'disbanded') return [];
+  if (people.players.some((p) => p.teamId === teamId && p.id !== leavingPlayerId)) return [];
+  const ops = [
+    { type: 'update', path: `teams/${teamId}`, before: team, data: { status: 'disbanded', managerUid: null, managerPlayerId: null, disbandedAt: serverTimestamp() } },
+    transferOp({ playerId: leavingPlayerId, from: teamId, to: null, kind: 'disbanded' }),
+  ];
+  const bundles = await loadAllBundles({ includeDrafts: true, fresh: true }).catch(() => []);
+  for (const b of bundles) {
+    if (b.event.status !== 'upcoming' || b.event.fixturesLockedAt) continue;
+    const entry = b.entries.find((e) => e.teamId === teamId);
+    if (entry) ops.push({ type: 'delete', path: `events/${b.event.id}/entries/${entry.id}`, before: entry });
+  }
+  return ops;
+}
+
 // ---------- Requests from players (team registrations, leave requests, profile claims) ----------
 
 export async function decideTeam({ uid, team, approve }) {
@@ -252,8 +277,11 @@ export async function decideLeave({ uid, request, approve, team }) {
   if (approve) {
     ops.push({ type: 'update', path: `players/${request.playerId}`, data: { teamId: null } });
     ops.push(transferOp({ playerId: request.playerId, from: request.teamId, to: null, kind: 'left' }));
-    // A manager who leaves stops being the manager; an admin picks the next one.
-    if (team?.managerPlayerId === request.playerId) {
+    // Last one out: the club disbands. Otherwise a manager who leaves stops being the manager
+    // (an admin picks the next one).
+    const disband = await disbandIfEmpty({ teamId: request.teamId, leavingPlayerId: request.playerId });
+    if (disband.length) ops.push(...disband);
+    else if (team?.managerPlayerId === request.playerId) {
       ops.push({ type: 'update', path: `teams/${team.id}`, before: team, data: { managerUid: null, managerPlayerId: null } });
     }
   }

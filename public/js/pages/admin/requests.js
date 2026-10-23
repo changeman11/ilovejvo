@@ -62,7 +62,8 @@ export async function render() {
   const leaves = r.leaves.map((l) => `
     <div class="row">
       <span class="row-main"><b>${playerLink(r.playersById[l.playerId], l.playerId)} → leave ${esc(r.teamsById[l.teamId]?.name ?? l.teamId)}</b>
-        <span class="muted small">${esc(when(l.createdAt))}${l.reason ? ` · “${esc(l.reason)}”` : ''}</span></span>
+        <span class="muted small">${esc(when(l.createdAt))}${l.reason ? ` · “${esc(l.reason)}”` : ''}</span>
+        ${r.players.some((p) => p.teamId === l.teamId && p.id !== l.playerId) ? '' : '<span class="small"><b>🏳️ Last player: approving disbands the club.</b></span>'}</span>
       <span class="row-side">
         <button class="btn btn-sm btn-primary" data-act="leave-yes" data-id="${esc(l.id)}">Approve</button>
         <button class="btn btn-sm btn-danger" data-act="leave-no" data-id="${esc(l.id)}">Decline</button>

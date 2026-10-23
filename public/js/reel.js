@@ -41,6 +41,7 @@ function transferItem(t, people) {
     joined: from ? `🔁 ${who} ${club(from)} <b>→</b> ${club(to)}` : `✍️ ${who} <span>joined</span> ${club(to)}`,
     left: `👋 ${who} <span>left</span> ${club(from)}`,
     released: `✂️ ${club(from)} <span>released</span> ${who}`,
+    disbanded: `🏳️ ${club(from)} <span>disbanded</span>`,
   }[t.kind] ?? `${who}`;
   const href = to ? urls.team(to.id) : p ? urls.player(p.id) : '/teams';
   return `<a class="reel-item" href="${href}" data-link>${text}${t.at ? `<small class="reel-when">${esc(fmtDay(t.at))}</small>` : ''}</a>`;
