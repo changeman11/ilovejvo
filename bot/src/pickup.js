@@ -209,7 +209,7 @@ export class Pickup {
     return this.run(async () => {
       if (name === 'queue') return { ...views.queueView(this.snapshot(), this.config), ephemeral: true };
       if (name === 'elo') return this.showRating(options.player ?? { id: user.id, name: user.name });
-      if (name === 'leaderboard') return views.leaderboardView(this.store.ratings());
+      if (name === 'leaderboard') return views.leaderboardView(this.store.ratings(), this.config);
       if (name === 'pickup') {
         if (!user.isAdmin) return { content: 'Only admins can use /pickup.', ephemeral: true };
         return { ...(await this.adminCommand(options.sub, options, user)), ephemeral: true };
@@ -752,7 +752,7 @@ export class Pickup {
     this.log.info?.(`[pickup] game #${next.number}: ${outcome === 'cancel' ? 'cancelled' : `${views.teamName(next, outcome)} won`} (${decidedBy.by})`);
     await this.safeEdit(next.messageId, views.gameView(next), next.messageChannel);
     // The match chat is deleted with the team channels, so #pickup keeps the record.
-    await this.io.post(views.resultView(next, { corrected: wasDecided })).catch((err) => this.log.warn('[pickup] could not post the result:', err.message));
+    await this.io.post(views.resultView(next, { corrected: wasDecided, config: this.config })).catch((err) => this.log.warn('[pickup] could not post the result:', err.message));
     await this.cleanupChannels(next);
     await this.renderQueue({ repost: true }); // keep the queue card at the bottom of #pickup
     return next;

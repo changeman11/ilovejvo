@@ -86,6 +86,8 @@ export function loadConfig(env = process.env) {
     clubRolesMinutes: number('CLUB_ROLES_MINUTES', 5, 1, 1440),
     // The website queue: on whenever ratings are in Firestore, unless SITE_QUEUE=0.
     siteQueue: store === 'firebase' && text('SITE_QUEUE') !== '0',
+    // The website, for links on the bot's messages (SITE_URL=0 turns the links off).
+    siteUrl: text('SITE_URL') === '0' ? '' : text('SITE_URL', 'https://i-love-jvo.web.app').replace(/\/+$/, ''),
     store,
     dataFile: text('DATA_FILE', 'data/pickup.json'),
     firebase,

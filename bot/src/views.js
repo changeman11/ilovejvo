@@ -14,7 +14,15 @@ const GREY = 0x8a90a8;
 const BUTTON = 2;
 const SELECT = 3;
 const ROW = 1;
-const STYLE = { primary: 1, secondary: 2, success: 3, danger: 4 };
+const STYLE = { primary: 1, secondary: 2, success: 3, danger: 4, link: 5 };
+
+// The I<3JVO site's pickup page (SITE_URL in .env; empty = no links).
+export const pickupUrl = (config) => (config?.siteUrl ? `${config.siteUrl}/pickup` : null);
+// A row with a "open the site" link button, or nothing when there's no site URL.
+function siteRow(config, label = 'I<3JVO pickup page') {
+  const url = pickupUrl(config);
+  return url ? [{ type: ROW, components: [{ type: BUTTON, style: STYLE.link, label, url, emoji: { name: '🌐' } }] }] : [];
+}
 
 // Names can contain Discord formatting characters; show them as typed.
 export const esc = (name) => String(name ?? '?').slice(0, 64).replace(/[\\*_~`|>[\]]/g, '\\$&');
@@ -77,10 +85,11 @@ export function queueView(snapshot, config) {
     embeds: [
       {
         title: "🏐 Pickup games: sign up",
+        url: pickupUrl(config) ?? undefined,
         color: BLUE,
         description: `Pick **Sign up** in the menu below to queue (or **Withdraw** to leave). Each game is a random mode (${config.modes.map(modeLabel).join(', ')}) that fits how many are signed up. When the queue pops you get pinged: join your locked ready-up voice channel within ${config.readySeconds} seconds.\n\n${status}`,
         fields,
-        footer: { text: 'I<3JVO pickups · /elo · /leaderboard' },
+        footer: { text: `I<3JVO pickups · /elo · /leaderboard${pickupUrl(config) ? ' · you can also sign up on the website' : ''}` },
       },
     ],
     components: [
@@ -98,6 +107,7 @@ export function queueView(snapshot, config) {
           },
         ],
       },
+      ...siteRow(config, 'Queue, leaderboard & games on I<3JVO'),
     ],
     allowedMentions: noMentions,
   };
@@ -263,12 +273,12 @@ export function gameView(game, { problems = [] } = {}) {
 }
 
 // Posted in #pickup when a game is decided (the match chat with the game card is deleted).
-export function resultView(game, { corrected = false } = {}) {
+export function resultView(game, { corrected = false, config = null } = {}) {
   const view = gameView(game);
   return {
     content: corrected ? `✏️ Game #${game.number} result changed.` : '',
     embeds: view.embeds,
-    components: [],
+    components: siteRow(config, 'Elo leaderboard on I<3JVO'),
     allowedMentions: noMentions,
   };
 }
@@ -286,7 +296,7 @@ export function disputeView(game, config) {
 // ---------- ratings ----------
 export function ratingView(record, rank, total, config) {
   if (!record.games) {
-    return { content: `**${esc(record.name)}** hasn't played a pickup game yet. Everyone starts at **${config.startRating}**.`, embeds: [], allowedMentions: noMentions };
+    return { content: `**${esc(record.name)}** hasn't played a pickup game yet. Everyone starts at **${config.startRating}**.`, embeds: [], components: siteRow(config), allowedMentions: noMentions };
   }
   const form = record.form ? record.form.split('').map((c) => (c === 'W' ? '🟩' : '🟥')).join('') : '—';
   return {
@@ -294,6 +304,7 @@ export function ratingView(record, rank, total, config) {
     embeds: [
       {
         title: `${esc(record.name)}: ${record.rating} Elo`,
+        url: pickupUrl(config) ?? undefined,
         color: BLUE,
         fields: [
           { name: 'Rank', value: `#${rank} of ${total}`, inline: true },
@@ -302,11 +313,12 @@ export function ratingView(record, rank, total, config) {
         ],
       },
     ],
+    components: siteRow(config),
     allowedMentions: noMentions,
   };
 }
 
-export function leaderboardView(records) {
+export function leaderboardView(records, config = null) {
   const medal = ['🥇', '🥈', '🥉'];
   const top = records.slice(0, 20);
   return {
@@ -314,13 +326,15 @@ export function leaderboardView(records) {
     embeds: [
       {
         title: '🏐 Pickup Elo leaderboard',
+        url: pickupUrl(config) ?? undefined,
         color: YELLOW,
         description: top.length
           ? top.map((r, i) => `${medal[i] ?? `\`${String(i + 1).padStart(2)}\``} **${esc(r.name)}** ${r.rating} · ${r.wins}-${r.losses}`).join('\n')
-          : 'No games played yet. Join the ready-up channel to start one!',
+          : 'No games played yet. Sign up on the queue card to start one!',
         footer: { text: records.length > 20 ? `Top 20 of ${records.length} players · /elo for anyone's rating` : '/elo for anyone\'s rating' },
       },
     ],
+    components: siteRow(config, 'Full leaderboard on I<3JVO'),
     allowedMentions: noMentions,
   };
 }
