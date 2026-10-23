@@ -147,51 +147,132 @@ export function standingsTable(rows, b) {
     </table></div>`;
 }
 
-// ---------- Group stage (event page) ----------
-
-// A small table for one group: place, team, P, W, L, Pts, sets. Places that go through are marked.
-export function groupTable(rows, b, places) {
-  const mark = (rank) => (places && rank <= places.direct ? ' through' : places?.best === rank ? ' maybe' : '');
-  return `
-    <div class="table-wrap"><table class="data group-table">
-      <thead><tr><th class="first">Team</th><th title="Played">P</th><th title="Won">W</th><th title="Lost">L</th><th title="Table points">Pts</th><th>Sets</th></tr></thead>
-      <tbody>${rows.map((r) => `
-        <tr class="${mark(r.rank).trim()}">
-          <td class="first"><span class="rank">${r.rank}</span>${teamLink(b.teamsById[r.teamId] ?? { id: r.teamId, name: r.name })}</td>
-          <td>${r.played}</td><td>${r.wins}</td><td>${r.losses}</td><td class="strong">${r.points}</td><td>${r.setsWon}–${r.setsLost}</td>
-        </tr>`).join('')}</tbody>
-    </table></div>`;
-}
+// ---------- Group stage and finals (event page) ----------
 
 const placeName = (p) => (p === 1 ? 'winner' : p === 2 ? 'runner-up' : `${p}${p === 3 ? 'rd' : 'th'}-placed team`);
 
-// One card per group: table, who goes through, and the group's fixtures under round headings.
-export function groupCards(b) {
+// "Top 2 go through." / "The group winner goes through, plus the best runner-up across the groups."
+export function throughNote(places) {
+  if (!places) return '';
+  const lead = places.direct === 0 ? '' : places.direct === 1 ? 'Group winners go through' : `Top ${places.direct} in each group go through`;
+  const extra = places.best ? `the best ${places.bestCount > 1 ? `${places.bestCount} ` : ''}${placeName(places.best)}${places.bestCount > 1 ? 's' : ''} across the groups` : '';
+  return lead && extra ? `${lead}, plus ${extra}.` : lead ? `${lead}.` : extra ? `Only ${extra} go through.` : '';
+}
+
+// Column width by group count, so the cards fill rows evenly (4 groups → 2 × 2, 3 → 3 across).
+const gridMin = (n) => (n <= 3 ? 260 : n === 4 || n >= 7 ? 360 : 300);
+
+// One table card per group: big letter, P W L Pts and sets, places that go through highlighted.
+export function groupTablesHtml(b) {
   const { groups, tables, places } = b.plan;
-  const fixtures = b.fixtures.filter((f) => f.group);
-  // "Top 2 go through." / "The group winner goes through, plus the best runner-up across the groups."
-  let note = '';
-  if (places) {
-    const lead = places.direct === 0 ? '' : places.direct === 1 ? 'The group winner goes through' : `Top ${places.direct} go through`;
-    const extra = places.best ? `the best ${places.bestCount > 1 ? `${places.bestCount} ` : ''}${placeName(places.best)}${places.bestCount > 1 ? 's' : ''} across the groups` : '';
-    note = lead && extra ? `${lead}, plus ${extra}.` : lead ? `${lead}.` : extra ? `Only ${extra} go through.` : '';
-  }
-  return `<div class="group-grid">${Object.keys(groups).map((l) => {
+  const mark = (rank) => (places && rank <= places.direct ? 'through' : places?.best === rank ? 'maybe' : '');
+  const cards = Object.keys(groups).map((l) => {
     const t = tables[l];
-    const mine = fixtures.filter((f) => f.group === l).sort(stageOrder);
+    const rows = t?.rows ?? [];
+    return `
+      <section class="gt-card">
+        <header class="gt-head">
+          <span class="gt-letter">${l}</span>
+          <span class="gt-title"><b>Group ${l}</b><small>${groups[l].length} team${groups[l].length === 1 ? '' : 's'}</small></span>
+          ${t?.done ? '<span class="gt-done">✓ Finished</span>' : ''}
+        </header>
+        ${rows.length ? `
+        <table class="gt-table">
+          <thead><tr><th class="gt-rank">#</th><th class="gt-team">Team</th><th title="Played">P</th><th title="Won">W</th><th title="Lost">L</th><th title="Sets won–lost">Sets</th><th title="Table points">Pts</th></tr></thead>
+          <tbody>${rows.map((r) => {
+            const team = b.teamsById[r.teamId] ?? { id: r.teamId, name: r.name };
+            return `<tr class="${mark(r.rank)}">
+              <td class="gt-rank">${r.rank}</td>
+              <td class="gt-team">${teamLink(team)}</td>
+              <td>${r.played}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.setsWon}–${r.setsLost}</td><td class="gt-pts">${r.points}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>` : '<p class="muted" style="padding:14px 16px;margin:0">No teams yet.</p>'}
+      </section>`;
+  }).join('');
+  const note = throughNote(places);
+  return `
+    <div class="gt-grid" style="--gt-min:${gridMin(Object.keys(groups).length)}px">${cards}</div>
+    ${note ? `<p class="gt-key"><span class="gt-swatch through"></span> ${esc(note)}${places?.best ? ' <span class="gt-swatch maybe"></span> could go through as a best ' + esc(placeName(places.best)) + '.' : ''}</p>` : ''}`;
+}
+
+// One fixtures panel per group, with round headings.
+export function groupFixturesHtml(b) {
+  const { groups } = b.plan;
+  const all = b.fixtures.filter((f) => f.group).sort(stageOrder);
+  return `<div class="gf-grid">${Object.keys(groups).map((l) => {
     let lastRound = null;
-    const rows = mine.map((f) => {
+    const rows = all.filter((f) => f.group === l).map((f) => {
       const round = (f.label ?? '').split(' · ')[1] ?? null;
       const head = round && round !== lastRound ? `<div class="day-head">${esc(round)}</div>` : '';
       lastRound = round;
       return head + fixtureRow(b, f, { hideRound: true, compact: true, timeOnly: true });
     }).join('');
     return `
-      <section class="panel flush group-card">
-        <div class="group-card-head"><h3>Group ${l}</h3><span class="muted small">${groups[l].length} team${groups[l].length === 1 ? '' : 's'}</span>${t?.done ? '<span class="tag tag-live">Finished</span>' : ''}</div>
-        ${t?.rows.length ? groupTable(t.rows, b, places) : '<p class="muted" style="padding:12px 16px">No teams yet.</p>'}
-        ${note ? `<p class="group-note muted small">${esc(note)}</p>` : ''}
-        <div class="fixtures">${rows || '<p class="muted" style="padding:12px 16px">Fixtures appear here once the group has teams.</p>'}</div>
+      <section class="panel flush gf-card">
+        <header class="gf-head"><span class="gt-letter sm">${l}</span><b>Group ${l} fixtures</b></header>
+        <div class="fixtures">${rows || '<p class="muted" style="padding:12px 16px;margin:0">Fixtures appear here once the group has teams.</p>'}</div>
       </section>`;
   }).join('')}</div>`;
+}
+
+// ---------- Finals bracket ----------
+
+const slotOf = (f) => f.finalSlot ?? String(f.id).replace(/^finals-/, '');
+
+function bracketMatch(b, f, { big = false } = {}) {
+  if (!f) return '<div class="br-match empty"></div>';
+  const { result, check } = resultOf(b, f);
+  const played = Boolean(check?.ok);
+  const bestOf = formatFor(b.season, f).bestOf;
+  const side = (teamId, placeholder, sets, won) => {
+    const t = b.teamsById[teamId];
+    return `<div class="br-team${t ? '' : ' tbc'}${played ? (won ? ' won' : ' lost') : ''}">
+      ${t ? teamDot(t, big ? 'lg' : '') : '<i class="dot"></i>'}<span class="br-name">${esc(t?.name ?? placeholder ?? 'TBC')}</span>
+      ${played ? `<b class="br-sets num">${sets}</b>` : ''}
+    </div>`;
+  };
+  const when = result && !played ? 'Result being checked'
+    : !played && f.scheduledAt ? `${fmtDay(f.scheduledAt)}${f.timeTbd ? '' : ` · ${fmtTime(f.scheduledAt)}`}` : '';
+  return `
+    <a class="br-match${big ? ' br-final' : ''}${f.virtual ? ' draft' : ''}" href="${urls.match(b.event.id, f.id)}" data-link>
+      <span class="br-label">${esc(f.label ?? '')}<span>Best of ${bestOf}</span></span>
+      ${side(f.homeTeamId, f.homePlaceholder, check?.homeSets, check?.winner === 'home')}
+      ${side(f.awayTeamId, f.awayPlaceholder, check?.awaySets, check?.winner === 'away')}
+      ${when ? `<span class="br-when">${esc(when)}</span>` : ''}
+    </a>`;
+}
+
+// The knockout as a bracket: quarter-finals → semi-finals → final (whichever this event has).
+export function bracketHtml(b) {
+  const ko = b.fixtures.filter((f) => f.stage === 'playoffs');
+  if (!ko.length) return '';
+  const bySlot = Object.fromEntries(ko.map((f) => [slotOf(f), f]));
+  const rounds = [];
+  if (['qf1', 'qf2', 'qf3', 'qf4'].some((s) => bySlot[s])) rounds.push({ name: 'Quarter-finals', slots: ['qf1', 'qf2', 'qf3', 'qf4'] });
+  if (['sf1', 'sf2'].some((s) => bySlot[s])) rounds.push({ name: 'Semi-finals', slots: ['sf1', 'sf2'] });
+  const final = bySlot.final;
+  // Knockout matches outside the usual slots (added by hand) are listed after the bracket.
+  const known = new Set(['qf1', 'qf2', 'qf3', 'qf4', 'sf1', 'sf2', 'final']);
+  const extra = ko.filter((f) => !known.has(slotOf(f)));
+  const { check } = final ? resultOf(b, final) : {};
+  const champion = check?.ok ? b.teamsById[check.winner === 'home' ? final.homeTeamId : final.awayTeamId] : null;
+  return `
+    <div class="bracket">
+      ${rounds.map((r) => `
+        <div class="br-col">
+          <h3 class="br-round">${r.name}</h3>
+          <div class="br-matches">${r.slots.map((s) => bracketMatch(b, bySlot[s])).join('')}</div>
+        </div>`).join('')}
+      ${final ? `
+        <div class="br-col br-col-final">
+          <h3 class="br-round">${esc(final.label ?? 'Final')}</h3>
+          <div class="br-matches">
+            <div class="br-trophy" aria-hidden="true">🏆</div>
+            ${bracketMatch(b, final, { big: true })}
+            ${champion ? `<div class="br-champion">Champions<b>${teamDot(champion, 'lg')}${esc(champion.name)}</b></div>` : ''}
+          </div>
+        </div>` : ''}
+    </div>
+    ${extra.length ? `<div class="panel flush fixtures" style="margin-top:14px">${extra.map((f) => fixtureRow(b, f)).join('')}</div>` : ''}`;
 }

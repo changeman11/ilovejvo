@@ -8,8 +8,9 @@ import { inAClub } from '../shell.js';
 import { characterSpot, characterPicker, charactersOn, startCharacters } from '../characters.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
+import { formatFor } from '../rules/season.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag } from '../ui.js';
-import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupCards, stageOrder } from './parts.js';
+import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupTablesHtml, groupFixturesHtml, bracketHtml, stageOrder } from './parts.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
 import { adminAddEntry, removeEntry } from '../admin-data.js';
@@ -167,6 +168,15 @@ export const eventsList = {
 
 // ---------- One event ----------
 
+// "Top 4 · semi-finals, then a best-of-5 grand final"
+function finalsSubtitle(b) {
+  const ko = b.fixtures.filter((f) => f.stage === 'playoffs');
+  const n = ko.filter((f) => /^finals-qf/.test(f.id)).length ? 8 : ko.filter((f) => /^finals-sf/.test(f.id)).length ? 4 : 2;
+  const final = ko.find((f) => f.id === 'finals-final');
+  const bo = final ? formatFor(b.season, final).bestOf : null;
+  return `Top ${n}${bo ? ` · the final is best of ${bo}` : ''}`;
+}
+
 // Club sign-ups on the event page. Managers sign up or pull out; everyone sees who's in and when it closes.
 let signupCtx = null; // { user, team, entry, eventId }
 let shownEventId = null;
@@ -300,11 +310,21 @@ export const eventPage = {
     const draft = b.plan.virtual.some((f) => f.auto) ? '<span class="tag tag-draft">Draft until the lock</span>' : '';
     const groupStage = hasGroups ? `
       <section>
-        <div class="section-head"><h2>Group stage</h2>${draft}</div>
-        ${groupCards(b)}
+        <div class="section-head"><h2>Group tables</h2>${draft}</div>
+        ${groupTablesHtml(b)}
+      </section>
+      <section>
+        <div class="section-head"><h2>Group fixtures</h2></div>
+        ${groupFixturesHtml(b)}
+      </section>` : '';
+    // The knockout: a big bracket of its own.
+    const finalsSection = b.fixtures.some((f) => f.stage === 'playoffs') ? `
+      <section class="finals-section">
+        <div class="finals-head"><h2>Finals</h2><span>${esc(finalsSubtitle(b))}</span><span class="br-swipe">Swipe to see the final →</span></div>
+        ${bracketHtml(b)}
+        ${b.plan.finalsNote ? `<p class="small" style="margin:10px 0 0">${esc(b.plan.finalsNote)}</p>` : ''}
       </section>` : '';
     const listed = hasGroups ? items.filter(({ f }) => !f.group) : items;
-    const knockout = listed.filter(({ f }) => f.stage === 'playoffs');
     const others = listed.filter(({ f }) => f.stage !== 'playoffs');
 
     return {
@@ -325,6 +345,7 @@ export const eventPage = {
           ${signups}
 
           ${groupStage}
+          ${finalsSection}
 
           <div class="cols">
             <div class="stack">
@@ -334,9 +355,7 @@ export const eventPage = {
                 <div class="section-head"><h2>Fixtures &amp; results</h2>${draft}</div>
                 <div class="panel flush fixtures">${others.length ? fixturesByRound(others) : `<p class="muted" style="padding:16px">${e.autoFixtures && e.autoFixtures !== 'off' ? 'Fixtures appear here once two clubs have signed up.' : 'Fixtures haven’t been announced yet.'}</p>`}</div>
               </section>`}
-              ${knockout.length ? `<section><div class="section-head"><h2>Knockout</h2></div>
-                <div class="panel flush fixtures">${fixturesByRound(knockout)}</div></section>` : ''}
-              ${b.plan.finalsNote ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
+              ${!finalsSection && b.plan.finalsNote ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
               ${table ? `<section><div class="section-head"><h2>Table</h2></div><div class="panel flush">${standingsTable(table, b)}</div></section>` : ''}
             </div>
             <div class="stack">
