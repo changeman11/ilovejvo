@@ -89,7 +89,8 @@
     - Players sign up / withdraw with a dropdown (`custom_id: 'queue'`) on the bot's queue card in `#pickup`; no voice needed to queue (changed 2026-10-23, was a queue voice channel). Sign-ups are kept in memory only. At 4+ signed up, a 30 s countdown runs, then the bot picks a random mode (2v2 to 6v6) from those that fit. The longest-waiting players get in; 12 signed up starts at once.
     - **Ready check (2026-10-23):** the bot makes a locked `🏐 ready up · NvN` voice channel, plus a locked match chat `#ready-up-NvN`.
       - The chat is hidden from everyone but the players, admins and the bot (added 2026-10-24). The ready-check card pings the players there and ticks them off as they join the voice channel.
-      - When the draft starts, the chat's card points to the draft in `#pickup`. At draft end it's renamed `#game-N`, stored as `game.channels.chat`, and deleted when the result is in.
+      - The draft card is posted in the match chat and becomes the game card there (`game.messageChannel`); admin dispute pings go there too (moved from `#pickup` 2026-10-24).
+      - At draft end the chat is renamed `#game-N` and stored as `game.channels.chat`. It's deleted when the result is in, and a result summary (`resultView`) is posted in `#pickup`, so `#pickup` keeps the record. Cancel notices always go to `#pickup`.
       - **Locked** means everyone can see it; only those players, `ADMIN_ROLE_IDS` and the bot can connect.
       - Players confirm by joining it within `READY_SECONDS` (60).
       - No-shows are dropped from the sign-up list and replaced from the queue. A new locked channel is made for the new line-up, because editing who can join would need Manage Roles.

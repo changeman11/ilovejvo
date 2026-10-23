@@ -9,14 +9,15 @@ The pickup bot runs pick-up games in the JVO Discord. The code is in [`bot/`](bo
    - With 12 signed up, it starts straight away.
 4. **Ready check (the queue "pops"):** the bot makes a **locked** voice channel (`🏐 ready up · 4v4`) and a **locked match chat** (`#ready-up-4v4`).
    - The match chat is visible only to the picked players and admins. The ready-check card in it pings them, and ticks each player off as they join the voice channel.
-   - Once everyone's in, the chat becomes the game's chat (`#game-12`) until the result is in, then it's deleted.
+   - Once everyone's in, the **draft happens in that chat**. The draft card then becomes the game card, with the result buttons.
+   - The chat becomes the game's chat (`#game-12`) until the result is in. Then it's deleted, and a result summary is posted in `#pickup`.
    - Everyone can see it, but only those players (and admins) can join.
    - Each player confirms by joining it within **60 seconds**.
    - Anyone who doesn't is **dropped** from the queue (they can sign up again). The next player in the queue takes their place and gets pinged.
    - If there aren't enough players to replace them, the ready check is cancelled. The players who did confirm stay signed up at the front of the queue.
    - Leaving the ready-up channel before everyone's in un-confirms you; you can come back before the time's up.
 5. **Captains:** once everyone's in, one random player on each team becomes captain. A coin flip decides who picks first.
-6. **Draft:** captains take turns (A, B, A, B) picking teammates by pressing names in the pickup channel.
+6. **Draft:** in the locked match chat, captains take turns (A, B, A, B) picking teammates by pressing names.
    - 60 seconds per pick, or the pick is random.
    - The last player is placed automatically.
    - If anyone leaves the ready-up channel during the draft, it's cancelled. Everyone else stays signed up in their old places.

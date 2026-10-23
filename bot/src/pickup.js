@@ -507,9 +507,8 @@ export class Pickup {
         if (!p.fake) this.live?.joined({ ...p, from: 'discord' }); // makes sure the site still lists them
       }
     }
-    // The match chat goes, so a ready check's cancel notice is posted in #pickup instead.
-    if (match.phase === 'check') await this.io.post(views.matchCancelledView(match, reason)).catch(() => {});
-    else if (match.messageId) await this.safeEdit(match.messageId, views.matchCancelledView(match, reason));
+    // The match chat (with the ready check or draft in it) goes, so the notice is posted in #pickup.
+    await this.io.post(views.matchCancelledView(match, reason)).catch(() => {});
     if (match.lobbyId) await this.removeLobby(match.lobbyId);
     await this.deleteChat(match.chatId);
     this.log.info?.(`[pickup] ${modeLabel(match.size)} cancelled: ${reason}`);
@@ -531,10 +530,11 @@ export class Pickup {
     this.log.info?.(`[pickup] ${modeLabel(match.size)} draft: everyone's ready`);
     if (isComplete(state)) return this.finishDraft(match); // 1v1 if anyone ever sets MODES=1
     this.armPickTimer(match);
-    // The draft card goes in #pickup (it becomes the game card); the match chat points there.
+    // The draft happens in the match chat: a fresh card under the ready check, so the captains
+    // get pinged. It turns into the game card (result buttons) when the draft is done.
     const checkCard = match.messageId;
-    match.messageId = await this.io.post(views.draftView(match));
     if (checkCard) await this.safeEdit(checkCard, views.checkDoneView(match, this.config), match.chatId);
+    match.messageId = await this.io.post(views.draftView(match), match.chatId);
     this.fakeCaptainPicks(match);
   }
 
@@ -585,7 +585,7 @@ export class Pickup {
       return;
     }
     this.armPickTimer(match);
-    await this.safeEdit(match.messageId, views.draftView(match));
+    await this.safeEdit(match.messageId, views.draftView(match), match.chatId);
     this.fakeCaptainPicks(match);
   }
 
@@ -621,6 +621,7 @@ export class Pickup {
       changes: {},
       channels: {},
       messageId: match.messageId,
+      messageChannel: match.chatId ?? null, // the match chat (null = #pickup)
     };
     const problems = [];
     for (const side of ['a', 'b']) {
@@ -659,9 +660,8 @@ export class Pickup {
       await this.store.saveGame(game).catch(() => {});
     }
     this.log.info?.(`[pickup] game #${number} ${modeLabel(game.size)} started`);
-    if (game.messageId) await this.safeEdit(game.messageId, views.gameView(game, { problems }));
-    else game.messageId = await this.io.post(views.gameView(game, { problems }));
-    await this.renderQueue({ repost: true });
+    if (game.messageId) await this.safeEdit(game.messageId, views.gameView(game, { problems }), game.messageChannel);
+    else game.messageId = await this.io.post(views.gameView(game, { problems }), game.messageChannel);
   }
 
   // ---------- results ----------
@@ -706,14 +706,15 @@ export class Pickup {
     const next = { ...game, votes, status: tally.status === 'disputed' ? 'disputed' : 'playing' };
     await this.store.saveGame(next);
     this.track(next);
-    await this.safeEdit(next.messageId, views.gameView(next));
-    if (next.status === 'disputed' && game.status !== 'disputed') await this.io.post(views.disputeView(next, this.config));
+    await this.safeEdit(next.messageId, views.gameView(next), next.messageChannel);
+    if (next.status === 'disputed' && game.status !== 'disputed') await this.io.post(views.disputeView(next, this.config), next.messageChannel);
     return { ephemeral: next.status === 'disputed' ? 'Saved. Your report differs from the other captain\'s, so an admin will decide.' : 'Saved. Waiting for the other captain.' };
   }
 
   // Apply a result (or a correction). outcome: 'a' | 'b' | 'cancel'.
   async decide(game, outcome, decidedBy) {
     const now = this.clock.now();
+    const wasDecided = game.status === 'done' || game.status === 'cancelled';
     const records = new Map();
     const record = (id) => {
       if (!records.has(id)) records.set(id, this.store.rating(id));
@@ -749,8 +750,11 @@ export class Pickup {
     await this.store.saveResult(next, [...records.values()]);
     this.track(next);
     this.log.info?.(`[pickup] game #${next.number}: ${outcome === 'cancel' ? 'cancelled' : `${views.teamName(next, outcome)} won`} (${decidedBy.by})`);
-    await this.safeEdit(next.messageId, views.gameView(next));
+    await this.safeEdit(next.messageId, views.gameView(next), next.messageChannel);
+    // The match chat is deleted with the team channels, so #pickup keeps the record.
+    await this.io.post(views.resultView(next, { corrected: wasDecided })).catch((err) => this.log.warn('[pickup] could not post the result:', err.message));
     await this.cleanupChannels(next);
+    await this.renderQueue({ repost: true }); // keep the queue card at the bottom of #pickup
     return next;
   }
 

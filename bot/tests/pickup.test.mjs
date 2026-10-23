@@ -143,11 +143,14 @@ test('full flow: sign up -> countdown -> locked ready check -> 2v2 draft -> lock
   assert.match(env.io.messages.get(check.messageId).embeds[0].title, /3\/4/);
   await confirm(env, ['u4']);
   assert.equal(check.phase, 'draft', 'everyone in: the draft starts straight away');
-  // The chat's card now says everyone's in; the draft card is a new message in #pickup.
-  assert.equal(env.io.where.get(check.messageId), 'pickup');
+  // The draft happens in the match chat too: the ready-check card says everyone's in, and the
+  // draft card is a new message under it (pinging the captains).
+  assert.equal(env.io.where.get(check.messageId), check.chatId);
   assert.match(env.io.messages.get(check.messageId).embeds[0].title, /draft/);
+  assert.match(env.io.messages.get(check.messageId).content, /draft!.*Captains/);
   const card4 = [...env.io.where].find(([, ch]) => ch === check.chatId)[0];
-  assert.match(env.io.messages.get(card4).content, /Everyone's in!/);
+  assert.match(env.io.messages.get(card4).content, /Everyone's in!.*draft is below/);
+  const postsBefore = env.io.posted.filter((id) => env.io.where.get(id) === 'pickup').length;
 
   const draftMsg = env.io.messages.get(check.messageId);
   assert.match(draftMsg.content, /2v2 draft/);
@@ -170,6 +173,7 @@ test('full flow: sign up -> countdown -> locked ready check -> 2v2 draft -> lock
   assert.equal(env.io.channels.size, 3);
 
   const card = env.io.messages.get(match.messageId);
+  assert.equal(env.io.where.get(match.messageId), game.channels.chat, 'the game card is in the game chat');
   assert.deepEqual(card.components[0].components.map((b) => b.custom_id), ['res:g1:a', 'res:g1:b', 'res:g1:cancel']);
 
   // Someone who isn't a captain can't report; both captains agree -> Elo.
@@ -182,6 +186,12 @@ test('full flow: sign up -> countdown -> locked ready check -> 2v2 draft -> lock
   assert.equal(done.status, 'done');
   for (const p of game.teams.a.players) assert.equal(env.store.rating(p.id).rating, 1016);
   for (const p of game.teams.b.players) assert.equal(env.store.rating(p.id).rating, 984);
+  // #pickup gets a result summary (the chat with the game card is deleted).
+  const summaries = env.io.posted.filter((id) => env.io.where.get(id) === 'pickup' && /Game #1/.test(env.io.messages.get(id)?.embeds?.[0]?.title ?? ''));
+  assert.equal(summaries.length, 1);
+  assert.match(env.io.messages.get(summaries[0]).embeds[0].description, /won/);
+  assert.ok(env.io.posted.filter((id) => env.io.where.get(id) === 'pickup').length > postsBefore);
+  assert.ok(!env.io.channels.has(game.channels.chat), 'the game chat is deleted once the result is in');
 
   // Team channels go once they're empty.
   for (const side of ['a', 'b']) {
@@ -297,7 +307,8 @@ test('withdrawing stops the countdown; leaving the ready-up channel un-confirms,
   env.io.voice.delete('u3');
   await env.pickup.left(match.lobbyId, 'u3');
   assert.equal(env.pickup.matches.size, 0);
-  assert.match(env.io.messages.get(match.messageId).content, /draft cancelled: Player 3 left/);
+  assert.ok([...env.io.messages.values()].some((m) => /draft cancelled: Player 3 left/.test(m.content)), 'notice in #pickup');
+  assert.ok(!env.io.channels.has(match.chatId), 'the match chat is deleted');
   assert.deepEqual(env.pickup.readyList().map((p) => p.id), ['u1', 'u2', 'u5'], 'still signed up, same order; Player 3 is out');
 });
 

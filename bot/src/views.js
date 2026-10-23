@@ -139,7 +139,7 @@ export function checkDoneView(match, config) {
   const base = checkView(match, config);
   return {
     ...base,
-    content: `✅ **Everyone's in!** The ${modeLabel(match.size)} draft is in <#${config.pickupChannelId}>. This chat stays open for the game.`,
+    content: `✅ **Everyone's in!** The ${modeLabel(match.size)} draft is below. This chat stays open for the game.`,
     embeds: base.embeds.map((e) => ({ ...e, color: TEAL, description: 'Everyone joined in time. Captains are picking now.' })),
   };
 }
@@ -258,6 +258,17 @@ export function gameView(game, { problems = [] } = {}) {
     content: game.status === 'playing' ? `🏐 **Game #${game.number} is on!** Good luck.` : '',
     embeds: [{ title, color, description: lines.join('\n'), fields, footer: { text: `Game #${game.number} · /pickup result can change it (admins)` } }],
     components,
+    allowedMentions: noMentions,
+  };
+}
+
+// Posted in #pickup when a game is decided (the match chat with the game card is deleted).
+export function resultView(game, { corrected = false } = {}) {
+  const view = gameView(game);
+  return {
+    content: corrected ? `✏️ Game #${game.number} result changed.` : '',
+    embeds: view.embeds,
+    components: [],
     allowedMentions: noMentions,
   };
 }
