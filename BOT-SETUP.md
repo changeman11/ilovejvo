@@ -229,6 +229,68 @@ Your PC only runs the bot while it's on. For 24/7, use Oracle's Always Free serv
   - If that happens you'll get an email: open **Compute → Instances → jvo-bot → Start**, and the bot starts by itself.
   - To stop it ever happening: **Billing → Upgrade to Pay As You Go**. Always Free resources stay free, but anything extra you create would be charged, so add a **Budget** alert (Billing → Budgets) at $1.
 
+## Part 6 (instead): Always on with AWS (you, ~25 min)
+
+Use this while Oracle isn't working.
+
+**What it costs:**
+
+- **New AWS accounts** get US$100–200 of credits on the **Free plan**. The plan lasts 6 months, or until the credits run out.
+- **This server** uses roughly US$10–13 a month of those credits: about US$7–10 for the t3.micro server, plus US$3.65 for its public IPv4 address.
+- **Nothing is charged** to your card on the Free plan. When it ends, AWS pauses the account unless you upgrade.
+- **Before then:** move the bot (Oracle, if support sorts it out), or upgrade and pay about US$11 a month.
+
+**Run only one copy of the bot at a time.** Stop the PC one (Ctrl+C in its window) before starting this.
+
+### A. Make the AWS account
+1. Go to https://aws.amazon.com/free/ → **Create a free account**.
+2. When asked, choose the **Free plan** (not Paid). Finish the card and phone checks.
+3. Sign in to the console. At the top right, set the region to **Asia Pacific (Sydney)**.
+
+### B. Make the server
+1. Search **EC2** → **Launch instance**.
+2. **Name:** `jvo-bot`.
+3. **Image:** **Ubuntu Server 24.04 LTS** (64-bit x86).
+4. **Instance type:** **t3.micro**.
+5. **Key pair:** **Create new key pair** → name `jvo-bot`, type **RSA**, format **.pem** → **Create**. A `jvo-bot.pem` file downloads. Treat it like a password.
+6. **Network settings:**
+   - **Auto-assign public IP:** Enable.
+   - **Allow SSH traffic from:** **My IP**. Nothing else needs opening: the bot only connects out.
+7. **Storage:** 8 GB is enough → **Launch instance**.
+8. Open the instance. When it shows **Running**, copy its **Public IPv4 address**.
+
+### C. Connect, upload, start
+
+These are the same as Oracle's steps C to E, with an AWS key instead of an Oracle one:
+
+1. Move `jvo-bot.pem` to `C:\Users\<you>\.ssh\jvo-bot.pem`.
+2. Test the connection (type `yes` the first time, then `exit`):
+   ```bash
+   ssh -i $HOME\.ssh\jvo-bot.pem ubuntu@<IP>
+   ```
+3. In the `bot` folder:
+   ```bash
+   npm.cmd run upload -- -Server ubuntu@<IP> -Key $HOME\.ssh\jvo-bot.pem
+   ```
+4. Connect, run the one-time setup, then `exit`:
+   ```bash
+   bash ~/jvo-bot/deploy/setup-server.sh
+   ```
+5. In the `bot` folder, copy your settings over:
+   ```bash
+   scp -i $HOME\.ssh\jvo-bot.pem .env ubuntu@<IP>:jvo-bot/.env
+   ```
+6. Start the bot and watch its log (Ctrl+C stops watching; the bot keeps running):
+   ```bash
+   ssh -i $HOME\.ssh\jvo-bot.pem ubuntu@<IP> "sudo systemctl restart jvo-bot && journalctl -u jvo-bot -f"
+   ```
+
+### D. Good to know
+- **Updates:** run `npm.cmd run upload` in the `bot` folder.
+- **If SSH stops connecting:** your home internet address probably changed. Go to EC2 → the instance → **Security** → the security group → **Edit inbound rules** → SSH source **My IP** → Save.
+- **If you stop and start the server:** it gets a new public IP. Use the new one in `ssh`, and run the upload once with `-Server ubuntu@<new IP>`.
+- **Keep an eye on the credits:** Billing → **Credits** shows what's left.
+
 ---
 
 ## Commands
