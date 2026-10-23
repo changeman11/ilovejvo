@@ -19,7 +19,7 @@
 //
 // and saves through `store` (FileStore or FirestoreStore). Every event runs one at a time (run()),
 // so two clicks at the same moment can't trip over each other.
-import { fittingModes, minPlayers, maxPlayers, modeLabel, pickMode, tallyVotes as tallyModeVotes } from './logic/modes.js';
+import { fittingModes, minPlayers, maxPlayers, modeLabel, pickMode, projectedMode } from './logic/modes.js';
 import { createDraft, applyPick, currentSide, isComplete } from './logic/draft.js';
 import { tallyVotes, OUTCOMES } from './logic/votes.js';
 import { gameChanges, applyChange, revertChange } from './logic/ratings.js';
@@ -101,6 +101,7 @@ export class Pickup {
         .map((g) => ({ number: g.number, size: g.size, status: g.status, a: side(g, 'a'), b: side(g, 'b') })),
       modes: this.config.modes,
       modeVotes: this.voteTally(),
+      next: projectedMode({ readyCount: this.readyList().length, modes: this.config.modes, tally: this.voteTally(), needed: this.config.modeVotesNeeded, fixed: this.fixedMode?.size ?? null }),
       modeVotesNeeded: this.config.modeVotesNeeded,
       fixedMode: this.fixedMode?.size ?? null,
       fixedModeOnce: Boolean(this.fixedMode?.once),

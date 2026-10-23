@@ -54,3 +54,28 @@ export function pickMode({ readyCount, modes = ALL_MODES, votes = [], needed = 2
   const size = chooseMode(readyCount, modes, rng);
   return size ? { size, by: 'random', votes: 0 } : null;
 }
+
+// What the next game looks like right now, for the queue card and the site (no dice rolled).
+//   tally: { size: votes } from signed-up players (all modes).
+//   -> { size, by, fits, tied, target, waitingFor }
+//      size: the mode, or null while it's still random (or tied)
+//      by: 'admin' | 'votes' | 'tie' | 'random'
+//      fits: modes that fit right now; tied: modes tied on votes
+//      target: players to aim for next (the mode's full line-up, or the next mode's), null at most
+//      waitingFor: a voted mode that has the votes but not enough players yet, or null
+export function projectedMode({ readyCount, modes = ALL_MODES, tally = {}, needed = 2, fixed = null }) {
+  const fits = fittingModes(readyCount, modes);
+  const min = Math.min(...modes);
+  const nextUp = modes.find((s) => s * 2 > readyCount) ?? null; // the smallest mode that doesn't fit yet
+  if (fixed) return { size: fixed, by: 'admin', fits, tied: [], target: fixed * 2, waitingFor: null };
+  const fittingVotes = Object.entries(tally).filter(([s, n]) => fits.includes(Number(s)) && n >= needed);
+  const top = Math.max(0, ...fittingVotes.map(([, n]) => n));
+  const tied = fittingVotes.filter(([, n]) => n === top).map(([s]) => Number(s)).sort((a, b) => a - b);
+  // The most-voted mode overall, if it has the votes but needs more players.
+  const allTop = Object.entries(tally).filter(([, n]) => n >= needed).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+  const waitingFor = allTop && !fits.includes(Number(allTop[0])) && allTop[1] > top ? Number(allTop[0]) : null;
+  const target = waitingFor ? waitingFor * 2 : fits.length ? (nextUp ? nextUp * 2 : null) : min * 2;
+  if (tied.length === 1) return { size: tied[0], by: 'votes', fits, tied, target: waitingFor ? waitingFor * 2 : tied[0] * 2, waitingFor };
+  if (tied.length > 1) return { size: null, by: 'tie', fits, tied, target, waitingFor };
+  return { size: null, by: 'random', fits, tied: [], target, waitingFor };
+}

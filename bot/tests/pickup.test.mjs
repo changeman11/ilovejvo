@@ -509,7 +509,8 @@ test('the queue message is kept up to date (at most once a second)', async () =>
   assert.match(env.io.messages.get(id).embeds[0].description, /Need \*\*4\*\* more/);
   await joinAll(env, 3);
   await env.clock.advance(1_000, env.pickup);
-  assert.match(env.io.messages.get(id).embeds[0].fields[0].value, /3\. Player 3/);
+  assert.match(env.io.messages.get(id).embeds[0].fields[1].value, /` 3` Player 3/);
+  assert.match(env.io.messages.get(id).embeds[0].description, /🟦🟦🟦⬜  \*\*3 \/ 4\*\* players/);
   await joinAll(env, 1, 4);
   await env.clock.advance(1_000, env.pickup);
   assert.match(env.io.messages.get(id).embeds[0].description, /Starting <t:\d+:R>/);
@@ -526,7 +527,10 @@ test('mode votes on the queue card pick the next mode; an admin-set mode overrid
   assert.match((await env.pickup.select('mode', '3', voter('u2'))).ephemeral, /2 votes/);
   await env.pickup.select('mode', '2', voter('u3'));
   await env.clock.advance(1_000, env.pickup);
-  assert.match(env.io.messages.get(env.pickup.queueMessageId).embeds[0].description, /Mode votes: 3v3 ×2, 2v2 ×1/);
+  const card = env.io.messages.get(env.pickup.queueMessageId).embeds[0];
+  assert.match(card.description, /Next up: 3v3\nPicked by votes \(2\)/);
+  assert.match(card.description, /\*\*7\*\* players · 3v3 is full/);
+  assert.match(card.fields[0].value, /▶️ \*\*`3v3`\*\* ✅ · 🗳️ 2/);
   await env.clock.advance(30_000, env.pickup);
   const match = matchIn(env, 'check');
   assert.equal(match.size, 3, 'two votes picked 3v3');

@@ -220,3 +220,25 @@ test('admin-set mode wins over votes, and waits until there are enough players',
   assert.deepEqual(pickMode({ readyCount: 8, votes: [2, 2, 2], fixed: 4 }), { size: 4, by: 'admin', votes: 0 });
   assert.equal(pickMode({ readyCount: 7, votes: [2, 2], fixed: 4 }), null);
 });
+
+import { projectedMode } from '../src/logic/modes.js';
+
+test('projected next mode for the queue card', () => {
+  // Nobody yet: random, aim for 4 (the smallest game).
+  assert.deepEqual(projectedMode({ readyCount: 0 }), { size: null, by: 'random', fits: [], tied: [], target: 4, waitingFor: null });
+  // 5 signed up, no votes: 2v2 fits, next milestone is 6 (3v3).
+  assert.equal(projectedMode({ readyCount: 5 }).target, 6);
+  // 2 votes for 2v2 with 5 signed up: 2v2, by votes.
+  assert.deepEqual(projectedMode({ readyCount: 5, tally: { 2: 2 } }), { size: 2, by: 'votes', fits: [2], tied: [2], target: 4, waitingFor: null });
+  // 3 votes for 4v4 but only 5 signed up: still random for now, waiting for 8.
+  const w = projectedMode({ readyCount: 5, tally: { 4: 3 } });
+  assert.equal(w.by, 'random');
+  assert.equal(w.waitingFor, 4);
+  assert.equal(w.target, 8);
+  // A tie.
+  assert.deepEqual(projectedMode({ readyCount: 8, tally: { 2: 2, 3: 2 } }).tied, [2, 3]);
+  // Admin mode.
+  assert.deepEqual(projectedMode({ readyCount: 3, fixed: 5, tally: { 2: 9 } }), { size: 5, by: 'admin', fits: [], tied: [], target: 10, waitingFor: null });
+  // Everything fits: no further milestone.
+  assert.equal(projectedMode({ readyCount: 12 }).target, null);
+});

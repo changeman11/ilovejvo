@@ -92,9 +92,26 @@ function liveBlock(live, me, isAdmin) {
   const votes = live?.modeVotes ?? {};
   const needed = live?.modeVotesNeeded ?? 2;
   const voteText = Object.entries(votes).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${mode(Number(s))} ×${n}`).join(', ');
-  const modeLine = fixed
-    ? `<p class="pk-mode">🎛️ Mode: <b>${mode(fixed)}</b>, set by an admin${live.fixedModeOnce ? ' for the next game' : ''}.</p>`
-    : `<p class="pk-mode">🗳️ ${voteText ? `Mode votes: <b>${esc(voteText)}</b>.` : 'No mode votes yet.'} ${needed} vote${needed === 1 ? '' : 's'} pick the mode; otherwise it’s random.</p>`;
+  // "Next up": the same projection the bot's queue card shows (Pickup.liveState().next).
+  const next = live?.next ?? { size: null, by: 'random', fits: [], tied: [], target: Math.min(...modes) * 2 };
+  const nextLabel = next.by === 'tie' ? next.tied.map(mode).join(' or ')
+    : next.size ? mode(next.size) : next.fits.length === 1 ? mode(next.fits[0]) : 'random';
+  const how = next.by === 'admin' ? `set by an admin${live.fixedModeOnce ? ' for the next game' : ''}`
+    : next.by === 'votes' ? `picked by votes (${votes[next.size] ?? 0})`
+      : next.by === 'tie' ? 'tied on votes'
+        : next.fits.length > 1 ? `random from ${next.fits.map(mode).join(' · ')}`
+          : next.fits.length === 1 ? 'the only mode that fits' : `${needed} votes pick the mode`;
+  const target = next.target ?? Math.max(...modes) * 2;
+  const pctFull = Math.min(100, Math.round((queue.length / target) * 100));
+  const modeLine = `
+    <div class="pk-next">
+      <div class="pk-next-mode"><small>next up</small><b>${nextLabel}</b><span>${how}</span></div>
+      <div class="pk-next-bar">
+        <div class="pk-bar${pctFull >= 100 ? ' full' : ''}"><span style="width:${pctFull}%"></span></div>
+        <small><b>${queue.length}</b>${queue.length < target && next.target ? ` / ${target}` : ''} players${next.waitingFor ? ` · ${mode(next.waitingFor)} has the votes, needs ${next.waitingFor * 2 - queue.length} more` : ''}</small>
+      </div>
+    </div>
+    ${voteText && !fixed ? `<p class="pk-mode">🗳️ Votes: <b>${esc(voteText)}</b> · ${needed} pick the mode</p>` : ''}`;
   const canVote = me && !fixed && !inMatch && (me.signedUp || myPlace);
   const voteButtons = canVote ? `
     <div class="pk-votes" role="group" aria-label="Vote for the next mode">

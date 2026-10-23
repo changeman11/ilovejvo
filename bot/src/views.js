@@ -1,7 +1,7 @@
 // What the bot's Discord messages look like. Each function returns a plain message object
 // ({ content, embeds, components, allowedMentions }) in Discord's own JSON shape, so the game
 // logic never needs discord.js and the tests can read them.
-import { modeLabel, fittingModes, minPlayers } from './logic/modes.js';
+import { modeLabel, fittingModes, minPlayers, projectedMode } from './logic/modes.js';
 import { currentSide } from './logic/draft.js';
 
 // I<3JVO colours (CLAUDE.md "Look").
@@ -10,6 +10,7 @@ const YELLOW = 0xffe200;
 const TEAL = 0x16b3a3;
 const CORAL = 0xff6b5b;
 const GREY = 0x8a90a8;
+const PURPLE = 0x7c5cff;
 
 const BUTTON = 2;
 const SELECT = 3;
@@ -58,45 +59,90 @@ export const gameChatName = (game) => `game-${game.number}`;
 
 // ---------- queue ----------
 // snapshot: { ready: [{id, name, fake}], drafting, countdownEndsAt, games: [{number, size, status}] }
+// A bar of squares: filled up to `have` out of `want` (at most 12 squares).
+export function bar(have, want, full = false) {
+  const n = Math.max(1, Math.min(12, want));
+  const filled = Math.min(n, have);
+  return (full ? '🟩' : '🟦').repeat(filled) + '⬜'.repeat(n - filled);
+}
+
+// The queue card in #pickup: the next mode in big letters, a player bar, every mode with whether
+// it fits and its votes, who's signed up, and what's on right now.
 export function queueView(snapshot, config) {
   const { ready, drafting = 0, countdownEndsAt = null, games = [], votes = {}, fixedMode = null } = snapshot;
-  const need = minPlayers(config.modes) - ready.length;
-  const fits = fittingModes(ready.length, config.modes).map(modeLabel).join(' · ');
-  let status;
-  if (countdownEndsAt) status = `**${ready.length}** signed up. Starting <t:${unix(countdownEndsAt)}:R>, so others can still join.\nPossible modes: ${fits}`;
-  else if (need > 0) status = `**${ready.length}** signed up. Need **${need}** more to start a game.`;
-  else status = `**${ready.length}** signed up.`;
-  const voteText = Object.entries(votes).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${modeLabel(Number(s))} ×${n}`).join(', ');
-  const modeLine = fixedMode
-    ? `🎛️ Mode: **${modeLabel(fixedMode.size)}**, set by an admin${fixedMode.once ? ' for the next game' : ''}.`
-    : voteText
-      ? `🗳️ Mode votes: ${voteText}. ${config.modeVotesNeeded} vote${config.modeVotesNeeded === 1 ? '' : 's'} pick the mode; otherwise it's random.`
-      : `🗳️ Want a mode? Vote below: ${config.modeVotesNeeded} vote${config.modeVotesNeeded === 1 ? '' : 's'} pick it.`;
-  status = `${status}\n${modeLine}`;
-  const fields = [
-    {
-      name: `Signed up (${ready.length})`,
-      value: ready.length ? ready.slice(0, 30).map((p, i) => `${i + 1}. ${esc(p.name)}`).join('\n') + (ready.length > 30 ? `\n…and ${ready.length - 30} more` : '') : 'Nobody yet.',
-    },
-  ];
-  if (drafting) fields.push({ name: 'Getting ready', value: `${drafting} game${drafting === 1 ? '' : 's'} in a ready check or draft right now.` });
-  const live = games.filter((g) => g.status === 'playing' || g.status === 'disputed');
-  if (live.length) {
-    fields.push({
-      name: 'Games on',
-      value: live.slice(0, 10).map((g) => `#${g.number} ${modeLabel(g.size)}${g.status === 'disputed' ? ' (waiting for an admin)' : ''}`).join('\n'),
-    });
+  const n = ready.length;
+  const next = projectedMode({ readyCount: n, modes: config.modes, tally: votes, needed: config.modeVotesNeeded, fixed: fixedMode?.size ?? null });
+  const needVotes = config.modeVotesNeeded;
+
+  // Headline: the next mode and how it was decided.
+  let headline;
+  let how;
+  if (next.by === 'admin') {
+    headline = `## 🎛️ Next up: ${modeLabel(next.size)}`;
+    how = `Set by an admin${fixedMode?.once ? ' for the next game' : ''} · voting is paused`;
+  } else if (next.by === 'votes') {
+    headline = `## 🗳️ Next up: ${modeLabel(next.size)}`;
+    how = `Picked by votes (${votes[next.size]}) · change it with the vote menu`;
+  } else if (next.by === 'tie') {
+    headline = `## 🗳️ Next up: ${next.tied.map(modeLabel).join(' or ')}`;
+    how = 'Tied on votes · one more vote decides it, or it’s a coin flip';
+  } else if (next.fits.length) {
+    headline = `## 🎲 Next up: ${next.fits.length === 1 ? modeLabel(next.fits[0]) : 'random'}`;
+    how = next.fits.length === 1 ? 'The only mode that fits right now' : `Random from ${next.fits.map(modeLabel).join(' · ')} · ${needVotes} votes pick one`;
+  } else {
+    headline = '## 🎲 Next up: random';
+    how = `${needVotes} votes pick the mode · otherwise random from what fits`;
   }
+  if (next.waitingFor) how += `\n🗳️ ${modeLabel(next.waitingFor)} has the votes: it needs **${next.waitingFor * 2 - n}** more player${next.waitingFor * 2 - n === 1 ? '' : 's'}`;
+
+  // The player bar and what's happening.
+  const target = next.target ?? Math.max(...config.modes) * 2;
+  const full = next.target === null || n >= target;
+  let status;
+  if (countdownEndsAt) status = `⏱️ **Starting <t:${unix(countdownEndsAt)}:R>**: others can still jump in`;
+  else if (next.by === 'admin' && n < target) status = `⏳ Need **${target - n}** more for ${modeLabel(next.size)}`;
+  else if (!next.fits.length) status = `⏳ Need **${target - n}** more to start`;
+  else status = '✅ Enough to play';
+  const enough = next.target !== null && n >= target;
+  const fullFor = next.size ? ` · ${modeLabel(next.size)} is full` : '';
+  const playerBar = `${bar(n, target, full)}  **${n}${!enough && next.target ? ` / ${target}` : ''}** player${n === 1 ? '' : 's'}${enough ? fullFor : ''}`;
+
+  // Every mode: fits or how many more it needs, and its votes.
+  const modesBoard = config.modes.map((m) => {
+    const short = m * 2 - n;
+    const isNext = (next.size ?? (next.fits.length === 1 ? next.fits[0] : null)) === m || (next.by === 'tie' && next.tied.includes(m));
+    const state = short <= 0 ? '✅' : `🔒 +${short}`;
+    const v = votes[m] ? ` · 🗳️ ${votes[m]}` : '';
+    const label = `\`${modeLabel(m)}\``;
+    return `${isNext ? '▶️' : '▫️'} ${isNext ? `**${label}**` : label} ${state}${v}`;
+  }).join('\n');
+
+  const players = n
+    ? ready.slice(0, 20).map((p, i) => `\`${String(i + 1).padStart(2)}\` ${esc(p.name)}${p.from === 'site' ? ' 🌐' : ''}`).join('\n') + (n > 20 ? `\n…and ${n - 20} more` : '')
+    : '*Nobody yet. Be the first!*';
+
+  const live = games.filter((g) => g.status === 'playing' || g.status === 'disputed');
+  const now = [
+    ...(drafting ? [`🔔 ${drafting} getting ready (ready check or draft)`] : []),
+    ...live.slice(0, 6).map((g) => `🏐 Game #${g.number} · ${modeLabel(g.size)}${g.status === 'disputed' ? ' · ⚠️ waiting for an admin' : ''}`),
+  ].join('\n') || '*No games on*';
+
+  const color = countdownEndsAt ? YELLOW : next.by === 'admin' ? PURPLE : next.fits.length ? TEAL : BLUE;
+  const logo = config.siteUrl ? `${config.siteUrl}/icons/icon-192.png` : null;
   return {
     content: '',
     embeds: [
       {
-        title: "🏐 Pickup games: sign up",
-        url: pickupUrl(config) ?? undefined,
-        color: BLUE,
-        description: `Pick **Sign up** in the menu below to queue (or **Withdraw** to leave). Each game is a random mode (${config.modes.map(modeLabel).join(', ')}) that fits how many are signed up. When the queue pops you get pinged: join your locked ready-up voice channel within ${config.readySeconds} seconds.\n\n${status}`,
-        fields,
-        footer: { text: `I<3JVO pickups · /elo · /leaderboard${pickupUrl(config) ? ' · you can also sign up on the website' : ''}` },
+        author: { name: 'I<3JVO PICKUP', url: pickupUrl(config) ?? undefined, icon_url: logo ?? undefined },
+        color,
+        description: `${headline}\n${how}\n\n${playerBar}\n${status}`,
+        fields: [
+          { name: '🎮 Modes', value: modesBoard, inline: true },
+          { name: `👥 Signed up · ${n}`, value: players, inline: true },
+          { name: '🔥 Right now', value: now, inline: false },
+        ],
+        thumbnail: logo ? { url: logo } : undefined,
+        footer: { text: `Sign up below · vote for a mode · when it pops you have ${config.readySeconds}s to join your ready-up channel${pickupUrl(config) ? ' · 🌐 = signed up on the website' : ''}` },
       },
     ],
     components: [
