@@ -208,3 +208,25 @@ test('which places go through', () => {
   assert.deepEqual(qualifyingPlaces(ev({ finals: { type: 'quarters' } }), g4), { direct: 2, best: null, bestCount: 0 });
   assert.equal(qualifyingPlaces(ev({ finals: { type: 'none' } }), g4), null);
 });
+
+import { seedingMap } from '../public/js/rules/autofix.js';
+
+test('seeding map: places, first-round matches, projected then confirmed', () => {
+  const event = ev({ id: 'x', groups: { count: 2, assign: { t1: 'A', t2: 'A', t3: 'A', t4: 'B', t5: 'B', t6: 'B' } }, finals: { type: 'semis' }, fixturesLockedAt: start });
+  const entries = ['t1', 't2', 't3', 't4', 't5', 't6'].map((t, i) => entry(t, i));
+  const fixtures = gf(event, drawGroups(event, entries.map((e) => e.teamId)));
+  // Nothing played: places known, teams not
+  let map = seedingMap(event, schedulePlan({ event, season, entries, fixtures, now: start }));
+  assert.deepEqual(map.seeds.map((s) => s.label), ['Winner Group A', 'Winner Group B', 'Runner-up Group A', 'Runner-up Group B']);
+  assert.ok(map.seeds.every((s) => s.teamId === null));
+  assert.deepEqual(map.first.map((m) => [m.slot, m.home, m.away]), [['sf1', 0, 3], ['sf2', 1, 2]]);
+  // Group A half played: projected (not confirmed)
+  const aOnly = Object.fromEntries(Object.entries(playAll(fixtures)).filter(([id]) => id.includes('-gA-')).slice(0, 2));
+  map = seedingMap(event, schedulePlan({ event, season, entries, fixtures, results: aOnly, now: start }));
+  assert.ok(map.seeds[0].teamId && !map.seeds[0].confirmed);
+  assert.equal(map.seeds[1].teamId, null);
+  // All played: confirmed
+  map = seedingMap(event, schedulePlan({ event, season, entries, fixtures, results: playAll(fixtures), now: start }));
+  assert.deepEqual(map.seeds.map((s) => [s.teamId, s.confirmed]), [['t1', true], ['t4', true], ['t2', true], ['t5', true]]);
+  assert.equal(seedingMap(ev({ finals: { type: 'none' } }), schedulePlan({ event: ev(), season, now: 0 })), null);
+});

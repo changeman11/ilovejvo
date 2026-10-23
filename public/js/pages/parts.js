@@ -196,11 +196,13 @@ export function groupTablesHtml(b) {
     ${note ? `<p class="gt-key"><span class="gt-swatch through"></span> ${esc(note)}${places?.best ? ' <span class="gt-swatch maybe"></span> could go through as a best ' + esc(placeName(places.best)) + '.' : ''}</p>` : ''}`;
 }
 
-// One fixtures panel per group, with round headings.
-export function groupFixturesHtml(b) {
+// One fixtures panel per group, with round headings. only: a Set of fixture ids to show (e.g. just
+// upcoming ones); groups with none of them are left out.
+export function groupFixturesHtml(b, { only = null } = {}) {
   const { groups } = b.plan;
-  const all = b.fixtures.filter((f) => f.group).sort(stageOrder);
-  return `<div class="gf-grid">${Object.keys(groups).map((l) => {
+  const all = b.fixtures.filter((f) => f.group && (!only || only.has(f.id))).sort(stageOrder);
+  const letters = Object.keys(groups).filter((l) => !only || all.some((f) => f.group === l));
+  return `<div class="gf-grid">${letters.map((l) => {
     let lastRound = null;
     const rows = all.filter((f) => f.group === l).map((f) => {
       const round = (f.label ?? '').split(' · ')[1] ?? null;
@@ -275,4 +277,32 @@ export function bracketHtml(b) {
         </div>` : ''}
     </div>
     ${extra.length ? `<div class="panel flush fixtures" style="margin-top:14px">${extra.map((f) => fixtureRow(b, f)).join('')}</div>` : ''}`;
+}
+
+// ---------- Seeding map (Fixtures page, bracket view) ----------
+// Each first-round knockout match with the two places that feed it, and who's in each place now.
+export function seedingMapHtml(b, map) {
+  if (!map) return '';
+  const seedLine = (i) => {
+    const s = map.seeds[i];
+    const t = s.teamId ? b.teamsById[s.teamId] : null;
+    const status = !t ? '<span class="sm-status tbd">TBD</span>'
+      : s.confirmed ? '<span class="sm-status ok">✓ Confirmed</span>' : '<span class="sm-status proj">Projected</span>';
+    return `
+      <div class="sm-seed">
+        <span class="sm-num">${s.seed}</span>
+        <span class="sm-place">${esc(s.label)}</span>
+        <span class="sm-team">${t ? `${teamDot(t)}<span>${esc(t.name)}</span>` : '<span class="muted">—</span>'}</span>
+        ${status}
+      </div>`;
+  };
+  return `
+    <div class="sm-grid">${map.first.map((m) => `
+      <div class="sm-match">
+        <div class="sm-label">${esc(m.label)}</div>
+        ${seedLine(m.home)}
+        <div class="sm-vs">v</div>
+        ${seedLine(m.away)}
+      </div>`).join('')}</div>
+    <p class="gt-key">Projected = where they’d be if the groups ended now. Confirmed once their group is finished.</p>`;
 }

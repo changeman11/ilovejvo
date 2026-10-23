@@ -40,6 +40,7 @@
   - **Notifications bell** (`js/notifications.js`), next to the Teams button: invites, join requests and their answers, leave decisions, and matches waiting for your result vote. Worked out from existing records; "seen" is stored on the device only.
   - **Fixtures:** a heading per round (from labels like "Round 3" or "Semi-final", `roundName()` in `pages/parts.js`), plus a team filter (`?team=`) with a "My team" chip.
   - **Teams & players** page (`/teams?view=teams|players|free`).
+  - **Fixtures page views (2026-10-24):** List (default) shows one section per event, with a panel per group and the finals listed separately. **🏆 Groups & bracket** (`?layout=bracket`) shows group tables, a **seeding map** (`seedingMap()` in autofix.js: which group place feeds each first-round knockout match, projected or confirmed) and the finals bracket, for each event with groups or a knockout.
   - **Results reel** (`js/reel.js`): latest scores scroll above the bottom bar. Users can hide it for a visit.
   - **FAQ & rules** at `/help`. Admins edit them at `/admin/help`; they're saved in `settings/faq` and `settings/rules`, using a small safe formatter (`rules/markdown.js`). Starter text lives in `js/help-defaults.js`.
   - **Comments** on team and player pages, stored in `teams/{id}/comments` and `players/{id}/comments`:

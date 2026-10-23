@@ -369,6 +369,35 @@ export function qualifyingPlaces(event, groups) {
   return { direct, best, bestCount: seeds.filter((x) => 'best' in x).length };
 }
 
+// The seeding map: who goes into each knockout place, and which first-round match each seed plays.
+// Teams are "confirmed" once their group is finished and "projected" (as if the groups ended now)
+// before that; a group with no results yet shows no team. Returns null without a knockout.
+// { size, seeds: [{ seed, label, teamId, confirmed }], first: [{ slot, label, home, away }] }
+export function seedingMap(event, plan) {
+  const size = KO_SIZE[event?.finals?.type] ?? 0;
+  if (!size) return null;
+  const seeds = qualifiers(plan.groups, size);
+  if (!seeds) return null;
+  const letters = Object.keys(plan.groups);
+  const started = (l) => (plan.tables[l]?.rows ?? []).some((r) => r.played > 0);
+  const allDone = letters.every((l) => plan.tables[l]?.done);
+  const rows = seeds.map((x, i) => {
+    let teamId = null;
+    let confirmed = false;
+    if (x.group) {
+      if (started(x.group)) teamId = plan.tables[x.group].rows[x.pos - 1]?.teamId ?? null;
+      confirmed = Boolean(plan.tables[x.group]?.done);
+    } else if (letters.some(started)) {
+      const candidates = letters.filter(started).map((l) => plan.tables[l].rows[x.pos - 1]).filter(Boolean).sort(betterRow);
+      teamId = candidates[x.best]?.teamId ?? null;
+      confirmed = allDone;
+    }
+    return { seed: i + 1, label: x.label, teamId, confirmed: confirmed && Boolean(teamId) };
+  });
+  const first = bracket(size).filter((m) => typeof m.home === 'number').map(({ slot, label, home, away }) => ({ slot, label, home, away }));
+  return { size, seeds: rows, first };
+}
+
 // The draw to save at the lock, so it never changes afterwards: { teamId: letter }.
 export function drawToSave(plan) {
   if (plan.groupCount < 2) return null;
