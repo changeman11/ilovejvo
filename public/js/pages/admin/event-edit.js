@@ -8,13 +8,13 @@ import { loadEventBundle, loadPeople, NotFoundError } from '../../data.js';
 import {
   EVENT_TYPES, EVENT_STATUSES, validateEvent, dateFromInputs, inputsFromDate, eventDateLabel,
 } from '../../rules/events.js';
-import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, isLocked, schedulePlan, drawToSave, matchCount, groupCount } from '../../rules/autofix.js';
+import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, isLocked, schedulePlan, drawToSave, matchCount, groupCount, suggestSetup, suggestionText } from '../../rules/autofix.js';
 import { syncSchedules } from '../../admin-sync.js';
 import { watchEvent } from '../../live.js';
 import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures, makeMixTeams, breakUpMixTeam } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
-import { resultOf } from '../parts.js';
+import { resultOf, stageOrder } from '../parts.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
 export const title = 'Edit event';
@@ -34,6 +34,20 @@ function payload(changes = {}) {
 }
 
 // ---------- Details tab ----------
+
+// The suggested setup for the teams in the event, with a "Use suggestion" button (fills the form;
+// Save details keeps it). With no teams yet, a rough guide instead.
+function groupSuggestion(e) {
+  const teams = page?.b?.plan?.teamIds?.length ?? 0;
+  if (teams < 2) {
+    return '<p class="small" style="margin:0">💡 <b>Rough guide</b> (groups of about 4): 6–9 teams → 2 groups · 10–13 → 3 · 14–17 → 4 · 18–21 → 5 · up to 32 → 8. A suggestion appears here once teams are in.</p>';
+  }
+  const s = suggestSetup(teams, { double: e.autoFixtures === 'double' });
+  const same = groupCount(e) === s.groups && (e.finals?.type ?? 'none') === s.knockout;
+  return `<p class="small" style="margin:0">💡 <b>Suggested:</b> ${esc(suggestionText(teams, { double: e.autoFixtures === 'double' }))}.</p>
+    ${same ? '<p class="small" style="margin:4px 0 0">✓ That’s what this event is set to.</p>'
+      : `<button type="button" class="btn btn-sm" data-act="use-suggestion" data-groups="${s.groups}" data-knockout="${s.knockout}" style="margin-top:6px">Use suggestion</button>`}`;
+}
 
 // "12 teams in 3 groups: 18 matches (everyone plays everyone: 66)", for the Rule config.
 function groupHint(e) {
@@ -78,6 +92,7 @@ function detailsHtml(e) {
           <label class="field"><span>Group draw</span><select name="groupDraw">${Object.entries(GROUP_DRAWS).map(([k, v]) => opt(k, v, e.groups?.draw ?? 'auto')).join('')}</select></label>
         </div>
         <p class="muted small group-hint" style="margin-top:-6px">${esc(groupHint(e))}</p>
+        <div class="group-suggest">${groupSuggestion(e)}</div>
         <div class="field-row">
           <label class="field"><span>Knockout</span><select name="finalsType">${Object.entries(FINALS_TYPES).map(([k, v]) => opt(k, v, e.finals?.type ?? 'none')).join('')}</select></label>
           <label class="field"><span>Quarter / semi-finals best of</span><select name="semiBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.semiBestOf ?? 3)).join('')}</select></label>
@@ -304,6 +319,7 @@ function scheduleSettingsHtml() {
     <section class="panel">
       <div class="section-head"><h3>Automatic fixtures</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Change in Rule config</a></div>
       <p class="small" style="margin-top:0">${esc(rules)}</p>
+      ${(() => { const n = page.b.plan.teamIds.length; const s = suggestSetup(n); return n >= 6 && s.groups !== groupCount(e) ? `<p class="small">💡 For ${n} teams we suggest ${s.groups === 1 ? 'no groups' : `${s.groups} groups`} (${esc(suggestionText(n))}). <a href="${urls.adminEvent(e.id, 'details')}" data-link>Change in Rule config</a></p>` : ''; })()}
       <p class="small">${auto ? '<span class="live-dot" aria-hidden="true"></span> Updates live as clubs join or leave. ' : ''}<b>${esc(lockLine)}</b> ${page.b.plan.teamIds.length} team${page.b.plan.teamIds.length === 1 ? '' : 's'} in.</p>
       <div class="actions">
         ${!e.fixturesLockedAt && auto ? '<button class="btn btn-sm" type="button" data-act="lock-now">Lock fixtures now</button>' : ''}
@@ -316,8 +332,17 @@ function scheduleSettingsHtml() {
 
 function fixturesHtml(editId) {
   const { b } = page;
-  const list = [...b.fixtures].sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+  const list = [...b.fixtures].sort(stageOrder);
+  // A heading whenever the section changes: each group, other matches, the knockout.
+  const sectionOf = (f) => (f.stage === 'playoffs' ? 'Knockout' : f.group ? `Group ${f.group}` : (b.plan.groupCount > 1 ? 'Other matches' : ''));
+  let lastSection = null;
   const rows = list.map((f) => {
+    const section = sectionOf(f);
+    const head = section && section !== lastSection ? `<div class="day-head admin-section-head">${esc(section)}</div>` : '';
+    lastSection = section;
+    return head + fixtureAdminRow(f);
+  }).join('');
+  function fixtureAdminRow(f) {
     const home = b.teamsById[f.homeTeamId];
     const away = b.teamsById[f.awayTeamId];
     const { result, check } = resultOf(b, f);
@@ -339,7 +364,7 @@ function fixturesHtml(editId) {
         </span>
       </div>
       ${editId === f.id ? fixtureForm(f) : ''}`;
-  }).join('');
+  }
 
   return `
     <div class="stack">
@@ -490,6 +515,16 @@ export function mount(el) {
     if (act === 'tick-squad') {
       const ids = new Set(button.dataset.ids.split(','));
       root.querySelectorAll(`[data-roster="${CSS.escape(button.dataset.team)}"] .tick-list input`).forEach((i) => { i.checked = ids.has(i.value); });
+      return;
+    }
+
+    if (act === 'use-suggestion') {
+      const form = button.closest('form');
+      form.querySelector('[name=groupCount]').value = button.dataset.groups;
+      form.querySelector('[name=finalsType]').value = button.dataset.knockout;
+      const hint = root.querySelector('.group-hint');
+      if (hint) hint.textContent = groupHint({ ...payload(), ...readDetails(form) });
+      button.outerHTML = '<p class="small" style="margin:4px 0 0">✓ Filled in. Press <b>Save details</b> to keep it.</p>';
       return;
     }
 

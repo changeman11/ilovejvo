@@ -111,8 +111,8 @@ export function groupFixtures(event, groupsOrIds) {
     scheduledAt: event.date ?? null,
     timeTbd: true,
     bestOf: null,
-    // Groups play side by side: round 1 of every group, then round 2...
-    order: g.round * 1000 + gi * 50 + i,
+    // Listed group by group (A's rounds, then B's...); knockout matches come after (order 100000+).
+    order: gi * 10000 + g.round * 100 + i,
     status: 'scheduled',
     auto: true,
     ...(many ? { group: l } : {}),
@@ -129,6 +129,35 @@ export function matchCount(event, teamCount) {
     total += (size * (size - 1) / 2) * legs;
   }
   return total;
+}
+
+// ---------- Suggestions ----------
+
+// A sensible setup for this many teams: groups of about 4 (3 group matches each), and a knockout
+// that suits the number of groups. Returns { groups, sizes, perTeam, matches, knockout }.
+export function suggestSetup(teamCount, { double = false } = {}) {
+  const n = Math.max(0, Math.floor(teamCount));
+  const groups = n <= 5 ? 1 : Math.min(8, Math.max(2, Math.round(n / 4)));
+  const sizes = Array.from({ length: groups }, (_, g) => Math.floor(n / groups) + (g < n % groups ? 1 : 0));
+  const legs = double ? 2 : 1;
+  const matches = sizes.reduce((sum, k) => sum + (k * (k - 1) / 2) * legs, 0);
+  const perTeam = sizes.length ? (Math.min(...sizes) - 1) * legs : 0;
+  let knockout = 'none';
+  if (groups === 1) knockout = n >= 6 ? 'semis' : n >= 2 ? 'final' : 'none';
+  else if (groups <= 3) knockout = 'semis';
+  else knockout = n >= 8 ? 'quarters' : 'semis';
+  return { groups, sizes, perTeam, matches, knockout };
+}
+
+// "12 teams: 3 groups of 4 · 3 matches each · 18 group matches, then semi-finals (top 4)"
+export function suggestionText(teamCount, opts) {
+  const s = suggestSetup(teamCount, opts);
+  if (teamCount < 2) return '';
+  const sizes = [...new Set(s.sizes)].sort((a, b) => b - a).join(' or ');
+  const ko = { none: '', final: ', then a final', semis: ', then semi-finals (top 4)', quarters: ', then quarter-finals (top 8)' }[s.knockout];
+  return s.groups === 1
+    ? `${teamCount} teams: one group, everyone plays everyone (${s.matches} matches)${ko}`
+    : `${teamCount} teams: ${s.groups} groups of ${sizes} · ${new Set(s.sizes).size > 1 ? 'at least ' : ''}${s.perTeam} matches each · ${s.matches} group matches in total${ko}`;
 }
 
 // ---------- Knockout ----------
@@ -325,7 +354,19 @@ export function schedulePlan({ event, season, entries = [], fixtures = [], resul
     }
   }
 
-  return { teamIds, groups, groupCount: n, tables, locked, open: signupsOpen(event, now), virtual, toSave, lockGroup, finalsNote };
+  return { teamIds, groups, groupCount: n, tables, places: qualifyingPlaces(event, groups), locked, open: signupsOpen(event, now), virtual, toSave, lockGroup, finalsNote };
+}
+
+// Which places in each group go through: { direct: 2, best: 3 | null } (best = some of that place,
+// e.g. the best runner-up). Null when there's no knockout or not enough teams.
+export function qualifyingPlaces(event, groups) {
+  const size = KO_SIZE[event?.finals?.type] ?? 0;
+  if (!size) return null;
+  const seeds = qualifiers(groups, size);
+  if (!seeds) return null;
+  const direct = Math.max(0, ...seeds.filter((x) => x.group).map((x) => x.pos));
+  const best = seeds.find((x) => 'best' in x)?.pos ?? null;
+  return { direct, best, bestCount: seeds.filter((x) => 'best' in x).length };
 }
 
 // The draw to save at the lock, so it never changes afterwards: { teamId: letter }.

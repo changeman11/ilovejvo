@@ -9,7 +9,7 @@ import { characterSpot, characterPicker, charactersOn, startCharacters } from '.
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag } from '../ui.js';
-import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable } from './parts.js';
+import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupCards, stageOrder } from './parts.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
 import { adminAddEntry, removeEntry } from '../admin-data.js';
@@ -290,17 +290,22 @@ export const eventPage = {
     const e = b.event;
     shownEventId = e.id;
     const signups = await signupBox(b);
-    const items = [...b.fixtures].sort((x, y) => (x.scheduledAt ?? Infinity) - (y.scheduledAt ?? Infinity) || (x.order ?? 0) - (y.order ?? 0)).map((f) => ({ b, f }));
+    const items = [...b.fixtures].sort((x, y) => (x.scheduledAt ?? Infinity) - (y.scheduledAt ?? Infinity) || stageOrder(x, y)).map((f) => ({ b, f }));
     const stats = careerStats([b]);
     const signup = safeUrl(e.signupUrl);
     const stream = safeUrl(e.streamUrl);
     const table = e.showTable && b.teams.length && b.plan.groupCount < 2 ? computeStandings(b).rows : null;
-    // Group stage: a table per group (always shown when there are groups).
-    const groupTables = b.plan.groupCount > 1 && b.plan.teamIds.length
-      ? Object.entries(b.plan.tables).map(([l, t]) => `
-        <section><div class="section-head"><h2>Group ${l}</h2>${t.done ? '<span class="tag tag-live">Finished</span>' : ''}</div>
-          <div class="panel flush">${t.rows.length ? standingsTable(t.rows, b) : '<p class="muted" style="padding:16px">No teams yet.</p>'}</div></section>`).join('')
-      : '';
+    // Group stage: one card per group (its table and its fixtures), then the knockout separately.
+    const hasGroups = b.plan.groupCount > 1 && b.plan.teamIds.length > 0;
+    const draft = b.plan.virtual.some((f) => f.auto) ? '<span class="tag tag-draft">Draft until the lock</span>' : '';
+    const groupStage = hasGroups ? `
+      <section>
+        <div class="section-head"><h2>Group stage</h2>${draft}</div>
+        ${groupCards(b)}
+      </section>` : '';
+    const listed = hasGroups ? items.filter(({ f }) => !f.group) : items;
+    const knockout = listed.filter(({ f }) => f.stage === 'playoffs');
+    const others = listed.filter(({ f }) => f.stage !== 'playoffs');
 
     return {
       title: e.title,
@@ -319,15 +324,20 @@ export const eventPage = {
           </section>
           ${signups}
 
+          ${groupStage}
+
           <div class="cols">
             <div class="stack">
+              ${hasGroups ? (others.length ? `<section><div class="section-head"><h2>Other matches</h2></div>
+                <div class="panel flush fixtures">${fixturesByRound(others)}</div></section>` : '') : `
               <section>
-                <div class="section-head"><h2>Fixtures &amp; results</h2>${b.plan.virtual.some((f) => f.auto) ? '<span class="tag tag-draft">Draft until the lock</span>' : ''}</div>
-                <div class="panel flush fixtures">${items.length ? fixturesByRound(items) : `<p class="muted" style="padding:16px">${e.autoFixtures && e.autoFixtures !== 'off' ? 'Fixtures appear here once two clubs have signed up.' : 'Fixtures haven’t been announced yet.'}</p>`}</div>
-                ${b.plan.finalsNote ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
-              </section>
+                <div class="section-head"><h2>Fixtures &amp; results</h2>${draft}</div>
+                <div class="panel flush fixtures">${others.length ? fixturesByRound(others) : `<p class="muted" style="padding:16px">${e.autoFixtures && e.autoFixtures !== 'off' ? 'Fixtures appear here once two clubs have signed up.' : 'Fixtures haven’t been announced yet.'}</p>`}</div>
+              </section>`}
+              ${knockout.length ? `<section><div class="section-head"><h2>Knockout</h2></div>
+                <div class="panel flush fixtures">${fixturesByRound(knockout)}</div></section>` : ''}
+              ${b.plan.finalsNote ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
               ${table ? `<section><div class="section-head"><h2>Table</h2></div><div class="panel flush">${standingsTable(table, b)}</div></section>` : ''}
-              ${groupTables}
             </div>
             <div class="stack">
               <section>

@@ -1199,3 +1199,19 @@ body.has-reel .featured { bottom: calc(var(--reel-bottom) + var(--reel-h) + 10px
 .admin-mode-btn { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--ink); background: var(--tint-teal); color: var(--ink); font: 700 12px var(--font-body); cursor: pointer; }
 .admin-mode-btn:hover { background: var(--surface); }
 .admin-mode-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 2px var(--ink); }
+
+/* ---------- Group stage cards (event page) ---------- */
+.group-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; }
+.group-card { overflow: hidden; }
+.group-card-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--blue); color: #fff; border-bottom: 3px solid var(--ink); }
+.group-card-head h3 { margin: 0; font-size: 20px; }
+.group-card-head .muted { color: rgba(255, 255, 255, 0.8); }
+.group-card-head .tag { margin-left: auto; }
+.group-table { font-size: 14px; }
+.group-table tr.through td:first-child { box-shadow: inset 4px 0 0 var(--teal); }
+.group-table tr.maybe td:first-child { box-shadow: inset 4px 0 0 transparent; background-image: linear-gradient(to bottom, var(--teal) 50%, transparent 50%); background-size: 4px 8px; background-repeat: repeat-y; }
+.group-note { margin: 0; padding: 6px 14px 8px; border-bottom: 1px solid var(--line); }
+.group-card .fixtures .day-head { font-size: 11px; }
+@media (min-width: 1024px) { .group-card-head { background: var(--g-card, #1d1f2a); } }
+.group-suggest { margin: 2px 0 12px; padding: 8px 12px; border: 2px dashed var(--blue); border-radius: var(--radius-sm); background: var(--tint-sky); }
+.admin-section-head { font-size: 13px; }

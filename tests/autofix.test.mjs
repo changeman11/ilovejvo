@@ -180,3 +180,31 @@ test('the draw is saved at the lock', () => {
   assert.deepEqual(drawGroups({ ...event, groups: { count: 3, assign: saved } }, teams12), plan.groups);
   assert.equal(drawToSave(schedulePlan({ event: ev(), season, entries: [], now: 0 })), null);
 });
+
+// ---------- Suggestions and display helpers ----------
+import { suggestSetup, suggestionText, qualifyingPlaces } from '../public/js/rules/autofix.js';
+
+test('suggested groups: about 4 a group', () => {
+  const g = (n) => suggestSetup(n).groups;
+  assert.deepEqual([4, 5, 6, 8, 10, 12, 14, 16, 20, 32, 40].map(g), [1, 1, 2, 2, 3, 3, 4, 4, 5, 8, 8]);
+  assert.deepEqual(suggestSetup(12), { groups: 3, sizes: [4, 4, 4], perTeam: 3, matches: 18, knockout: 'semis' });
+  assert.equal(suggestSetup(16).knockout, 'quarters');
+  assert.match(suggestionText(12), /3 groups of 4 · 3 matches each · 18 group matches in total, then semi-finals/);
+  assert.match(suggestionText(10), /3 groups of 4 or 3 · at least 2 matches each/);
+  assert.match(suggestionText(5), /one group, everyone plays everyone \(10 matches\)/);
+});
+
+test('group fixtures are listed group by group', () => {
+  const event = ev({ id: 'x', groups: { count: 2 } });
+  const fx = gf(event, drawGroups(event, teams12.slice(0, 8)));
+  const groupsInOrder = [...fx].sort((a, b) => a.order - b.order).map((f) => f.group);
+  assert.deepEqual(groupsInOrder, [...groupsInOrder].sort());
+});
+
+test('which places go through', () => {
+  const g3 = drawGroups(gev(), teams12);
+  assert.deepEqual(qualifyingPlaces(gev({ finals: { type: 'semis' } }), g3), { direct: 1, best: 2, bestCount: 1 });
+  const g4 = drawGroups(ev({ id: 'q', groups: { count: 4 } }), teams12);
+  assert.deepEqual(qualifyingPlaces(ev({ finals: { type: 'quarters' } }), g4), { direct: 2, best: null, bestCount: 0 });
+  assert.equal(qualifyingPlaces(ev({ finals: { type: 'none' } }), g4), null);
+});
