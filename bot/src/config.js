@@ -86,6 +86,12 @@ export function loadConfig(env = process.env) {
     clubRoles: text('CLUB_ROLES') === '1',
     clubRolesHoist: text('CLUB_ROLES_GROUPED', '1') !== '0',
     clubRolesMinutes: number('CLUB_ROLES_MINUTES', 5, 1, 1440),
+    // 1v1 ranked queue (ranked.js). Channels are made if these are empty.
+    ranked: text('RANKED') === '1',
+    rankedChannelId: discordId('RANKED_CHANNEL_ID', '', false),
+    rankedResultsChannelId: discordId('RANKED_RESULTS_CHANNEL_ID', '', false),
+    rankedReadySeconds: number('RANKED_READY_SECONDS', 300, 30, 3600),
+    rankedCloseSeconds: number('RANKED_CLOSE_SECONDS', 15, 0, 600),
     // The website queue: on whenever ratings are in Firestore, unless SITE_QUEUE=0.
     siteQueue: store === 'firebase' && text('SITE_QUEUE') !== '0',
     // The website, for links on the bot's messages (SITE_URL=0 turns the links off).
@@ -94,6 +100,12 @@ export function loadConfig(env = process.env) {
     dataFile: text('DATA_FILE', 'data/pickup.json'),
     firebase,
   };
+  // Staff (see the 1v1 results channel, decide disputes): STAFF_ROLE_IDS, or the admin roles.
+  config.staffRoleIds = text('STAFF_ROLE_IDS').split(/[\s,]+/).filter(Boolean);
+  if (!config.staffRoleIds.length) config.staffRoleIds = [...config.adminRoleIds];
+  for (const id of config.staffRoleIds) {
+    if (!/^\d{15,22}$/.test(id)) problems.push(`STAFF_ROLE_IDS should be role IDs separated by commas, got "${id}"`);
+  }
   for (const id of config.adminRoleIds) {
     if (!/^\d{15,22}$/.test(id)) problems.push(`ADMIN_ROLE_IDS should be role IDs separated by commas, got "${id}"`);
   }

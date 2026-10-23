@@ -10,7 +10,8 @@ import { commandList } from './commands.js';
 import { setupDiscord, isAdmin } from './discord-io.js';
 import { ClubRoles, describe } from './club-roles.js';
 import { SiteReader } from './store/firestore-rest.js';
-import { SiteQueue } from './site-queue.js';
+import { SiteQueue, RankedSiteQueue } from './site-queue.js';
+import { Ranked } from './ranked.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -38,11 +39,27 @@ try {
 }
 if (config.store === 'file') log.info(`[store] ratings file: ${resolve(config.dataFile)}`);
 
+// The 1v1 ladder keeps its own ratings and games (rankedRatings / rankedGames).
+let rankedStore = null;
+if (config.ranked) {
+  rankedStore = config.store === 'firebase'
+    ? new FirestoreStore({ firebase: config.firebase, startRating: 1000, log, names: { ratings: 'rankedRatings', games: 'rankedGames', meta: 'pickupMeta/ranked' } })
+    : new FileStore({ path: resolve(config.dataFile).replace(/pickup\.json$/, 'ranked.json'), startRating: 1000 });
+  try {
+    await rankedStore.init();
+  } catch (err) {
+    log.error(`Couldn't open the 1v1 store: ${err.message}`);
+    process.exit(1);
+  }
+}
+
 // Only non-privileged intents: no switches to turn on in the Developer Portal.
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 let pickup = null;
 let clubRoles = null;
 let siteQueue = null;
+let ranked = null;
+let rankedSite = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -54,6 +71,14 @@ client.once(Events.ClientReady, async () => {
     siteQueue?.attach(pickup);
     await pickup.start();
     siteQueue?.start();
+    if (config.ranked) {
+      if (config.siteQueue) rankedSite = new RankedSiteQueue({ rest: rankedStore.rest, firebase: config.firebase, log });
+      ranked = new Ranked({ io: discord.rankedIo, store: rankedStore, config, log, live: rankedSite });
+      rankedSite?.attach(ranked);
+      await ranked.start();
+      rankedSite?.start();
+      log.info(`[1v1] queue in <#${config.rankedChannelId}>, results in <#${config.rankedResultsChannelId}>`);
+    }
     if (config.clubRoles) {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
       clubRoles = new ClubRoles({ io: discord.roleIo, site, store, config, log });
@@ -75,6 +100,7 @@ client.on(Events.VoiceStateUpdate, (before, after) => {
   if (member?.user.bot) return;
   // A locked ready-up channel or a team channel: pickup.js sorts it out.
   if (before.channelId) pickup.left(before.channelId, after.id);
+  if (before.channelId) ranked?.voiceLeft(before.channelId, after.id);
   if (after.channelId) pickup.joined(after.channelId, after.id);
 });
 
@@ -85,7 +111,35 @@ client.on(Events.InteractionCreate, async (interaction) => {
     name: interaction.member?.displayName ?? interaction.member?.nick ?? interaction.user.globalName ?? interaction.user.username,
     isAdmin: isAdmin(interaction, config),
   };
+  // Staff (1v1 disputes): admins, or anyone with a STAFF_ROLE_IDS role.
+  const roleIds = Array.isArray(interaction.member?.roles) ? interaction.member.roles : [...(interaction.member?.roles?.cache?.keys() ?? [])];
+  user.isStaff = user.isAdmin || roleIds.some((id) => config.staffRoleIds.includes(id));
   try {
+    // 1v1 ranked: buttons, and the result form.
+    if (ranked && interaction.isButton() && /^(rq|rr|rres|rstaff):/.test(interaction.customId)) {
+      if (interaction.customId.startsWith('rres:')) {
+        const reply = await ranked.button(interaction.customId, user);
+        if (reply?.modal) return interaction.showModal({ toJSON: () => reply.modal });
+        return interaction.reply({ content: reply?.ephemeral ?? 'Something went wrong.', flags: MessageFlags.Ephemeral });
+      }
+      await interaction.deferUpdate();
+      const reply = await ranked.button(interaction.customId, user);
+      if (reply?.ephemeral) await interaction.followUp({ content: reply.ephemeral, flags: MessageFlags.Ephemeral });
+      return;
+    }
+    if (ranked && interaction.isModalSubmit() && interaction.customId.startsWith('rrm:')) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const winner = interaction.fields.getStringSelectValues('winner')?.[0];
+      const shot = interaction.fields.getUploadedFiles('shot')?.first?.() ?? null;
+      const reply = await ranked.modal(interaction.customId, user, { winner, file: shot ? { url: shot.url, name: shot.name, contentType: shot.contentType } : null });
+      return interaction.editReply(reply?.ephemeral ?? 'Saved.');
+    }
+    if (ranked && interaction.isChatInputCommand() && ['rp', 'rpleaderboard'].includes(interaction.commandName)) {
+      await interaction.deferReply();
+      const picked = interaction.options.getUser('player', false);
+      const player = picked ? { id: picked.id, name: interaction.options.getMember('player')?.displayName ?? picked.globalName ?? picked.username } : { id: user.id, name: user.name };
+      return interaction.editReply(interaction.commandName === 'rp' ? ranked.rating(player) : ranked.leaderboard());
+    }
     if (interaction.isButton()) {
       await interaction.deferUpdate();
       const reply = await pickup.button(interaction.customId, user);
@@ -136,7 +190,8 @@ async function stop(signal) {
   log.info(`${signal}: shutting down`);
   clubRoles?.stop();
   siteQueue?.stop();
-  if (pickup) await Promise.race([pickup.shutdown(), new Promise((r) => setTimeout(r, 8000))]);
+  rankedSite?.stop();
+  await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);
 }

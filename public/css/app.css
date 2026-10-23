@@ -1415,3 +1415,7 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .pk-bar span { display: block; height: 100%; background: var(--blue); transition: width 0.4s; }
 .pk-bar.full span { background: var(--teal); }
 @media (max-width: 420px) { .pk-next { grid-template-columns: 1fr; } }
+.pk-ranked h2 { margin: 0; }
+.pk-slots { columns: 1; }
+.pk-placing { padding: 10px 16px; margin: 0; }
+.pk-rp { background: var(--tint-purple, #e5dcff); }

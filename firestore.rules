@@ -577,6 +577,29 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isPickupBot() && request.resource.data.id == gameId;
     }
+    // 1v1 queue sign-ups from the site: same as pickupSignups (own doc only; the bot manages the rest).
+    match /rankedSignups/{signupId} {
+      allow read: if true;
+      allow create: if (discordId() != '' && signupId == discordId()
+                        && request.resource.data.keys().hasOnly(['discordId', 'name', 'signedUpAt'])
+                        && request.resource.data.discordId == signupId
+                        && request.resource.data.name is string
+                        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+                        && request.resource.data.signedUpAt == request.time)
+                    || (isPickupBot() && request.resource.data.discordId == signupId);
+      allow update: if isPickupBot();
+      allow delete: if (discordId() != '' && signupId == discordId()) || isPickupBot();
+    }
+    // The 1v1 ranked ladder (bot/src/ranked.js): RP per player and one doc per fixture.
+    match /rankedRatings/{discordId} {
+      allow read: if true;
+      allow create, update: if isPickupBot() && request.resource.data.discordId == discordId
+                            && request.resource.data.rating is number;
+    }
+    match /rankedGames/{gameId} {
+      allow read: if true;
+      allow create, update: if isPickupBot() && request.resource.data.id == gameId;
+    }
     match /pickupMeta/{docId} {
       allow read: if true;
       allow create, update: if isPickupBot();
@@ -587,7 +610,9 @@ service cloud.firestore {
     match /pickupSignups/{signupId} {
       allow read: if true;
       allow create: if (discordId() != '' && signupId == discordId()
-                        && request.resource.data.keys().hasOnly(['discordId', 'name', 'signedUpAt'])
+                        && request.resource.data.keys().hasOnly(['discordId', 'name', 'signedUpAt', 'vote'])
+                        && (!('vote' in request.resource.data) || request.resource.data.vote == null
+                            || (request.resource.data.vote is int && request.resource.data.vote >= 1 && request.resource.data.vote <= 10))
                         && request.resource.data.discordId == signupId
                         && request.resource.data.name is string
                         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60

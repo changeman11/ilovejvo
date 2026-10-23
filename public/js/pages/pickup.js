@@ -7,8 +7,8 @@
 
 import { onSnapshot, doc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from '../firebase.js';
-import { loadPickupLive, loadPickupRatings, loadPickupGames, loadPickupSignup, loadPlayers, invalidate } from '../data.js';
-import { pickupSignUp, pickupWithdraw, pickupVote } from '../player-data.js';
+import { loadPickupLive, loadPickupRatings, loadPickupGames, loadPickupSignup, loadPlayers, invalidate, loadRankedLive, loadRankedRatings, loadRankedSignup } from '../data.js';
+import { pickupSignUp, pickupWithdraw, pickupVote, rankedJoin, rankedLeave } from '../player-data.js';
 import { currentUser, discordOf, currentAdmin } from '../auth.js';
 import { commit } from '../writes.js';
 import { esc, skeleton, pageTitle, urls } from '../ui.js';
@@ -112,11 +112,14 @@ function liveBlock(live, me, isAdmin) {
       </div>
     </div>
     ${voteText && !fixed ? `<p class="pk-mode">🗳️ Votes: <b>${esc(voteText)}</b> · ${needed} pick the mode</p>` : ''}`;
-  const canVote = me && !fixed && !inMatch && (me.signedUp || myPlace);
-  const voteButtons = canVote ? `
+  // Vote buttons for everyone: signed up -> changes your vote; signed in but not signed up ->
+  // signs you up and votes in one go; not signed in -> sign in with Discord first.
+  const signedUp = Boolean(me && (me.signedUp || myPlace));
+  const voteButtons = !fixed && !inMatch ? `
     <div class="pk-votes" role="group" aria-label="Vote for the next mode">
-      ${modes.map((n) => `<button class="chip-link" type="button" data-vote="${n}"${me.vote === n ? ' aria-current="true"' : ''}>${mode(n)}${votes[n] ? ` · ${votes[n]}` : ''}</button>`).join('')}
-      <button class="chip-link" type="button" data-vote=""${!me.vote ? ' aria-current="true"' : ''}>any</button>
+      <span class="small muted">${!me ? 'Vote for the next mode (sign in first):' : signedUp ? 'Your vote:' : 'Vote (signs you up too):'}</span>
+      ${modes.map((n) => `<button class="chip-link" type="button" ${me ? `data-vote="${n}"` : 'data-discord-signin'}${me?.vote === n ? ' aria-current="true"' : ''}>${mode(n)}${votes[n] ? ` · ${votes[n]}` : ''}</button>`).join('')}
+      ${signedUp ? `<button class="chip-link" type="button" data-vote=""${!me.vote ? ' aria-current="true"' : ''}>any</button>` : ''}
     </div>` : '';
   const adminBox = isAdmin ? `
     <form class="pk-admin" data-pickup-admin>
@@ -164,6 +167,64 @@ function liveBlock(live, me, isAdmin) {
     </section>`;
 }
 
+// ---------- 1v1 ranked ----------
+function rankedBlock(live, me) {
+  const online = live?.updatedAt && Date.now() - live.updatedAt < OFFLINE_AFTER;
+  const queue = live?.queue ?? [];
+  const fixtures = live?.fixtures ?? [];
+  const inGame = me && fixtures.find((f) => f.phase !== 'done' && f.phase !== 'cancelled' && (f.aId === me.discordId || f.bId === me.discordId));
+  const inQueue = me && (me.inRanked || queue.some((p) => p.id === me.discordId));
+  let action;
+  if (!me) action = '<button class="btn btn-primary" type="button" data-discord-signin>Sign in to play</button>';
+  else if (inGame) action = `<div class="pk-alert">⚔️ <b>You’re in Game ${inGame.number}!</b> ${inGame.phase === 'ready' ? 'Join your 1v1 voice channel on Discord and press Ready.' : 'Report the winner in your game’s thread on Discord.'}</div>`;
+  else if (inQueue) action = '<button class="btn" type="button" data-ranked="leave">Leave 1v1 queue</button>';
+  else action = '<button class="btn btn-primary" type="button" data-ranked="join">⚔️ Queue 1v1</button>';
+  const slots = [0, 1].map((i) => `<li${queue[i] && me && queue[i].id === me.discordId ? ' class="me"' : ''}>${queue[i] ? esc(queue[i].name) : '<span class="muted">open slot</span>'}</li>`).join('');
+  const games = fixtures.map((f) => `<div class="pk-match"><b>Game ${f.number}</b> <span class="muted">${f.phase === 'ready' ? `readying up (${f.ready}/2)` : f.phase === 'disputed' ? 'staff deciding' : 'playing'}</span><p class="small">${esc(f.a)} <b>vs</b> ${esc(f.b)}</p></div>`).join('');
+  return `
+    <section class="panel pk-live pk-ranked">
+      <div class="pk-live-head">
+        <div>
+          <h2>⚔️ 1v1 ranked</h2>
+          <p class="pk-status${online ? '' : ' off'}">${online ? '<span class="live-dot"></span>' : '<span class="pk-dot off"></span>'}<b>${queue.length}</b>/2 in the queue${online ? '' : ' · bot offline'}</p>
+        </div>
+        <div class="pk-action">${action}</div>
+      </div>
+      <ol class="pk-queue pk-slots">${slots}</ol>
+      ${games ? `<h3 class="pk-sub">Right now</h3>${games}` : ''}
+      <p class="muted small pk-how">When two are in, you both get a locked voice channel and a ready-up chat on Discord. Join the voice channel and press Ready within ${Math.round((live?.readySeconds ?? 300) / 60)} minutes, then both report the winner with a screenshot of the scoreboard.</p>
+    </section>`;
+}
+
+function rpBoard(list, byDiscord, me) {
+  const placed = list.filter((r) => r.games >= 5).sort((x, y) => y.rating - x.rating || y.wins - x.wins);
+  const placing = list.filter((r) => r.games > 0 && r.games < 5);
+  if (!placed.length && !placing.length) return '<p class="muted" style="padding:16px">No 1v1s yet.</p>';
+  const rows = placed.slice(0, 50).map((r, i) => `<tr${me && r.id === me.discordId ? ' class="me-row"' : ''}>
+      <td class="first"><span class="rank">${i + 1}</span> ${nameOf(r.id, r.name, byDiscord)}</td>
+      <td class="strong">${r.rating}</td><td>${r.wins}</td><td>${r.losses}</td><td class="pk-form">${form(r.form)}</td></tr>`).join('');
+  return `${placed.length ? `<div class="table-wrap"><table class="data">
+    <thead><tr><th class="first">Player</th><th>RP</th><th>W</th><th>L</th><th>Last 5</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>` : '<p class="muted" style="padding:16px 16px 0">Nobody has finished placements yet.</p>'}
+    ${placing.length ? `<p class="small pk-placing"><b>Placing:</b> ${placing.map((r) => `${nameOf(r.id, r.name, byDiscord)} ${r.games}/5`).join(' · ')}</p>` : ''}`;
+}
+
+// 1v1 RP card for profiles. rank: loadRankedRank() result, or null.
+export function rankedBlockMini(rank) {
+  if (!rank) return '';
+  const r = rank.rating;
+  const placed = r.games >= 5;
+  return `
+    <div class="pk-mini">
+      <a class="pk-elo pk-rp" href="/pickup" data-link title="1v1 RP"><b>${r.rating}</b><small>${placed ? '1v1 rp' : `placing ${r.games}/5`}</small></a>
+      <div class="pk-mini-text">
+        <div>${placed ? `<b>#${rank.rank}</b> <span class="muted">of ${rank.total}</span>` : '<span class="muted">placements</span>'}</div>
+        <div class="small">${r.wins} W · ${r.losses} L</div>
+        <div class="pk-form">${form(r.form)}</div>
+      </div>
+    </div>`;
+}
+
 function leaderboard(ratings, byDiscord, me) {
   if (!ratings.length) return '<p class="muted">No games played yet.</p>';
   return `<div class="table-wrap"><table class="data">
@@ -199,18 +260,21 @@ export async function render() {
   const user = await currentUser();
   const discord = user ? await discordOf(user) : null;
   const admin = await currentAdmin().catch(() => null);
-  const [live, ratings, games, players, signup] = await Promise.all([
+  const [live, ratings, games, players, signup, live1, rp, rankedSignup] = await Promise.all([
     loadPickupLive(),
     loadPickupRatings({ fresh: true }).catch(() => []),
     loadPickupGames().catch(() => []),
     loadPlayers(),
     discord ? loadPickupSignup(discord.discordId) : null,
+    loadRankedLive(),
+    loadRankedRatings({ fresh: true }).catch(() => []),
+    discord ? loadRankedSignup(discord.discordId) : null,
   ]);
   const byDiscord = new Map(players.filter((p) => p.discordId).map((p) => [String(p.discordId), p]));
-  const me = discord ? { discordId: String(discord.discordId), signedUp: Boolean(signup), vote: Number.isInteger(signup?.vote) ? signup.vote : null, name: byDiscord.get(String(discord.discordId))?.displayName ?? discord.discordName ?? 'Player' } : null;
+  const me = discord ? { discordId: String(discord.discordId), signedUp: Boolean(signup), inRanked: Boolean(rankedSignup), vote: Number.isInteger(signup?.vote) ? signup.vote : null, name: byDiscord.get(String(discord.discordId))?.displayName ?? discord.discordName ?? 'Player' } : null;
 
   return `
-    <div class="page-head">${pageTitle('Pickup', 'Random 2v2 to 6v6 games on the JVO Discord, with captains, drafts and Elo.', 'green')}</div>
+    <div class="page-head">${pageTitle('Pickup', 'Random 2v2 to 6v6 games and 1v1 ranked on the JVO Discord, with drafts, Elo and RP.', 'green')}</div>
     <div class="cols pk-cols">
       <div class="stack">
         ${liveBlock(live, me, Boolean(admin?.admin))}
@@ -219,10 +283,17 @@ export async function render() {
           <div class="panel flush pk-games">${games.length ? games.map((g) => gameRow(g, byDiscord)).join('') : '<p class="muted" style="padding:16px">No games yet.</p>'}</div>
         </section>
       </div>
-      <section>
-        <div class="section-head"><h2>Elo leaderboard</h2><span class="muted small">everyone starts at 1000</span></div>
-        <div class="panel flush">${leaderboard(ratings, byDiscord, me)}</div>
-      </section>
+      <div class="stack">
+        ${rankedBlock(live1, me)}
+        <section>
+          <div class="section-head"><h2>Elo leaderboard</h2><span class="muted small">pickup games · everyone starts at 1000</span></div>
+          <div class="panel flush">${leaderboard(ratings, byDiscord, me)}</div>
+        </section>
+        <section>
+          <div class="section-head"><h2>1v1 RP leaderboard</h2><span class="muted small">5 placements at ±50, then ±20</span></div>
+          <div class="panel flush">${rpBoard(rp, byDiscord, me)}</div>
+        </section>
+      </div>
     </div>
     <script type="application/json" data-pickup-me>${JSON.stringify(me ?? null).replace(/</g, '\\u003c')}</script>`;
 }
@@ -259,6 +330,8 @@ export function mount(el) {
     }, () => {}));
   };
   watch(doc(db, 'pickupMeta/live'));
+  watch(doc(db, 'pickupMeta/live1v1'));
+  if (me) watch(doc(db, `rankedSignups/${me.discordId}`));
   if (me) watch(doc(db, `pickupSignups/${me.discordId}`));
 
   // Admins: set the mode (the bot picks it up straight away).
@@ -285,11 +358,26 @@ export function mount(el) {
     if (vote && me) {
       vote.disabled = true;
       try {
-        await pickupVote(me.discordId, vote.dataset.vote ? Number(vote.dataset.vote) : null);
+        const size = vote.dataset.vote ? Number(vote.dataset.vote) : null;
+        if (me.signedUp) await pickupVote(me.discordId, size);
+        else if (size) await pickupSignUp(me.discordId, me.name, size);
         redraw();
       } catch (err) {
         console.error(err);
         vote.disabled = false;
+      }
+      return;
+    }
+    const r = e.target.closest('[data-ranked]');
+    if (r && me) {
+      r.disabled = true;
+      try {
+        if (r.dataset.ranked === 'join') await rankedJoin(me.discordId, me.name);
+        else await rankedLeave(me.discordId);
+        redraw();
+      } catch (err) {
+        console.error(err);
+        r.disabled = false;
       }
       return;
     }

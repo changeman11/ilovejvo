@@ -262,3 +262,23 @@ export async function loadPickupGames(count = 15) {
 
 export const loadPickupLive = () => getOne('pickupMeta/live').catch(() => null);
 export const loadPickupSignup = (discordId) => (discordId ? getOne(`pickupSignups/${discordId}`).catch(() => null) : Promise.resolve(null));
+
+// ---------- 1v1 ranked (bot/src/ranked.js): rankedRatings, pickupMeta/live1v1, rankedSignups ----------
+export const loadRankedRatings = ({ fresh = false } = {}) => {
+  if (fresh) invalidate('ranked:ratings');
+  return cached('ranked:ratings', false, async () => (await getAll('rankedRatings')).filter((r) => r.games > 0));
+};
+
+// RP and rank (placed players only, by RP) by Discord ID: { rating, rank, total } or null.
+export async function loadRankedRank(discordId) {
+  if (!discordId) return null;
+  const list = await loadRankedRatings().catch(() => []);
+  const r = list.find((x) => x.id === String(discordId));
+  if (!r) return null;
+  const placed = list.filter((x) => x.games >= 5).sort((x, y) => y.rating - x.rating || y.wins - x.wins);
+  const i = placed.findIndex((x) => x.id === r.id);
+  return { rating: r, rank: i + 1, total: placed.length };
+}
+
+export const loadRankedLive = () => getOne('pickupMeta/live1v1').catch(() => null);
+export const loadRankedSignup = (discordId) => (discordId ? getOne(`rankedSignups/${discordId}`).catch(() => null) : Promise.resolve(null));

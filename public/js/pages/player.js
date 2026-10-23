@@ -1,8 +1,8 @@
 // Player profile (Steam style): banner, picture, level, badges, showcase stats, team,
 // upcoming fixtures, career totals, stats per event and every match.
 
-import { loadAllBundles, loadPeople, NotFoundError, isApprovedTeam, loadPickupRank } from '../data.js';
-import { pickupBlock } from './pickup.js';
+import { loadAllBundles, loadPeople, NotFoundError, isApprovedTeam, loadPickupRank, loadRankedRank } from '../data.js';
+import { pickupBlock, rankedBlockMini } from './pickup.js';
 import { esc, fmtNum, skeleton, avatarImg, teamLink, urls, managerTag, isLft, lftTag, staffTag } from '../ui.js';
 import { playerBadges, playerXp, levelFor } from '../rules/badges.js';
 import { statHeads, statCells, allFixtures, resultOf, fixtureRow } from './parts.js';
@@ -24,7 +24,7 @@ export async function render({ playerId }) {
   const [bundles, people] = await Promise.all([loadAllBundles(), loadPeople()]);
   const player = people.playersById[playerId];
   if (!player) throw new NotFoundError('That player doesn’t exist');
-  const pickup = await loadPickupRank(player.discordId);
+  const [pickup, rp] = await Promise.all([loadPickupRank(player.discordId), loadRankedRank(player.discordId)]);
 
   const defs = statDefsFor(bundles);
   const career = careerStats(bundles).get(playerId) ?? null;
@@ -100,6 +100,7 @@ export async function render({ playerId }) {
     ${sideBlock('Badges', badgesBlock(playerBadges(career, defs), 'Badges are earned by playing matches.'))}
     ${team ? sideBlock('Team', `<p class="pro-team">${teamLink(team, { size: 'lg' })}</p>`) : ''}
     ${pickup ? sideBlock('Pickup', pickupBlock(pickup)) : ''}
+    ${rp ? sideBlock('1v1 ranked', rankedBlockMini(rp)) : ''}
     ${upcoming.length ? `<section><div class="section-head"><h2>Upcoming</h2></div>
       <div class="panel flush fixtures">${upcoming.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('')}</div></section>` : ''}`;
 

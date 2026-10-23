@@ -132,3 +132,71 @@ export class SiteQueue {
     this.rest.commit(writes).catch((err) => this.log.warn('[site] could not update sign-ups:', err.message));
   }
 }
+
+// The same for the 1v1 ranked queue (ranked.js): rankedSignups/{discordId} = { discordId, name,
+// signedUpAt } (players add/delete their own on the site; the bot adds Discord ones and deletes
+// anyone who leaves the queue), and pickupMeta/live1v1 = the 1v1 queue and fixtures.
+export class RankedSiteQueue {
+  constructor({ rest, firebase, log = console }) {
+    Object.assign(this, { rest, firebase, log });
+    this.docs = new Set();
+    this.ranked = null;
+  }
+
+  attach(ranked) {
+    this.ranked = ranked;
+  }
+
+  start() {
+    const app = (this.app = initializeApp({ projectId: this.firebase.projectId, apiKey: this.firebase.apiKey }, `ranked-site-${++apps}`));
+    const db = getFirestore(app);
+    if (this.firebase.emulator) {
+      const { hostname, port } = new URL(this.firebase.emulator.firestore);
+      connectFirestoreEmulator(db, hostname, Number(port));
+    }
+    this.unsubscribe = onSnapshot(
+      collection(db, 'rankedSignups'),
+      (snap) => {
+        for (const change of snap.docChanges()) {
+          const id = change.doc.id;
+          if (change.type === 'added') {
+            this.docs.add(id);
+            if (!this.ranked.queue.some((p) => p.id === id)) this.ranked.siteJoin(id, String(change.doc.data().name ?? id).slice(0, 60));
+          } else if (change.type === 'removed') {
+            this.docs.delete(id);
+            this.ranked.siteLeave(id);
+          }
+        }
+      },
+      (err) => this.log.error('[site] watching 1v1 sign-ups stopped:', err.message),
+    );
+    this.heartbeat = setInterval(() => this.ranked.publishNow({ force: true }), HEARTBEAT);
+    this.ranked.publishNow({ force: true });
+  }
+
+  stop() {
+    this.unsubscribe?.();
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    if (this.app) deleteApp(this.app).catch(() => {});
+  }
+
+  joined(entry) {
+    if (entry.from !== 'discord' || this.docs.has(entry.id)) return;
+    this.docs.add(entry.id);
+    this.write([{ path: `rankedSignups/${entry.id}`, data: { discordId: entry.id, name: entry.name, signedUpAt: entry.at } }]);
+  }
+
+  left(id) {
+    if (!this.docs.has(id)) return;
+    this.docs.delete(id);
+    this.write([{ delete: `rankedSignups/${id}` }]);
+  }
+
+  publish(state) {
+    return this.rest.commit([{ path: 'pickupMeta/live1v1', data: state }]);
+  }
+
+  write(writes) {
+    this.rest.commit(writes).catch((err) => this.log.warn('[site] could not update 1v1 sign-ups:', err.message));
+  }
+}

@@ -227,10 +227,22 @@ export async function cancelLeave({ uid, request }) {
 
 // ---------- Pickup queue (the Discord bot watches pickupSignups) ----------
 // Sign up: a doc named after the player's Discord ID. The rules only let them write their own.
-export async function pickupSignUp(discordId, name) {
+// vote: optional team size, so "vote" on the site can sign you up and vote in one go.
+export async function pickupSignUp(discordId, name, vote = null) {
   const ref = doc(db, 'pickupSignups', String(discordId));
   if ((await getDoc(ref)).exists()) return;
+  await setDoc(ref, { discordId: String(discordId), name: String(name || 'Player').slice(0, 60), signedUpAt: serverTimestamp(), ...(vote ? { vote } : {}) });
+}
+
+// The 1v1 ranked queue (the bot pairs the first two).
+export async function rankedJoin(discordId, name) {
+  const ref = doc(db, 'rankedSignups', String(discordId));
+  if ((await getDoc(ref)).exists()) return;
   await setDoc(ref, { discordId: String(discordId), name: String(name || 'Player').slice(0, 60), signedUpAt: serverTimestamp() });
+}
+
+export async function rankedLeave(discordId) {
+  await deleteDoc(doc(db, 'rankedSignups', String(discordId)));
 }
 
 // Mode vote on your own sign-up (a team size, or null = no preference). The bot counts it.

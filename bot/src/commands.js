@@ -28,6 +28,12 @@ export function commandList(config) {
       options: [{ type: USER, name: 'player', description: 'Whose rating (leave empty for yours)', required: false }],
     },
     { name: 'leaderboard', description: 'The top pickup Elo ratings' },
+    ...(config.ranked
+      ? [
+          { name: 'rp', description: 'Show a 1v1 RP rating', options: [{ type: USER, name: 'player', description: 'Whose RP (leave empty for yours)', required: false }] },
+          { name: 'rpleaderboard', description: 'The 1v1 RP leaderboard' },
+        ]
+      : []),
     {
       name: 'pickup',
       description: 'Pickup admin tools',

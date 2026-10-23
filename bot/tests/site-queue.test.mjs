@@ -148,3 +148,52 @@ test('website queue: sign up and withdraw on the site, Discord sign-ups shown, l
   await pickup.leave(DISC);
   await until(async () => !(await getDoc(`pickupSignups/${DISC}`)), 'Discord withdraw removes the doc');
 });
+
+import { Ranked } from '../src/ranked.js';
+import { RankedSiteQueue } from '../src/site-queue.js';
+
+test('website 1v1 queue: a site sign-up pairs with a Discord one, and both sign-ups clear', { skip: !running && 'Firebase emulator not running (npm run dev)' }, async (t) => {
+  const SITE = `97${Date.now()}`.padEnd(18, '3');
+  const DISC = `98${Date.now()}`.padEnd(18, '4');
+  const firebase = { projectId: 'demo-jvo-hub', apiKey: 'demo-key', email: 'pickup-bot-rankedtest@users.ilovejvo.com', password: 'test-password-789', emulator: EMU };
+  const store = new FirestoreStore({ firebase, startRating: 1000, log: { info() {} }, names: { ratings: 'rankedRatings', games: 'rankedGames', meta: 'pickupMeta/rankedtest' } });
+  await store.init();
+  const rio = {
+    async post() { return 'm'; }, async edit() {}, async remove() {}, async createVoice() { return 'v'; }, async createText() { return 't'; },
+    async createThread() { return 'th'; }, async deleteChannel() {}, async where() { return null; }, async download() { return Buffer.from('x'); },
+  };
+  const config = { rankedChannelId: 'q', rankedResultsChannelId: 'r', staffRoleIds: [], rankedReadySeconds: 300, rankedCloseSeconds: 0, siteUrl: '' };
+  const site = new RankedSiteQueue({ rest: store.rest, firebase, log: { info() {}, warn() {}, error() {} } });
+  const ranked = new Ranked({ io: rio, store, config, live: site, log: { info() {}, warn() {}, error() {} } });
+  site.attach(ranked);
+  const player = await sitePlayer(SITE);
+  t.after(async () => {
+    await ranked.shutdown();
+    await ranked.idle();
+    await new Promise((r) => setTimeout(r, 50));
+    site.stop();
+    for (const id of [SITE, DISC]) await fetch(`${DOCS}/rankedSignups/${id}`, { method: 'DELETE', headers: OWNER });
+    for (const path of ['pickupMeta/live1v1', 'pickupMeta/rankedtest']) await fetch(`${DOCS}/${path}`, { method: 'DELETE', headers: OWNER });
+    await fetch(`${DOCS}/pickupBots/${store.rest.uid}`, { method: 'DELETE', headers: OWNER });
+    for (const uid of [store.rest.uid, player.localId]) {
+      await fetch(`${EMU.auth}/identitytoolkit.googleapis.com/v1/projects/demo-jvo-hub/accounts:delete`, { method: 'POST', headers: OWNER, body: JSON.stringify({ localId: uid }) });
+    }
+  });
+  await ranked.start();
+  site.start();
+  // The site player queues (what the site's "Queue 1v1" button does).
+  const res = await fetch(`${DOCS}:commit`.replace('/documents:commit', '/documents:commit'), {
+    method: 'POST', headers: { authorization: `Bearer ${await (async () => { const r = await fetch(`${EMU.auth}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=demo-key`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: (() => { const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url'); const now = Math.floor(Date.now() / 1000); return `${enc({ alg: 'none', typ: 'JWT' })}.${enc({ iss: 'dev', sub: 'dev', aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit', iat: now, exp: now + 3600, uid: `discord:${SITE}`, claims: { discordId: SITE } })}.`; })(), returnSecureToken: true }) }); return (await r.json()).idToken; })()}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ writes: [{ update: { name: `projects/demo-jvo-hub/databases/(default)/documents/rankedSignups/${SITE}`, fields: { discordId: { stringValue: SITE }, name: { stringValue: 'Site 1v1' } } }, updateTransforms: [{ fieldPath: 'signedUpAt', setToServerValue: 'REQUEST_TIME' }], currentDocument: { exists: false } }] }),
+  });
+  assert.equal(res.status, 200);
+  await until(() => ranked.queue.some((p) => p.id === SITE), 'site 1v1 sign-up reaches the bot');
+  // Someone can't queue someone else.
+  assert.equal((await player.signUp(DISC)).status, 403);
+  // A Discord player joins: paired, and both sign-up docs are gone.
+  await ranked.button('rq:join', { id: DISC, name: 'Discord 1v1' });
+  assert.equal(ranked.fixtures.size, 1);
+  await until(async () => !(await getDoc(`rankedSignups/${SITE}`)), 'site sign-up cleared once paired');
+  await new Promise((r) => setTimeout(r, 1700));
+  await until(async () => (await getDoc('pickupMeta/live1v1'))?.fixtures?.length === 1, 'live 1v1 state published');
+});

@@ -9,11 +9,12 @@
 import { FirestoreRest } from './firestore-rest.js';
 import { newRecord, ranked } from '../logic/ratings.js';
 
-const META = 'pickupMeta/bot';
 
 export class FirestoreStore {
-  constructor({ firebase, startRating = 1000, log = console, rest = null }) {
+  // names: which collections to use (the 1v1 ladder uses its own, see ranked.js).
+  constructor({ firebase, startRating = 1000, log = console, rest = null, names = {} }) {
     this.rest = rest ?? new FirestoreRest(firebase);
+    this.names = { ratings: 'pickupRatings', games: 'pickupGames', meta: 'pickupMeta/bot', ...names };
     this.startRating = startRating;
     this.log = log;
     this.cache = new Map();
@@ -23,8 +24,8 @@ export class FirestoreStore {
   async init() {
     if (this.rest.emulator) await this.rest.bootstrapEmulator();
     else await this.rest.signIn();
-    for (const { id, data } of await this.rest.list('pickupRatings')) this.cache.set(id, { ...data, discordId: id });
-    this.meta = { lastGame: 0, ...(await this.rest.get(META)) };
+    for (const { id, data } of await this.rest.list(this.names.ratings)) this.cache.set(id, { ...data, discordId: id });
+    this.meta = { lastGame: 0, ...(await this.rest.get(this.names.meta)) };
     this.log.info?.(`[store] Firestore (${this.rest.projectId}${this.rest.emulator ? ', emulator' : ''}): ${this.cache.size} rated players, last game #${this.meta.lastGame}`);
   }
 
@@ -45,35 +46,35 @@ export class FirestoreStore {
   }
 
   async setMeta(key, value) {
-    await this.rest.commit([{ path: META, data: { [key]: value }, mask: [key] }]);
+    await this.rest.commit([{ path: this.names.meta, data: { [key]: value }, mask: [key] }]);
     this.meta[key] = value;
   }
 
   async createGame(game) {
     await this.rest.commit([
-      { path: `pickupGames/${game.id}`, data: game, mustNotExist: true },
-      { path: META, data: { lastGame: game.number }, mask: ['lastGame'] },
+      { path: `${this.names.games}/${game.id}`, data: game, mustNotExist: true },
+      { path: this.names.meta, data: { lastGame: game.number }, mask: ['lastGame'] },
     ]);
     this.meta.lastGame = Math.max(this.meta.lastGame, game.number);
   }
 
   async saveGame(game) {
-    await this.rest.commit([{ path: `pickupGames/${game.id}`, data: game }]);
+    await this.rest.commit([{ path: `${this.names.games}/${game.id}`, data: game }]);
   }
 
   async saveResult(game, records) {
     await this.rest.commit([
-      { path: `pickupGames/${game.id}`, data: game },
-      ...records.map((r) => ({ path: `pickupRatings/${r.discordId}`, data: r })),
+      { path: `${this.names.games}/${game.id}`, data: game },
+      ...records.map((r) => ({ path: `${this.names.ratings}/${r.discordId}`, data: r })),
     ]);
     for (const r of records) this.cache.set(r.discordId, structuredClone(r));
   }
 
   async getGame(id) {
-    return this.rest.get(`pickupGames/${id}`);
+    return this.rest.get(`${this.names.games}/${id}`);
   }
 
   async openGames() {
-    return (await this.rest.query('pickupGames', 'open', true)).map((d) => d.data);
+    return (await this.rest.query(this.names.games, 'open', true)).map((d) => d.data);
   }
 }
