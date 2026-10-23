@@ -67,6 +67,19 @@ export async function withdrawTeam({ uid, eventId, entry }) {
   invalidate(`event:${eventId}`);
 }
 
+// ---------- Solo sign-ups (events/{id}/solos/{playerId}) ----------
+// A player signs up on their own; admins group solo players into mix teams for the event.
+
+export async function signUpSolo({ uid, eventId, player }) {
+  await commit(uid, [{ type: 'set', path: `events/${eventId}/solos/${player.id}`, data: { playerId: player.id, uid, createdAt: serverTimestamp() } }]);
+  invalidate(`event:${eventId}`);
+}
+
+export async function withdrawSolo({ uid, eventId, solo }) {
+  await commit(uid, [{ type: 'delete', path: `events/${eventId}/solos/${solo.id}`, before: solo }]);
+  invalidate(`event:${eventId}`);
+}
+
 // ---------- Comments (teams/{id}/comments, players/{id}/comments) ----------
 // kind: 'team' | 'player'. The rules allow one post every 15 seconds per person.
 

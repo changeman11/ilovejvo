@@ -126,7 +126,7 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
     }
     if (!event) throw new NotFoundError('That event doesn’t exist');
     const base = `events/${eventId}`;
-    const [teams, players, rosters, fixtures, results, submissions, entries] = await Promise.all([
+    const [teams, players, rosters, fixtures, results, submissions, entries, solos] = await Promise.all([
       loadTeams({ fresh, admin }),
       loadPlayers({ fresh, admin }),
       getAll(`${base}/rosters`, admin),
@@ -136,6 +136,8 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
       getAll(`${base}/submissions`, admin).catch(() => []),
       // Clubs that signed themselves up (rules/autofix.js).
       getAll(`${base}/entries`, admin).catch(() => []),
+      // Players who signed up solo (admins group them into mix teams).
+      getAll(`${base}/solos`, admin).catch(() => []),
     ]);
     const season = engineSeason(event);
     const resultsById = Object.fromEntries(results.map((r) => [r.id, r]));
@@ -156,6 +158,7 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
       results: resultsById,
       submissions,
       entries,
+      solos,
       plan,
     };
   });

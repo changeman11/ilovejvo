@@ -64,6 +64,7 @@ function editProfileForm(p, team) {
           <label class="field"><span>Player name (as in game)</span><input type="text" name="displayName" maxlength="60" value="${esc(p.displayName)}"></label>
           <label class="field"><span>Jersey number</span><input type="number" name="number" min="0" max="99" inputmode="numeric" value="${esc(p.number ?? '')}"></label>
         </div>
+        <label class="check lft-switch"><input type="checkbox" name="lft" ${p.lft ? 'checked' : ''}> <span><b>LFT: looking for a team</b><br><span class="muted small">Shows an LFT tag on your profile and puts you at the top of the free agents list for managers.${p.teamId ? ' (Only shown while you’re not in a club.)' : ''}</span></span></label>
         ${customiseFields('player', p, DEFAULT_STATS, team?.theme ?? team?.colors?.primary)}
         <div class="save-bar">
           <button class="btn btn-primary" type="submit">Save profile</button>
@@ -353,7 +354,7 @@ export function mount(el) {
         button.textContent = 'Saving…';
         await saveCustomise({
           form, kind: 'player', owner: 'players', id: me.player.id, doc: me.player,
-          extra: { displayName: val('displayName'), number: numberOrNull(val('number')) },
+          extra: { displayName: val('displayName'), number: numberOrNull(val('number')), lft: form.querySelector('[name=lft]').checked },
           save: (changes) => updateProfile({ uid: user.uid, player: me.player, changes }),
         });
         refresh();

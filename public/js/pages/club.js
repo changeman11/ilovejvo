@@ -11,7 +11,7 @@ import {
   requestLeave, cancelLeave, withdrawJoinRequest, answerJoinRequest, requestToJoin,
 } from '../player-data.js';
 import { refresh, navigate } from '../nav.js';
-import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag, frameStyle } from '../ui.js';
+import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag, frameStyle, isLft, lftTag } from '../ui.js';
 import { prepareImage, FriendlyError, mediaUrl } from '../media.js';
 import { DEFAULT_STATS } from '../rules/defaults.js';
 import { customiseFields, saveCustomise, bindImagePreviews } from './customise.js';
@@ -75,7 +75,7 @@ function lockedView(me) {
 // Every club with its manager, and a Request to join button (the manager accepts in their Club hub).
 function findClubBlock(me) {
   const asked = new Map((me.myJoinRequests ?? []).filter((r) => r.status === 'pending').map((r) => [r.teamId, r]));
-  const clubs = me.teams.filter(isApprovedTeam).sort((a, b) => a.name.localeCompare(b.name));
+  const clubs = me.teams.filter((t) => isApprovedTeam(t) && !t.mix).sort((a, b) => a.name.localeCompare(b.name));
   return `
     <section>
       <div class="section-head"><h2>Find a club</h2><span class="muted small">Ask a manager to let you in</span></div>
@@ -102,7 +102,7 @@ function invitePicker(me, chosen = []) {
   const picked = new Set(chosen);
   const agents = me.players
     .filter((p) => p.uid && !p.teamId && p.active !== false && p.id !== me.player.id)
-    .sort((a, b) => (picked.has(b.id) - picked.has(a.id)) || a.displayName.localeCompare(b.displayName));
+    .sort((a, b) => (picked.has(b.id) - picked.has(a.id)) || Number(isLft(b)) - Number(isLft(a)) || a.displayName.localeCompare(b.displayName));
   return `
     <fieldset class="cz invite-pick" data-invite-pick>
       <legend>Invite players (optional)</legend>
@@ -112,7 +112,7 @@ function invitePicker(me, chosen = []) {
         <div class="invite-list">${agents.map((p) => `
           <label class="check invite-row" data-name="${esc(p.displayName.toLowerCase())}">
             <input type="checkbox" name="invite" value="${esc(p.id)}" ${picked.has(p.id) ? 'checked' : ''}>
-            ${avatarImg(p, 'avatar sm')}<span>${esc(p.displayName)}</span>
+            ${avatarImg(p, 'avatar sm')}<span>${esc(p.displayName)}</span>${isLft(p) ? lftTag() : ''}
           </label>`).join('')}</div>
         <p class="muted small invite-count" aria-live="polite">${picked.size} / ${MAX_INVITES} picked</p>`
         : '<p class="muted small">No free agents right now. You can invite players later from the Club hub.</p>'}
@@ -294,7 +294,7 @@ function inviteTab({ me, team }) {
   const offered = new Set(pending.map((o) => o.playerId));
   const freeAgents = me.players
     .filter((p) => p.uid && !p.teamId && p.active !== false && !offered.has(p.id))
-    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    .sort((a, b) => Number(isLft(b)) - Number(isLft(a)) || a.displayName.localeCompare(b.displayName));
   const recent = sent.filter((o) => o.status !== 'pending').slice(-8).reverse();
   return `
     <div class="cols">
@@ -305,7 +305,7 @@ function inviteTab({ me, team }) {
           <label class="field"><span>Search</span><input type="search" data-filter placeholder="Player name"></label>
           <div class="rows" data-agents>${freeAgents.map((p) => `
             <div class="row" data-name="${esc(p.displayName.toLowerCase())}">
-              <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}</b></span>
+              <span class="row-main squad-row">${avatarImg(p, 'avatar sm')}<b>${playerLink(p)}</b>${isLft(p) ? lftTag() : ''}</span>
               <span class="row-side"><button class="btn btn-sm btn-primary" data-act="offer" data-id="${esc(p.id)}">Invite</button></span>
             </div>`).join('') || '<p class="muted">No free agents right now.</p>'}</div>
         </div>

@@ -22,6 +22,7 @@ import { renderShell, setSection } from './shell.js';
 import './search.js';
 import { updateBell } from './notifications.js';
 import { updateReel } from './reel.js';
+import { updateFeatured } from './featured.js';
 import { syncSchedules } from './admin-sync.js';
 import { stopLive } from './live.js';
 import { startChatPanel } from './chat-panel.js';
@@ -193,6 +194,7 @@ async function show({ quiet = false } = {}) {
     renderShell(); // keeps the desktop bars (level, team, next match) up to date after saves
     updateBell({ force: ['/club', '/me'].includes(location.pathname) });
     updateReel();
+    updateFeatured();
     syncSchedules().catch(() => 0); // admins only: saves schedules that just locked, finals that are ready
   } catch (err) {
     if (id !== renderId) return;

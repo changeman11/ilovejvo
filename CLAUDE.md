@@ -26,6 +26,14 @@
 - **Transfer news (added 2026-10-24):** public, append-only `transfers/{id}` `{ playerId, fromTeamId, toTeamId, kind: joined|left|released|founded, at }`, written in the same save as each club move (`js/transfers.js` `transferOp`; invites, join requests, releases, leave approvals, new clubs, admin edits). The rules check a player/manager entry matches the player's club before and after that save. Shown in the bottom ticker's **transfers** tab (`js/reel.js`, tabs results | transfers).
 - **Disbanding (added 2026-10-24):** when a club's last player leaves (leave approved, or an admin moves them), `disbandIfEmpty()` in `admin-data.js` marks the team `status: 'disbanded'` (not deleted: results keep its name), clears its manager, removes its sign-ups to upcoming unlocked events, and adds a 'disbanded' transfer news item. Disbanded clubs are hidden from lists and sign-ups; their page stays with a note; their name can be reused. A manager who's the only player can ask to leave (Club hub); otherwise they hand over first.
 - **Invites when registering (added 2026-10-24):** the club registration form (Club hub) has an "Invite players" picker of free agents (up to 8). They're saved on the pending team as `invitePlayerIds` (founder can change them while pending). When an admin approves the club, `decideTeam` sends each one still a free agent an offer from the founder (`fromUid` = new manager) in the same save (rules: admin branch on offers create).
+- **Added 2026-10-24:**
+  - **LFT:** `players.lft` (bool, set on the Me page). It shows an LFT tag on free agents (`isLft`/`lftTag` in ui.js), and LFT players are listed first in free agents and the invite pickers.
+  - **Featured event** (`js/featured.js`): admins pin one with `event.featured`; otherwise it's the soonest upcoming event. It's a full card top right on screens ≥1800px, and a pill bottom right otherwise; "×" hides it until a different event is featured.
+  - **Solo sign-ups:**
+    - `event.solos` turns them on, saved as `events/{e}/solos/{playerId}`. Rules are in `solosOpen()`, with the same timing as club sign-ups.
+    - On the admin Teams tab, the Solo players panel builds mix teams by hand or with Auto-group (teams of `event.teamSize`).
+    - Mix teams are `teams` with `mix: true, mixEventId`, and their players go on the event roster, so players' clubs don't change. They're hidden from lists, search and joins, and deleted with their event.
+    - Mix team players can't vote on results (votes check `players.teamId`), so admins enter those results.
 - **Search:** top bar, players and teams (`js/search.js`), "/" focuses it.
 - **Desktop side menu:** the Home menu cards stay down the left on every other page (`js/menu.js`, `setSection()` in `shell.js`).
 - **Added 2026-10-22:**

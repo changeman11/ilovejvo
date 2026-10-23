@@ -11,7 +11,7 @@ import {
 import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, isLocked, schedulePlan, drawToSave, matchCount, groupCount } from '../../rules/autofix.js';
 import { syncSchedules } from '../../admin-sync.js';
 import { watchEvent } from '../../live.js';
-import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures } from '../../admin-data.js';
+import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures, makeMixTeams, breakUpMixTeam } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
 import { resultOf } from '../parts.js';
@@ -83,6 +83,7 @@ function detailsHtml(e) {
           <label class="field"><span>Quarter / semi-finals best of</span><select name="semiBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.semiBestOf ?? 3)).join('')}</select></label>
           <label class="field"><span>Final best of</span><select name="finalBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.finalBestOf ?? 5)).join('')}</select></label>
         </div>
+        <label class="check"><input type="checkbox" name="solos" ${e.solos ? 'checked' : ''}> Players can sign up solo (you group them into teams on the Teams tab)</label>
         <label class="check"><input type="checkbox" name="signups" ${e.signups ? 'checked' : ''}> Clubs can sign themselves up on the event page (closes 10 minutes before the start)</label>
         <label class="check"><input type="checkbox" name="showTable" ${e.showTable ? 'checked' : ''}> Show a table (wins, sets, points) on the event page</label>
         ${isTournament ? `
@@ -95,6 +96,7 @@ function detailsHtml(e) {
         <label class="field"><span>Stream link</span><input type="url" name="streamUrl" value="${esc(e.streamUrl ?? '')}" placeholder="https://twitch.tv/…"></label>
         <label class="field"><span>Status</span><select name="status">${Object.entries(EVENT_STATUSES).map(([k, v]) => opt(k, v, e.status)).join('')}</select></label>
         <label class="check"><input type="checkbox" name="published" ${e.published ? 'checked' : ''}> Published (visible to everyone)</label>
+        <label class="check"><input type="checkbox" name="featured" ${e.featured ? 'checked' : ''}> ★ Feature this event (the "featured!" card on every page; otherwise the next event is shown)</label>
       </section>
       <div class="save-bar">
         <button type="submit" class="btn btn-primary">${page.id ? 'Save details' : 'Create event'}</button>
@@ -124,16 +126,54 @@ function readDetails(form) {
     autoFixtures: val('autoFixtures') || 'off',
     finals: { type: val('finalsType') || 'none', semiBestOf: Number(val('semiBestOf')) || 3, finalBestOf: Number(val('finalBestOf')) || 5 },
     signups: form.querySelector('[name=signups]').checked,
+    solos: form.querySelector('[name=solos]')?.checked ?? false,
     // Groups: count and how teams are drawn. Teams already placed (Teams tab, or saved at the lock) stay placed.
     groups: { count: Number(val('groupCount')) || 1, draw: val('groupDraw') || 'auto', assign: page.existing?.groups?.assign ?? {} },
     signupUrl: val('signupUrl').trim() || null,
     streamUrl: val('streamUrl').trim() || null,
     status: val('status'),
     published: form.querySelector('[name=published]').checked,
+    featured: form.querySelector('[name=featured]')?.checked ?? false,
   };
 }
 
 // ---------- Teams tab ----------
+
+// Solo sign-ups: players who signed up on their own, and the mix teams made from them.
+function solosPanel() {
+  const { b, people } = page;
+  const e = b.event;
+  if (!e.solos && !(b.solos ?? []).length) return '';
+  const mixTeams = (e.teamIds ?? []).map((id) => people.teams.find((t) => t.id === id)).filter((t) => t?.mix);
+  const placed = new Set(mixTeams.flatMap((t) => b.rosters[t.id]?.playerIds ?? []));
+  const waiting = (b.solos ?? []).filter((s) => !placed.has(s.playerId))
+    .sort((x, y) => (x.createdAt ?? 0) - (y.createdAt ?? 0));
+  const name = (pid) => esc(people.players.find((p) => p.id === pid)?.displayName ?? pid);
+  const size = e.teamSize ?? 4;
+  return `
+    <section class="panel" data-solos>
+      <div class="section-head"><h3>Solo players</h3><span class="muted small">${(b.solos ?? []).length} signed up · ${waiting.length} waiting for a team</span></div>
+      ${waiting.length ? `
+        <p class="muted small" style="margin-top:0">Tick players and name a team, or let the site split everyone waiting into teams of ${size}.</p>
+        <div class="tick-list">${waiting.map((s) => {
+          const p = people.players.find((x) => x.id === s.playerId);
+          const club = p?.teamId ? people.teams.find((t) => t.id === p.teamId)?.name : null;
+          return `<label class="check"><input type="checkbox" name="solo" value="${esc(s.playerId)}"> ${name(s.playerId)}${club ? ` <span class="muted small">(${esc(club)})</span>` : ''}</label>`;
+        }).join('')}</div>
+        <div class="field-row" style="margin-top:10px;align-items:end">
+          <label class="field" style="margin:0"><span>Team name</span><input type="text" name="mixName" maxlength="40" placeholder="Mix ${mixTeams.length + 1}"></label>
+          <button type="button" class="btn btn-primary btn-sm" data-act="make-mix">Make team from ticked</button>
+          <button type="button" class="btn btn-sm" data-act="auto-mix">Auto-group everyone (${size} a team)</button>
+        </div>` : '<p class="muted small" style="margin-top:0">Nobody waiting. Solo players appear here when they sign up on the event page.</p>'}
+      ${mixTeams.length ? `
+        <div class="section-head" style="margin-top:14px"><h3>Mix teams</h3></div>
+        <div class="rows">${mixTeams.map((t) => `
+          <div class="row"><span class="row-main"><b><span class="team">${teamDot(t)}${esc(t.name)}</span></b>
+            <span class="muted small">${(b.rosters[t.id]?.playerIds ?? []).map(name).join(', ') || 'No players'}</span></span>
+            <span class="row-side"><button type="button" class="btn btn-sm btn-danger" data-act="break-mix" data-id="${esc(t.id)}">Break up</button></span></div>`).join('')}</div>` : ''}
+      <p class="form-error" role="alert" hidden></p>
+    </section>`;
+}
 
 // Groups: which group each team is in. "Auto" = drawn automatically; or pick a group by hand.
 function groupsPanel() {
@@ -202,6 +242,7 @@ function teamsHtml() {
             <span class="row-side"><button type="button" class="btn btn-sm btn-danger" data-act="remove-entry" data-id="${esc(x.id)}">Remove</button></span></div>`;
         }).join('')}
       </section>` : ''}
+      ${solosPanel()}
       ${groupsPanel()}
       <section class="panel" data-teams>
         <div class="section-head"><h3>Teams added by admins</h3><a href="/admin/people" data-link>Add teams &amp; players</a></div>
@@ -506,6 +547,37 @@ export function mount(el) {
           now: Infinity,
         });
         await saveSchedule({ eventId: page.id, uid, fixtures: plan.toSave, lockGroup: true, event: b.event, draw: drawToSave(plan) });
+        refresh();
+      }
+
+      if (act === 'make-mix' || act === 'auto-mix') {
+        const b = page.b;
+        const ticked = [...root.querySelectorAll('[data-solos] [name=solo]:checked')].map((i) => i.value);
+        const all = [...root.querySelectorAll('[data-solos] [name=solo]')].map((i) => i.value);
+        const mixCount = (b.event.teamIds ?? []).filter((id) => page.people.teams.find((t) => t.id === id)?.mix).length;
+        let groups;
+        if (act === 'make-mix') {
+          if (ticked.length < 1) return showError(root.querySelector('[data-solos]'), 'Tick the players for this team first.');
+          groups = [{ name: root.querySelector('[name=mixName]').value.trim() || `Mix ${mixCount + 1}`, playerIds: ticked }];
+        } else {
+          const size = b.event.teamSize ?? 4;
+          // Shuffle, then deal into teams of the event's team size (the last team takes any leftovers).
+          const pool = [...all].sort(() => Math.random() - 0.5);
+          const count = Math.max(1, Math.floor(pool.length / size));
+          groups = Array.from({ length: count }, (_, i) => ({ name: `Mix ${mixCount + i + 1}`, playerIds: [] }));
+          pool.forEach((pid, i) => groups[Math.min(Math.floor(i / size), count - 1)].playerIds.push(pid));
+          if (!window.confirm(`Make ${count} team${count === 1 ? '' : 's'} from ${pool.length} solo player${pool.length === 1 ? '' : 's'}?`)) return;
+        }
+        button.disabled = true;
+        await makeMixTeams({ uid, event: b.event, groups, takenIds: page.people.teams.map((t) => t.id) });
+        refresh();
+      }
+
+      if (act === 'break-mix') {
+        const team = page.people.teams.find((t) => t.id === button.dataset.id);
+        if (!team || !window.confirm(`Break up ${team.name}? Its players go back to the solo list.`)) return;
+        button.disabled = true;
+        await breakUpMixTeam({ uid, event: page.b.event, team, roster: page.b.rosters[team.id] ?? null });
         refresh();
       }
 

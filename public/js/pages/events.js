@@ -13,7 +13,7 @@ import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, stan
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
 import { adminAddEntry, removeEntry } from '../admin-data.js';
-import { signUpTeam, withdrawTeam } from '../player-data.js';
+import { signUpTeam, withdrawTeam, signUpSolo, withdrawSolo } from '../player-data.js';
 import { refresh } from '../nav.js';
 import { watchEvent } from '../live.js';
 import { careerStats, topPlayers, statDefsFor } from './career.js';
@@ -174,8 +174,9 @@ let shownEventId = null;
 async function signupBox(b) {
   const e = b.event;
   signupCtx = null;
-  if (!e.signups) return '';
-  const open = signupsOpen(e);
+  if (!e.signups && !e.solos) return '';
+  const open = e.signups ? signupsOpen(e) : false;
+  const soloOpen = Boolean(e.solos) && signupsOpen({ ...e, signups: true });
   const closes = lockTime(e);
   const [user, adminState] = await Promise.all([currentUser().catch(() => null), currentAdmin().catch(() => null)]);
   const adminUid = adminState?.admin ? adminState.user.uid : null;
@@ -183,12 +184,15 @@ async function signupBox(b) {
   const team = me?.teamId && isApprovedTeam(b.teamsById[me.teamId]) ? b.teamsById[me.teamId] : null;
   const manager = Boolean(team && team.managerUid === user.uid);
   const entry = team ? b.entries.find((x) => x.teamId === team.id) : null;
-  signupCtx = { user, team, entry, eventId: e.id, manager, adminUid, entries: b.entries };
+  const solo = me ? (b.solos ?? []).find((x) => x.playerId === me.id) ?? null : null;
+  signupCtx = { user, team, entry, eventId: e.id, manager, adminUid, entries: b.entries, me, solo };
   const managerOf = (t) => (t?.managerPlayerId ? b.playersById[t.managerPlayerId] : null);
 
   const when = closes ? `Sign-ups close ${fmtDay(closes)} ${fmtTime(closes)} (10 minutes before the start).` : 'Sign-ups stay open until the start time is set.';
   let action = '';
-  if (!open) {
+  if (!e.signups) {
+    action = '';
+  } else if (!open) {
     action = `<p class="small signup-line"><b>Sign-ups are closed.</b>${entry ? ` ${esc(team.name)} is in.` : ''}</p>`;
   } else if (manager && entry) {
     action = `<div class="join-box"><span>✓ <b>${esc(team.name)}</b> is signed up.</span> <button class="btn btn-sm" type="button" data-act="withdraw-entry">Pull out</button></div>`;
@@ -216,6 +220,19 @@ async function signupBox(b) {
       </div>`;
   }
 
+  // Solo: sign up on your own; admins put solo players into teams.
+  let soloBox = '';
+  if (e.solos) {
+    const count = (b.solos ?? []).length;
+    let soloAction;
+    if (!soloOpen) soloAction = `<span class="small">${solo ? '✓ You signed up solo. ' : ''}Solo sign-ups are closed.</span>`;
+    else if (solo) soloAction = '<span class="small">✓ You’re signed up solo. Admins will put you in a team.</span> <button class="btn btn-sm" type="button" data-act="solo-out">Withdraw</button>';
+    else if (me) soloAction = '<button class="btn btn-sm btn-primary" type="button" data-act="solo-in">Sign up solo</button> <span class="muted small">No team? Sign up on your own and admins will group you with others.</span>';
+    else if (user) soloAction = '<span class="small"><a href="/me" data-link>Make your profile</a> to sign up solo.</span>';
+    else soloAction = '<span class="small"><button class="btn btn-sm" type="button" data-discord-signin>Sign in with Discord</button> to sign up solo.</span>';
+    soloBox = `<div class="solo-box"><b>🙋 Solo players</b> <span class="muted small">${count} signed up</span><div class="solo-action">${soloAction}</div></div>`;
+  }
+
   const entered = b.entries.map((x) => b.teamsById[x.teamId]).filter(Boolean);
   const list = entered.length ? `<ul class="signup-list">${entered.map((t) => {
     const boss = managerOf(t);
@@ -226,9 +243,10 @@ async function signupBox(b) {
 
   return `
     <section class="panel signup-box">
-      <div class="section-head"><h2>Club sign-ups</h2><span class="muted small">${entered.length} club${entered.length === 1 ? '' : 's'} in</span></div>
-      ${open ? `<p class="muted small" style="margin:0">${esc(when)}${e.autoFixtures && e.autoFixtures !== 'off' ? ' The fixtures update as clubs sign up, then lock.' : ''}</p>` : ''}
+      <div class="section-head"><h2>${e.signups ? 'Sign-ups' : 'Solo sign-ups'}</h2>${e.signups ? `<span class="muted small">${entered.length} club${entered.length === 1 ? '' : 's'} in</span>` : ''}</div>
+      ${open || soloOpen ? `<p class="muted small" style="margin:0">${esc(when)}${e.signups && e.autoFixtures && e.autoFixtures !== 'off' ? ' The fixtures update as clubs sign up, then lock.' : ''}</p>` : ''}
       ${action}
+      ${soloBox}
       ${adminTools}
       ${list}
       <p class="form-error" role="alert" hidden></p>
@@ -242,7 +260,7 @@ export const eventPage = {
     // Clubs joining or leaving, new fixtures and results show up straight away.
     if (shownEventId) watchEvent(shownEventId);
     if (!signupCtx) return;
-    const { user, team, entry, eventId, adminUid, entries } = signupCtx;
+    const { user, team, entry, eventId, adminUid, entries, me, solo } = signupCtx;
     el.querySelector('.signup-box')?.addEventListener('click', async (ev) => {
       const btn = ev.target.closest('[data-act]');
       if (!btn) return;
@@ -252,6 +270,8 @@ export const eventPage = {
       btn.disabled = true;
       try {
         if (act === 'sign-up') await signUpTeam({ uid: user.uid, eventId, team });
+        if (act === 'solo-in') await signUpSolo({ uid: user.uid, eventId, player: me });
+        if (act === 'solo-out') await withdrawSolo({ uid: user.uid, eventId, solo });
         if (act === 'withdraw-entry') await withdrawTeam({ uid: user.uid, eventId, entry });
         if (act === 'admin-add') await adminAddEntry({ eventId, uid: adminUid, teamId: el.querySelector('[data-admin-team]').value });
         if (act === 'admin-remove') await removeEntry({ eventId, uid: adminUid, entry: entries.find((x) => x.teamId === btn.dataset.id) });

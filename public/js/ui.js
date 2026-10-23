@@ -119,3 +119,7 @@ export function paragraphs(text) {
 
 // The "Manager" tag shown next to club managers everywhere (squads, player pages, lists).
 export const managerTag = (label = 'Manager') => `<span class="mgr-tag" title="Club manager"><span aria-hidden="true">👑</span> ${label}</span>`;
+
+// "LFT" (looking for a team) tag, shown for free agents who switched it on.
+export const isLft = (player) => Boolean(player?.lft) && !player?.teamId;
+export const lftTag = () => '<span class="lft-tag" title="Looking for a team">LFT</span>';

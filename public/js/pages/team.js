@@ -35,7 +35,7 @@ export async function render({ teamId }) {
   let joinBlock = '';
   const user = await currentUser().catch(() => null);
   const me = user ? people.players.find((p) => p.uid === user.uid) : null;
-  if (me && !me.teamId && !disbanded) {
+  if (me && !me.teamId && !disbanded && !team.mix) {
     const req = await loadJoinRequest(teamId, me.id);
     joinCtx = { user, me, team, req };
     joinBlock = req?.status === 'pending'

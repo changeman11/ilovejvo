@@ -99,7 +99,8 @@ service cloud.firestore {
       return validCustomise('teams/' + teamId) && optMedia('logoPath', 'teams/' + teamId + '/logo/') && optFrame('logoFrame');
     }
     function validPlayerProfile(playerId) {
-      return validCustomise('players/' + playerId) && optMedia('avatarPath', 'players/' + playerId + '/avatar/') && optFrame('avatarFrame');
+      return validCustomise('players/' + playerId) && optMedia('avatarPath', 'players/' + playerId + '/avatar/') && optFrame('avatarFrame')
+          && (!('lft' in request.resource.data) || request.resource.data.lft is bool);
     }
     function validEvent() {
       let d = request.resource.data;
@@ -117,6 +118,13 @@ service cloud.firestore {
     function signupsOpen(eventId) {
       let e = get(/databases/$(database)/documents/events/$(eventId)).data;
       return e.published == true && e.get('signups', false) == true && e.status == 'upcoming'
+          && e.get('fixturesLockedAt', null) == null
+          && (e.get('date', null) == null || e.get('timeTbd', false) == true
+              || request.time < e.date - duration.value(10, 'm'));
+    }
+    function solosOpen(eventId) {
+      let e = get(/databases/$(database)/documents/events/$(eventId)).data;
+      return e.published == true && e.get('solos', false) == true && e.status == 'upcoming'
           && e.get('fixturesLockedAt', null) == null
           && (e.get('date', null) == null || e.get('timeTbd', false) == true
               || request.time < e.date - duration.value(10, 'm'));
@@ -199,6 +207,19 @@ service cloud.firestore {
         allow create, update: if isAdmin() && stampedByMe();
       }
 
+      // ---------- Solo sign-ups (id = playerId) ----------
+      // With solo sign-ups switched on (event.solos), a player signs up on their own; admins then
+      // group solo players into event-only mix teams. Same timing as club sign-ups.
+      match /solos/{playerId} {
+        allow read: if eventPublished(eventId) || isAdmin();
+        allow create: if solosOpen(eventId) && ownsPlayer(playerId) && stampedByMe()
+          && request.resource.data.keys().hasOnly(['playerId', 'uid', 'createdAt', 'updatedBy', 'updatedAt'])
+          && request.resource.data.playerId == playerId && request.resource.data.uid == uid()
+          && request.resource.data.createdAt == request.time;
+        allow delete: if isAdmin() || (solosOpen(eventId) && ownsPlayer(playerId));
+        allow create, update: if isAdmin() && stampedByMe();
+      }
+
       match /{collection}/{docId} {
         allow read: if eventPublished(eventId) || isAdmin();
         allow create, update: if isAdmin() && stampedByMe() && collection in ['fixtures', 'rosters'];
@@ -227,7 +248,7 @@ service cloud.firestore {
             && validName('displayName') && validPlayerProfile(playerId)
             && changedOnly(['displayName', 'number', 'bio', 'avatarUrl', 'discordName',
                             'tagline', 'theme', 'showcase', 'socials', 'avatarPath', 'bannerPath', 'backgroundPath',
-                            'avatarFrame', 'bannerFrame', 'backgroundFrame',
+                            'avatarFrame', 'bannerFrame', 'backgroundFrame', 'lft',
                             'updatedBy', 'updatedAt']))
         // Owner joins a team, only by accepting a pending offer in the same save.
         || (signedIn() && resource.data.get('uid', null) == uid() && stampedByMe()

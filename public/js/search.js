@@ -26,7 +26,7 @@ function find(q) {
     return n.includes(t) ? 3 : -1;
   };
   const items = [
-    ...people.teams.filter(isApprovedTeam).map((team) => ({ kind: 'team', team, s: Math.min(...[team.name, team.shortName].filter(Boolean).map(score).map((x) => (x < 0 ? 99 : x))) })),
+    ...people.teams.filter((t) => isApprovedTeam(t) && !t.mix).map((team) => ({ kind: 'team', team, s: Math.min(...[team.name, team.shortName].filter(Boolean).map(score).map((x) => (x < 0 ? 99 : x))) })),
     ...people.players.filter((p) => p.active !== false).map((player) => ({ kind: 'player', player, s: score(player.displayName) })),
   ].filter((i) => i.s >= 0 && i.s < 99);
   return items

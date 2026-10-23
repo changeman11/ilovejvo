@@ -45,6 +45,9 @@ export async function deleteEvent({ uid, bundle }) {
     ...Object.values(bundle.results).map((r) => ({ type: 'delete', path: `events/${id}/results/${r.id}`, before: r })),
     ...Object.values(bundle.rosters).map((r) => ({ type: 'delete', path: `events/${id}/rosters/${r.id}`, before: r })),
     { type: 'delete', path: `events/${id}`, before: bundle.event },
+    // Mix teams made for this event only go with it.
+    ...bundle.teams.filter((t) => t.mix && t.mixEventId === id).map((t) => ({ type: 'delete', path: `teams/${t.id}`, before: t })),
+    ...(bundle.solos ?? []).map((x) => ({ type: 'delete', path: `events/${id}/solos/${x.id}`, before: x })),
   ];
   await commit(uid, ops);
   invalidate('event');
@@ -235,6 +238,41 @@ export async function saveResult({ eventId, fixture, uid, result, existing, swap
     },
   ]);
   invalidate(`event:${eventId}`);
+}
+
+// ---------- Mix teams from solo sign-ups ----------
+// Event-only teams an admin makes from players who signed up solo. The players go on the event's
+// roster for that team; their own club (players.teamId) doesn't change. Mix teams are marked
+// `mix: true` and hidden from the Teams list and search.
+const MIX_COLOURS = ['#19c9b1', '#ff6b57', '#7c5cff', '#2f6bff', '#f472b6', '#ff8a1f', '#22c55e', '#ffe200'];
+
+// groups: [{ name, playerIds }]. One save for all of them.
+export async function makeMixTeams({ uid, event, groups, takenIds }) {
+  const taken = new Set(takenIds);
+  const ids = [];
+  const ops = [];
+  groups.forEach((g, i) => {
+    const id = slugId(`${g.name} ${event.id.slice(0, 4)}`, taken);
+    taken.add(id);
+    ids.push(id);
+    const initials = g.name.replace(/[^A-Za-z0-9 ]/g, '').split(/s+/).map((w) => w[0]).join('').slice(0, 3).toUpperCase() || 'MIX';
+    ops.push({ type: 'set', path: `teams/${id}`, data: { name: g.name, shortName: initials, colors: { primary: MIX_COLOURS[i % MIX_COLOURS.length] }, status: 'approved', mix: true, mixEventId: event.id } });
+    ops.push({ type: 'set', path: `events/${event.id}/rosters/${id}`, data: { playerIds: g.playerIds, captainId: null } });
+  });
+  ops.push({ type: 'update', path: `events/${event.id}`, before: event, data: { teamIds: [...(event.teamIds ?? []), ...ids] } });
+  await commit(uid, ops);
+  invalidate();
+}
+
+// Takes a mix team out of the event (its players go back to the solo list) and deletes it.
+export async function breakUpMixTeam({ uid, event, team, roster }) {
+  const ops = [
+    { type: 'update', path: `events/${event.id}`, before: event, data: { teamIds: (event.teamIds ?? []).filter((t) => t !== team.id) } },
+    { type: 'delete', path: `teams/${team.id}`, before: team },
+  ];
+  if (roster) ops.push({ type: 'delete', path: `events/${event.id}/rosters/${team.id}`, before: roster });
+  await commit(uid, ops);
+  invalidate();
 }
 
 // ---------- Disbanding: a club with no players left ----------

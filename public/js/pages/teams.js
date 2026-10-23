@@ -5,7 +5,7 @@ import { loadAllBundles, loadPeople, isApprovedTeam, loadMe } from '../data.js';
 import { currentUser } from '../auth.js';
 import { requestToJoin, withdrawJoinRequest } from '../player-data.js';
 import { refresh } from '../nav.js';
-import { esc, skeleton, notice, pageTitle, urls, avatarImg, teamDot, fmtNum, managerTag, framedImg, frameStyle } from '../ui.js';
+import { esc, skeleton, notice, pageTitle, urls, avatarImg, teamDot, fmtNum, managerTag, framedImg, frameStyle, isLft, lftTag } from '../ui.js';
 import { mediaUrl } from '../media.js';
 import { seasonMatches } from '../rules/season.js';
 import { teamCareer, teamXp, playerXp, levelFor } from '../rules/badges.js';
@@ -91,7 +91,7 @@ function playerList(players, people, careers, emptyText) {
         ${avatarImg(p, 'avatar')}
         <span class="pl-main">
           <b>${esc(p.displayName)}${p.number != null ? ` <span class="muted num">#${esc(p.number)}</span>` : ''}</b>
-          <small>${team ? `<span class="team">${teamDot(team)}${esc(team.name)}</span>${team.managerPlayerId === p.id ? ` ${managerTag()}` : ''}` : '<span class="fa-tag">Free agent</span>'}${p.tagline ? ` · ${esc(p.tagline)}` : ''}</small>
+          <small>${team ? `<span class="team">${teamDot(team)}${esc(team.name)}</span>${team.managerPlayerId === p.id ? ` ${managerTag()}` : ''}` : `<span class="fa-tag">Free agent</span>${isLft(p) ? ` ${lftTag()}` : ''}`}${p.tagline ? ` · ${esc(p.tagline)}` : ''}</small>
         </span>
         <span class="pl-side"><b class="num">lv ${lvl}</b><small>${fmtNum(c?.matches ?? 0)} match${c?.matches === 1 ? '' : 'es'}</small></span>
       </a></li>`;
@@ -102,11 +102,12 @@ export async function render() {
   const params = new URLSearchParams(location.search);
   const view = ['players', 'free'].includes(params.get('view')) ? params.get('view') : 'teams';
   const [bundles, people] = await Promise.all([loadAllBundles(), loadPeople()]);
-  const teams = people.teams.filter(isApprovedTeam).sort((a, b) => a.name.localeCompare(b.name));
+  const teams = people.teams.filter((t) => isApprovedTeam(t) && !t.mix).sort((a, b) => a.name.localeCompare(b.name));
   const players = people.players
     .filter((p) => p.active !== false)
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
-  const free = players.filter((p) => !p.teamId || !isApprovedTeam(people.teamsById[p.teamId]));
+  const free = players.filter((p) => !p.teamId || !isApprovedTeam(people.teamsById[p.teamId]))
+    .sort((a, b) => Number(isLft(b)) - Number(isLft(a))); // looking for a team first
 
   const chip = (v, label, count) => `<a class="chip-link" href="/teams${v === 'teams' ? '' : `?view=${v}`}" data-link data-keep-scroll${v === view ? ' aria-current="true"' : ''}>${label} <span class="muted">&nbsp;${count}</span></a>`;
   const head = `
@@ -129,7 +130,7 @@ export async function render() {
   } else {
     const careers = careerStats(bundles);
     body = view === 'free'
-      ? `<p class="muted small" style="margin:0 0 10px">Players without a club. Managers can invite them from the Club hub.</p>${playerList(free, people, careers, 'No free agents right now')}`
+      ? `<p class="muted small" style="margin:0 0 10px">Players without a club (LFT = looking for a team, shown first). Managers can invite them from the Club hub.</p>${playerList(free, people, careers, 'No free agents right now')}`
       : playerList(players, people, careers, 'No players yet');
   }
   return { title: 'Teams & players', html: head + body };
