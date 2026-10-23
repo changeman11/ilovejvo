@@ -29,3 +29,28 @@ export function fittingModes(readyCount, modes = ALL_MODES) {
 export function chooseMode(readyCount, modes = ALL_MODES, rng = Math.random) {
   return pickOne(fittingModes(readyCount, modes), rng) ?? null;
 }
+
+// Votes: { size: count } from players who are signed up. Only modes that fit count.
+export function tallyVotes(sizes, readyCount, modes = ALL_MODES) {
+  const fit = new Set(fittingModes(readyCount, modes));
+  const tally = {};
+  for (const s of sizes) if (fit.has(s)) tally[s] = (tally[s] ?? 0) + 1;
+  return tally;
+}
+
+// The next game's mode:
+// - an admin-set mode wins (null if there aren't enough players for it yet);
+// - otherwise the most-voted mode that fits, if it has at least `needed` votes (ties: random);
+// - otherwise a random mode that fits.
+//   -> { size, by: 'admin' | 'votes' | 'random', votes } or null
+export function pickMode({ readyCount, modes = ALL_MODES, votes = [], needed = 2, fixed = null, rng = Math.random }) {
+  if (fixed) return readyCount >= fixed * 2 ? { size: fixed, by: 'admin', votes: 0 } : null;
+  const tally = tallyVotes(votes, readyCount, modes);
+  const top = Math.max(0, ...Object.values(tally));
+  if (top >= needed) {
+    const tied = Object.keys(tally).filter((s) => tally[s] === top).map(Number);
+    return { size: pickOne(tied, rng), by: 'votes', votes: top };
+  }
+  const size = chooseMode(readyCount, modes, rng);
+  return size ? { size, by: 'random', votes: 0 } : null;
+}

@@ -8,8 +8,9 @@
 import { onSnapshot, doc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from '../firebase.js';
 import { loadPickupLive, loadPickupRatings, loadPickupGames, loadPickupSignup, loadPlayers, invalidate } from '../data.js';
-import { pickupSignUp, pickupWithdraw } from '../player-data.js';
-import { currentUser, discordOf } from '../auth.js';
+import { pickupSignUp, pickupWithdraw, pickupVote } from '../player-data.js';
+import { currentUser, discordOf, currentAdmin } from '../auth.js';
+import { commit } from '../writes.js';
 import { esc, skeleton, pageTitle, urls } from '../ui.js';
 import { discordInviteUrl } from '../config.js';
 import { keepUntilPageChanges } from '../live.js';
@@ -55,7 +56,7 @@ export function pickupBlock(rank) {
     </div>`;
 }
 
-function liveBlock(live, me) {
+function liveBlock(live, me, isAdmin) {
   const online = live?.updatedAt && Date.now() - live.updatedAt < OFFLINE_AFTER;
   const queue = live?.queue ?? [];
   const matches = live?.matches ?? [];
@@ -86,6 +87,30 @@ function liveBlock(live, me) {
     action = '<button class="btn btn-primary" type="button" data-pickup="join">Sign up</button>';
   }
 
+  // Which mode is next: set by an admin, or community votes (MODE_VOTES_NEEDED pick it).
+  const fixed = live?.fixedMode ?? null;
+  const votes = live?.modeVotes ?? {};
+  const needed = live?.modeVotesNeeded ?? 2;
+  const voteText = Object.entries(votes).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${mode(Number(s))} ×${n}`).join(', ');
+  const modeLine = fixed
+    ? `<p class="pk-mode">🎛️ Mode: <b>${mode(fixed)}</b>, set by an admin${live.fixedModeOnce ? ' for the next game' : ''}.</p>`
+    : `<p class="pk-mode">🗳️ ${voteText ? `Mode votes: <b>${esc(voteText)}</b>.` : 'No mode votes yet.'} ${needed} vote${needed === 1 ? '' : 's'} pick the mode; otherwise it’s random.</p>`;
+  const canVote = me && !fixed && !inMatch && (me.signedUp || myPlace);
+  const voteButtons = canVote ? `
+    <div class="pk-votes" role="group" aria-label="Vote for the next mode">
+      ${modes.map((n) => `<button class="chip-link" type="button" data-vote="${n}"${me.vote === n ? ' aria-current="true"' : ''}>${mode(n)}${votes[n] ? ` · ${votes[n]}` : ''}</button>`).join('')}
+      <button class="chip-link" type="button" data-vote=""${!me.vote ? ' aria-current="true"' : ''}>any</button>
+    </div>` : '';
+  const adminBox = isAdmin ? `
+    <form class="pk-admin" data-pickup-admin>
+      <label>Admin: mode <select name="size">
+        <option value="">Community votes</option>
+        ${modes.map((n) => `<option value="${n}"${fixed === n ? ' selected' : ''}>${mode(n)}</option>`).join('')}
+      </select></label>
+      <label class="small"><input type="checkbox" name="once"${live?.fixedModeOnce ? ' checked' : ''}> next game only</label>
+      <button class="btn btn-sm" type="submit">Set</button>
+    </form>` : '';
+
   const list = queue.length
     ? `<ol class="pk-queue">${queue.map((p) => `<li${me && p.id === me.discordId ? ' class="me"' : ''}>${esc(p.name)}${p.from === 'site' ? ' <span class="pk-src" title="Signed up on the website">web</span>' : ''}</li>`).join('')}</ol>`
     : '<p class="muted">Nobody yet. Be the first!</p>';
@@ -111,6 +136,9 @@ function liveBlock(live, me) {
         </div>
         <div class="pk-action">${action}</div>
       </div>
+      ${modeLine}
+      ${voteButtons}
+      ${adminBox}
       ${list}
       ${matchHtml || gameHtml ? `<h3 class="pk-sub">Right now</h3>${matchHtml}${gameHtml}` : ''}
       <p class="muted small pk-how">Each game is a random mode (${modes.map(mode).join(', ')}) that fits how many are signed up.
@@ -153,6 +181,7 @@ function gameRow(g, byDiscord) {
 export async function render() {
   const user = await currentUser();
   const discord = user ? await discordOf(user) : null;
+  const admin = await currentAdmin().catch(() => null);
   const [live, ratings, games, players, signup] = await Promise.all([
     loadPickupLive(),
     loadPickupRatings({ fresh: true }).catch(() => []),
@@ -161,13 +190,13 @@ export async function render() {
     discord ? loadPickupSignup(discord.discordId) : null,
   ]);
   const byDiscord = new Map(players.filter((p) => p.discordId).map((p) => [String(p.discordId), p]));
-  const me = discord ? { discordId: String(discord.discordId), signedUp: Boolean(signup), name: byDiscord.get(String(discord.discordId))?.displayName ?? discord.discordName ?? 'Player' } : null;
+  const me = discord ? { discordId: String(discord.discordId), signedUp: Boolean(signup), vote: Number.isInteger(signup?.vote) ? signup.vote : null, name: byDiscord.get(String(discord.discordId))?.displayName ?? discord.discordName ?? 'Player' } : null;
 
   return `
     <div class="page-head">${pageTitle('Pickup', 'Random 2v2 to 6v6 games on the JVO Discord, with captains, drafts and Elo.', 'green')}</div>
     <div class="cols pk-cols">
       <div class="stack">
-        ${liveBlock(live, me)}
+        ${liveBlock(live, me, Boolean(admin?.admin))}
         <section>
           <div class="section-head"><h2>Recent games</h2></div>
           <div class="panel flush pk-games">${games.length ? games.map((g) => gameRow(g, byDiscord)).join('') : '<p class="muted" style="padding:16px">No games yet.</p>'}</div>
@@ -215,7 +244,38 @@ export function mount(el) {
   watch(doc(db, 'pickupMeta/live'));
   if (me) watch(doc(db, `pickupSignups/${me.discordId}`));
 
+  // Admins: set the mode (the bot picks it up straight away).
+  el.querySelector('[data-pickup-admin]')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const button = f.querySelector('button');
+    button.disabled = true;
+    try {
+      const admin = await currentAdmin();
+      if (!admin?.admin) throw new Error('not an admin');
+      const size = f.size.value ? Number(f.size.value) : null;
+      await commit(admin.user.uid, [{ type: 'set', path: 'pickupControl/mode', data: { size, once: Boolean(size && f.once.checked) } }], { admin: true });
+      button.textContent = 'Saved';
+    } catch (err) {
+      console.error(err);
+      button.disabled = false;
+      button.insertAdjacentHTML('afterend', '<span class="small" style="color:#b3184d"> Couldn’t save.</span>');
+    }
+  });
+
   el.addEventListener('click', async (e) => {
+    const vote = e.target.closest('[data-vote]');
+    if (vote && me) {
+      vote.disabled = true;
+      try {
+        await pickupVote(me.discordId, vote.dataset.vote ? Number(vote.dataset.vote) : null);
+        redraw();
+      } catch (err) {
+        console.error(err);
+        vote.disabled = false;
+      }
+      return;
+    }
     const button = e.target.closest('[data-pickup]');
     if (!button || !me) return;
     button.disabled = true;

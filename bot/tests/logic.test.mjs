@@ -193,3 +193,30 @@ test('ranked: players with games only, best first', () => {
   ];
   assert.deepEqual(ranked(list).map((r) => r.discordId), ['c', 'a', 'd']);
 });
+
+// ---------- mode votes ----------
+import { pickMode, tallyVotes as tallyModeVotes } from '../src/logic/modes.js';
+
+test('mode votes: a couple of votes pick the mode; votes for modes that do not fit are ignored', () => {
+  assert.deepEqual(tallyModeVotes([4, 4, 6, 2], 8), { 4: 2, 2: 1 }, '6v6 needs 12');
+  // 2 votes for 3v3 with 8 signed up: 3v3.
+  assert.deepEqual(pickMode({ readyCount: 8, votes: [3, 3, 2], needed: 2 }), { size: 3, by: 'votes', votes: 2 });
+  // Only 1 vote: random from what fits.
+  const r = pickMode({ readyCount: 8, votes: [3], needed: 2, rng: seeded(1) });
+  assert.equal(r.by, 'random');
+  assert.ok([2, 3, 4].includes(r.size));
+  // A tie between two modes: one of them.
+  for (let s = 0; s < 20; s++) {
+    const t = pickMode({ readyCount: 12, votes: [5, 5, 6, 6, 2], needed: 2, rng: seeded(s) });
+    assert.ok([5, 6].includes(t.size) && t.by === 'votes');
+  }
+  // needed = 1: a single vote is enough.
+  assert.equal(pickMode({ readyCount: 6, votes: [3], needed: 1 }).size, 3);
+  // Not enough players for anything.
+  assert.equal(pickMode({ readyCount: 3, votes: [2, 2] }), null);
+});
+
+test('admin-set mode wins over votes, and waits until there are enough players', () => {
+  assert.deepEqual(pickMode({ readyCount: 8, votes: [2, 2, 2], fixed: 4 }), { size: 4, by: 'admin', votes: 0 });
+  assert.equal(pickMode({ readyCount: 7, votes: [2, 2], fixed: 4 }), null);
+});

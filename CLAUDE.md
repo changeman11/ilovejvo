@@ -99,6 +99,11 @@
     - Two random captains; a coin flip decides the first pick, then alternating picks (A B A B) with buttons, 60 s each or the pick is random. Leaving the ready-up channel mid-draft cancels it.
     - The bot makes two locked team voice channels (that team plus admins), moves the players, and deletes the ready-up channel.
     - Both captains press the winner; if they disagree, admins decide (`/pickup result` can also correct a result later).
+  - **Mode votes (added 2026-10-24):**
+    - **Voting:** signed-up players vote with the queue card's second menu (`custom_id: 'mode'`), or with the site's vote buttons, which set `vote` on their `pickupSignups` doc. The bot copies Discord votes to that doc too.
+    - **At the pop:** if the most-voted mode that fits has `MODE_VOTES_NEEDED` (2) votes, it's played (ties are random); otherwise the mode is random. `pickMode()` in `logic/modes.js` (tested).
+    - **Admin mode:** admins can fix the mode, for the next game or until reset, with `/pickup setmode` or the admin box on `/pickup`. It's stored in `pickupControl/mode` `{ size, once }` (rules: admin + stamp, or the bot) and also in store meta `fixedMode`. The bot watches it live.
+    - **Fixed mode:** the game starts as soon as there are exactly enough for it.
   - **Elo:** start 1000, K = 32, team rating = average, the same change for the whole team.
   - **On the site (added 2026-10-24, needs `STORE=firebase`):**
     - **Pages:** `/pickup` (`pages/pickup.js`) has the live queue with Sign up / Withdraw for Discord sign-ins, ready checks, drafts and games on, recent games and the Elo leaderboard. It's in the menu cards, top nav and phone Home.

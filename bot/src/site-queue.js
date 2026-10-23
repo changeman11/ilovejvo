@@ -5,13 +5,17 @@
 //   collection live: a new doc signs that player up, a deleted doc withdraws them. The bot also
 //   writes a doc for Discord sign-ups (so the site can withdraw those too) and deletes the doc
 //   whenever someone leaves the queue (withdrew, picked, dropped).
+//   A player's mode vote is the doc's `vote` field (they can change it on the site; the bot copies
+//   Discord votes there too).
+// - pickupControl/mode = { size, once }: the admin-set mode (null size = community votes). Admins
+//   set it on the site; /pickup setmode on Discord writes it too.
 // - pickupMeta/live = the queue, ready checks, drafts and games on (Pickup.liveState()), for the
 //   site's pickup page. Re-sent every 5 minutes so the site can tell the bot is running.
 //
 // Reads go through the Firebase SDK's live listener (no polling, so reads stay tiny); writes go
 // through the bot's own signed-in REST client (store.rest).
 import { initializeApp, deleteApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator, collection, onSnapshot } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, collection, doc, onSnapshot } from 'firebase/firestore';
 
 const HEARTBEAT = 5 * 60 * 1000;
 let apps = 0;
@@ -19,7 +23,8 @@ let apps = 0;
 export class SiteQueue {
   constructor({ rest, firebase, log = console }) {
     Object.assign(this, { rest, firebase, log });
-    this.docs = new Set(); // discord ids that have a pickupSignups doc
+    this.docs = new Map(); // discord id -> { vote } for everyone with a pickupSignups doc
+    this.control = undefined; // the admin-set mode as last seen/written (JSON), undefined = not read yet
     this.pickup = null;
     this.unsubscribe = null;
     this.heartbeat = null;
@@ -41,10 +46,17 @@ export class SiteQueue {
       (snap) => {
         for (const change of snap.docChanges()) {
           const id = change.doc.id;
+          const d = change.doc.data();
+          const vote = Number.isInteger(d.vote) ? d.vote : null;
           if (change.type === 'added') {
-            this.docs.add(id);
-            const d = change.doc.data();
+            this.docs.set(id, { vote });
             if (!this.pickup.queue.has(id)) this.pickup.siteJoin(id, String(d.name ?? id).slice(0, 60), d.signedUpAt?.toMillis?.() ?? Date.now());
+            if (vote) this.pickup.siteVote(id, vote);
+          } else if (change.type === 'modified') {
+            const known = this.docs.get(id);
+            if (known && known.vote === vote) continue; // our own write coming back
+            this.docs.set(id, { vote });
+            this.pickup.siteVote(id, vote);
           } else if (change.type === 'removed') {
             this.docs.delete(id);
             this.pickup.siteLeave(id);
@@ -53,6 +65,23 @@ export class SiteQueue {
       },
       (err) => this.log.error('[site] watching sign-ups stopped:', err.message),
     );
+    // The admin-set mode. Missing doc: the bot's own setting is written there.
+    this.unsubscribeControl = onSnapshot(
+      doc(db, 'pickupControl', 'mode'),
+      (snap) => {
+        const d = snap.exists() ? snap.data() : null;
+        if (!d) {
+          if (this.control === undefined) this.modeSet(this.pickup.fixedMode);
+          return;
+        }
+        const fixed = Number.isInteger(d.size) ? { size: d.size, once: Boolean(d.once) } : null;
+        const json = JSON.stringify(fixed);
+        if (json === this.control) return;
+        this.control = json;
+        this.pickup.siteSetMode(fixed);
+      },
+      (err) => this.log.error('[site] watching the mode setting stopped:', err.message),
+    );
     this.heartbeat = setInterval(() => this.pickup.publishNow({ force: true }), HEARTBEAT);
     this.pickup.publishNow({ force: true });
     this.log.info?.('[site] linked to the website queue');
@@ -60,6 +89,7 @@ export class SiteQueue {
 
   stop() {
     this.unsubscribe?.();
+    this.unsubscribeControl?.();
     if (this.heartbeat) clearInterval(this.heartbeat);
     if (this.app) deleteApp(this.app).catch(() => {});
   }
@@ -67,7 +97,7 @@ export class SiteQueue {
   // Someone signed up. From Discord: add their doc so the site shows them and can withdraw them.
   joined(entry) {
     if (entry.from !== 'discord' || entry.fake || this.docs.has(entry.id)) return;
-    this.docs.add(entry.id);
+    this.docs.set(entry.id, { vote: null });
     this.write([{ path: `pickupSignups/${entry.id}`, data: { discordId: entry.id, name: entry.name, signedUpAt: entry.joinedAt } }]);
   }
 
@@ -76,6 +106,22 @@ export class SiteQueue {
     if (!this.docs.has(id)) return;
     this.docs.delete(id);
     this.write([{ delete: `pickupSignups/${id}` }]);
+  }
+
+  // A mode vote changed in the bot: copy it to the player's sign-up doc (if it's different).
+  voted(id, size) {
+    const known = this.docs.get(id);
+    if (!known || known.vote === (size ?? null)) return;
+    known.vote = size ?? null;
+    this.write([{ path: `pickupSignups/${id}`, data: { vote: size ?? null }, mask: ['vote'] }]);
+  }
+
+  // The admin-set mode changed in the bot (/pickup setmode, or used up after one game).
+  modeSet(fixed) {
+    const json = JSON.stringify(fixed ?? null);
+    if (json === this.control) return;
+    this.control = json;
+    this.write([{ path: 'pickupControl/mode', data: { size: fixed?.size ?? null, once: Boolean(fixed?.once), updatedBy: 'pickup-bot', updatedAt: Date.now() } }]);
   }
 
   publish(state) {

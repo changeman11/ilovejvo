@@ -2,7 +2,7 @@
 // these just shape the saves the rules expect. Each one also writes an audit entry.
 
 import { commit, newId, serverTimestamp, ts } from './writes.js';
-import { doc, collection, setDoc, deleteDoc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { doc, collection, setDoc, deleteDoc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
 import { invalidate } from './data.js';
 import { slugId } from './admin-data.js';
@@ -231,6 +231,11 @@ export async function pickupSignUp(discordId, name) {
   const ref = doc(db, 'pickupSignups', String(discordId));
   if ((await getDoc(ref)).exists()) return;
   await setDoc(ref, { discordId: String(discordId), name: String(name || 'Player').slice(0, 60), signedUpAt: serverTimestamp() });
+}
+
+// Mode vote on your own sign-up (a team size, or null = no preference). The bot counts it.
+export async function pickupVote(discordId, size) {
+  await updateDoc(doc(db, 'pickupSignups', String(discordId)), { vote: size ?? null });
 }
 
 export async function pickupWithdraw(discordId) {

@@ -116,6 +116,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         game: o.getInteger('game', false),
         winner: o.getString('winner', false),
         count: o.getInteger('count', false),
+        choice: o.getString('choice', false),
+        nextOnly: o.getBoolean('next_only', false),
         player: picked ? { id: picked.id, name: o.getMember('player')?.displayName ?? picked.globalName ?? picked.username } : null,
       };
       const reply = await pickup.command(interaction.commandName, options, user);

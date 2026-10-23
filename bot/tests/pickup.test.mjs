@@ -514,3 +514,37 @@ test('the queue message is kept up to date (at most once a second)', async () =>
   await env.clock.advance(1_000, env.pickup);
   assert.match(env.io.messages.get(id).embeds[0].description, /Starting <t:\d+:R>/);
 });
+
+test('mode votes on the queue card pick the next mode; an admin-set mode overrides them', async () => {
+  const env = setup({ seed: 12 });
+  await env.pickup.start();
+  const voter = (id) => ({ id, name: id, isAdmin: false });
+  // Voting needs a sign-up.
+  assert.match((await env.pickup.select('mode', '3', voter('u1'))).ephemeral, /Sign up first/);
+  await joinAll(env, 7);
+  assert.match((await env.pickup.select('mode', '3', voter('u1'))).ephemeral, /Voted 3v3 \(1 vote\)/);
+  assert.match((await env.pickup.select('mode', '3', voter('u2'))).ephemeral, /2 votes/);
+  await env.pickup.select('mode', '2', voter('u3'));
+  await env.clock.advance(1_000, env.pickup);
+  assert.match(env.io.messages.get(env.pickup.queueMessageId).embeds[0].description, /Mode votes: 3v3 ×2, 2v2 ×1/);
+  await env.clock.advance(30_000, env.pickup);
+  const match = matchIn(env, 'check');
+  assert.equal(match.size, 3, 'two votes picked 3v3');
+  assert.equal(match.why, 'votes');
+  assert.match(env.io.messages.get(match.messageId).content, /3v3 found!\*\* \(voted\)/);
+
+  // Admin sets 2v2 for the next game only: it starts as soon as 4 are waiting; votes are paused.
+  const env2 = setup({ seed: 3 });
+  await env2.pickup.start();
+  const set = await env2.pickup.command('pickup', { sub: 'setmode', choice: '2', nextOnly: true }, { id: 'a', name: 'Admin', isAdmin: true });
+  assert.match(set.content, /2v2 for the next game/);
+  await joinAll(env2, 3);
+  assert.match((await env2.pickup.select('mode', '3', voter('u1'))).ephemeral, /votes are paused/);
+  await joinAll(env2, 1, 4);
+  const m2 = matchIn(env2, 'check');
+  assert.equal(m2.size, 2, 'started at once with exactly 4');
+  assert.equal(m2.why, 'admin');
+  assert.equal(env2.pickup.fixedMode, null, 'next game only: back to votes');
+  assert.equal(env2.store.getMeta('fixedMode'), null);
+  assert.match((await env2.pickup.command('pickup', { sub: 'setmode', choice: '4' }, { id: 'u1', name: 'x', isAdmin: false })).content, /Only admins/);
+});

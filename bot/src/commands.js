@@ -6,6 +6,7 @@ const SUB = 1;
 const STRING = 3;
 const INTEGER = 4;
 const USER = 6;
+const BOOLEAN = 5;
 
 export function commandList(config) {
   const testing = config.allowTestPlayers
@@ -62,6 +63,21 @@ export function commandList(config) {
                 { name: 'Cancel the game (no Elo change)', value: 'cancel' },
               ],
             },
+          ],
+        },
+        {
+          type: SUB,
+          name: 'setmode',
+          description: 'Set the mode yourself, or hand it back to the community votes',
+          options: [
+            {
+              type: STRING,
+              name: 'choice',
+              description: 'A mode, or Random (community votes)',
+              required: true,
+              choices: [{ name: 'Random (community votes)', value: 'random' }, ...config.modes.map((n) => ({ name: modeLabel(n), value: String(n) }))],
+            },
+            { type: BOOLEAN, name: 'next_only', description: 'Only for the next game (default: until set back to Random)', required: false },
           ],
         },
         ...(config.clubRoles ? [{ type: SUB, name: 'syncroles', description: 'Update club roles from the I<3JVO site now' }] : []),

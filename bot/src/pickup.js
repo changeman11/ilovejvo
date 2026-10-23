@@ -5,6 +5,8 @@
 //   live.joined(entry)  someone signed up (entry.from: 'discord' | 'site')
 //   live.left(id)       someone is no longer signed up (withdrew, was picked, was dropped)
 //   live.publish(state) the queue, ready checks, drafts and games on, for the site's pickup page
+//   live.voted(id, size) someone's mode vote changed (size, or null for no vote)
+//   live.modeSet(fixed) the admin-set mode changed ({ size, once } or null)
 //
 //   io.post(message, channelId?) -> messageId    io.edit(messageId, message, channelId?)
 //   io.remove(messageId)                          (no channelId = the #pickup channel)
@@ -17,7 +19,7 @@
 //
 // and saves through `store` (FileStore or FirestoreStore). Every event runs one at a time (run()),
 // so two clicks at the same moment can't trip over each other.
-import { chooseMode, fittingModes, minPlayers, maxPlayers, modeLabel } from './logic/modes.js';
+import { fittingModes, minPlayers, maxPlayers, modeLabel, pickMode, tallyVotes as tallyModeVotes } from './logic/modes.js';
 import { createDraft, applyPick, currentSide, isComplete } from './logic/draft.js';
 import { tallyVotes, OUTCOMES } from './logic/votes.js';
 import { gameChanges, applyChange, revertChange } from './logic/ratings.js';
@@ -36,6 +38,8 @@ export class Pickup {
     Object.assign(this, { io, store, config, clock, rng, log, live });
     this.publishTimer = null;
     this.lastPublished = '';
+    this.votes = new Map(); // userId -> team size they voted for (signed-up players only)
+    this.fixedMode = null; // { size, once } when an admin set the mode (/pickup setmode)
     this.queue = new Map(); // userId -> { id, name, joinedAt, fake }  (everyone signed up)
     this.busy = new Map(); // userId -> matchId  (in a ready check or draft, so not counted as ready)
     this.matches = new Map(); // matchId -> ready check or draft (see beginCheck / beginDraft)
@@ -96,6 +100,10 @@ export class Pickup {
         .filter((g) => LIVE.includes(g.status))
         .map((g) => ({ number: g.number, size: g.size, status: g.status, a: side(g, 'a'), b: side(g, 'b') })),
       modes: this.config.modes,
+      modeVotes: this.voteTally(),
+      modeVotesNeeded: this.config.modeVotesNeeded,
+      fixedMode: this.fixedMode?.size ?? null,
+      fixedModeOnce: Boolean(this.fixedMode?.once),
       readySeconds: this.config.readySeconds,
       updatedAt: this.clock.now(),
     };
@@ -103,7 +111,18 @@ export class Pickup {
 
   // Took someone off the sign-up list (tells the site).
   unqueue(id) {
+    this.votes.delete(id);
     if (this.queue.delete(id)) this.live?.left(id);
+  }
+
+  // { size: count } of mode votes from signed-up players who are waiting (all modes, for display).
+  voteTally() {
+    const tally = {};
+    for (const p of this.readyList()) {
+      const s = this.votes.get(p.id);
+      if (s) tally[s] = (tally[s] ?? 0) + 1;
+    }
+    return tally;
   }
 
   // For events and timers: errors are already logged by run(), so don't pass them on.
@@ -121,6 +140,8 @@ export class Pickup {
   }
 
   limits() {
+    // An admin-set mode starts as soon as there are exactly enough for it.
+    if (this.fixedMode) return { min: this.fixedMode.size * 2, max: this.fixedMode.size * 2 };
     return { min: minPlayers(this.config.modes), max: maxPlayers(this.config.modes) };
   }
 
@@ -137,6 +158,7 @@ export class Pickup {
       for (const game of await this.store.openGames()) this.track(game);
       for (const game of [...this.games.values()]) await this.cleanupChannels(game);
       this.queueMessageId = this.store.getMeta('queueMessageId') ?? null;
+      this.fixedMode = this.store.getMeta('fixedMode') ?? null;
       await this.queueChanged({ immediate: true, repost: true });
     });
   }
@@ -163,6 +185,11 @@ export class Pickup {
   // The Sign up / Withdraw menu on the queue card. Returns { ephemeral: 'text' } for that person.
   select(customId, value, user) {
     return this.run(async () => {
+      if (customId === 'mode') {
+        const reply = this.voteMode(user.id, value);
+        this.renderQueueSoon();
+        return reply;
+      }
       if (customId !== 'queue') return { ephemeral: "That menu isn't used any more." };
       const reply = value === 'join' ? await this.signUp(user.id, user.name) : await this.withdraw(user.id);
       this.renderQueueSoon(); // also resets the menu on everyone's screen
@@ -170,6 +197,41 @@ export class Pickup {
     }).catch((err) => {
       this.log.error('[pickup] menu', err);
       return { ephemeral: `Something went wrong: ${err.message}` };
+    });
+  }
+
+  // "Vote for the next mode" menu. value: a team size, or 'none'.
+  voteMode(id, value) {
+    if (this.fixedMode) return { ephemeral: `An admin has set the mode to ${modeLabel(this.fixedMode.size)}${this.fixedMode.once ? ' for the next game' : ''}, so votes are paused.` };
+    if (!this.queue.has(id) || this.busy.has(id)) return { ephemeral: 'Sign up first (the menu above), then vote for the mode you want.' };
+    if (value === 'none') {
+      this.votes.delete(id);
+      this.live?.voted(id, null);
+      return { ephemeral: 'Vote removed: any mode is fine.' };
+    }
+    const size = Number(value);
+    if (!this.config.modes.includes(size)) return { ephemeral: "That mode isn't on." };
+    this.votes.set(id, size);
+    this.live?.voted(id, size);
+    const count = this.voteTally()[size] ?? 0;
+    const need = this.config.modeVotesNeeded;
+    return { ephemeral: `Voted ${modeLabel(size)} (${count} vote${count === 1 ? '' : 's'}). ${count >= need ? 'That’s enough: it’s the next game’s mode if it has the most votes and enough players.' : `${need - count} more vote${need - count === 1 ? '' : 's'} and it’s picked (when there are enough players).`}` };
+  }
+
+  // Votes and the admin-set mode, changed on the website (site-queue.js).
+  siteVote(id, size) {
+    return this.event(async () => {
+      if ((this.votes.get(id) ?? null) === (size ?? null)) return;
+      this.voteMode(id, size ? String(size) : 'none');
+      this.renderQueueSoon();
+    });
+  }
+
+  siteSetMode(fixed) {
+    return this.event(async () => {
+      if (JSON.stringify(fixed ?? null) === JSON.stringify(this.fixedMode ?? null)) return;
+      await this.setFixedMode(fixed, { fromSite: true });
+      await this.queueChanged();
     });
   }
 
@@ -291,17 +353,38 @@ export class Pickup {
     await this.startGame();
   }
 
-  // Start a game with the players who've waited longest. size: a team size, or null for random.
+  // Start a game with the players who've waited longest. size: a team size (admin /pickup start),
+  // or null: the admin-set mode, else a mode with enough votes, else a random mode that fits.
   async startGame(size = null) {
     const ready = this.readyList();
-    const chosen = size ?? chooseMode(ready.length, this.config.modes, this.rng);
-    if (!chosen || ready.length < chosen * 2) {
+    const pick = size
+      ? { size, by: 'admin' }
+      : pickMode({
+          readyCount: ready.length,
+          modes: this.config.modes,
+          votes: ready.map((p) => this.votes.get(p.id)).filter(Boolean),
+          needed: this.config.modeVotesNeeded,
+          fixed: this.fixedMode?.size ?? null,
+          rng: this.rng,
+        });
+    if (!pick || ready.length < pick.size * 2) {
       await this.queueChanged();
       return null;
     }
-    await this.beginCheck(chosen, ready.slice(0, chosen * 2));
+    if (!size && pick.by === 'admin' && this.fixedMode?.once) await this.setFixedMode(null);
+    await this.beginCheck(pick.size, ready.slice(0, pick.size * 2), pick.by);
     await this.queueChanged();
-    return chosen;
+    return pick.size;
+  }
+
+  async setFixedMode(fixed, { fromSite = false } = {}) {
+    this.fixedMode = fixed;
+    if (!fromSite) this.live?.modeSet(fixed);
+    try {
+      await this.store.setMeta('fixedMode', fixed);
+    } catch (err) {
+      this.log.warn('[pickup] could not save the admin mode:', err.message);
+    }
   }
 
   snapshot() {
@@ -310,6 +393,8 @@ export class Pickup {
       drafting: this.matches.size,
       countdownEndsAt: this.countdown?.endsAt ?? null,
       games: [...this.games.values()].sort((a, b) => a.number - b.number),
+      votes: this.voteTally(),
+      fixedMode: this.fixedMode,
     };
   }
 
@@ -348,10 +433,11 @@ export class Pickup {
   // A game was found: make a locked "ready up" voice channel that only these players (and admins)
   // can join, and ping them. Each one confirms by joining it. Once everyone's in, the draft starts.
   // After READY_SECONDS, anyone missing is dropped and the next in the queue takes their place.
-  async beginCheck(size, players) {
+  async beginCheck(size, players, why = 'random') {
     const match = {
       id: `${this.clock.now().toString(36)}${(++this.seq).toString(36)}`,
       size,
+      why, // how the mode was chosen: 'random' | 'votes' | 'admin'
       phase: 'check',
       players: players.map((p) => ({ ...p })),
       confirmed: new Set(players.filter((p) => p.fake).map((p) => p.id)), // pretend players are always ready
@@ -804,7 +890,7 @@ export class Pickup {
     if (sub === 'start') {
       const ready = this.readyList();
       const size = options.mode ?? null;
-      const { min } = this.limits();
+      const min = minPlayers(this.config.modes);
       if (ready.length < min) return { content: `Need at least ${min} ready to start (${ready.length} now).` };
       if (size && !fittingModes(ready.length, this.config.modes).includes(size)) {
         return { content: `${modeLabel(size)} needs ${size * 2} ready; there are ${ready.length}.` };
@@ -812,6 +898,19 @@ export class Pickup {
       this.stopCountdown();
       const started = await this.startGame(size);
       return { content: started ? `Started a ${modeLabel(started)} draft.` : 'Not enough players to start.' };
+    }
+    if (sub === 'setmode') {
+      const choice = options.choice ?? 'random';
+      if (choice === 'random') {
+        await this.setFixedMode(null);
+        await this.queueChanged();
+        return { content: 'Mode is back to the community: votes, or random when there aren’t enough votes.' };
+      }
+      const s = Number(choice);
+      if (!this.config.modes.includes(s)) return { content: "That mode isn't on (MODES in .env)." };
+      await this.setFixedMode({ size: s, once: Boolean(options.nextOnly) });
+      await this.queueChanged();
+      return { content: `Mode set to ${modeLabel(s)} ${options.nextOnly ? 'for the next game' : 'until you set it back to random'}. It starts as soon as ${s * 2} are signed up.` };
     }
     if (sub === 'result') {
       const game = await this.findGame(`g${options.game}`);

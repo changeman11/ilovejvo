@@ -593,8 +593,24 @@ service cloud.firestore {
                         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
                         && request.resource.data.signedUpAt == request.time)
                     || (isPickupBot() && request.resource.data.discordId == signupId);
-      allow update: if isPickupBot();
+      // The player may change only their mode vote (a team size, or null = no preference).
+      allow update: if isPickupBot()
+                    || (discordId() != '' && signupId == discordId()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vote'])
+                        && (request.resource.data.vote == null
+                            || (request.resource.data.vote is int && request.resource.data.vote >= 1 && request.resource.data.vote <= 10)));
       allow delete: if (discordId() != '' && signupId == discordId()) || isPickupBot();
+    }
+    // The admin-set pickup mode: { size (team size or null = community votes), once }. Admins set
+    // it on the site (stamped, audit-logged); the bot writes it for /pickup setmode on Discord.
+    match /pickupControl/{docId} {
+      allow read: if true;
+      allow write: if isPickupBot()
+                   || (isAdmin() && stampedByMe()
+                       && request.resource.data.keys().hasOnly(['size', 'once', 'updatedBy', 'updatedAt'])
+                       && (request.resource.data.size == null
+                           || (request.resource.data.size is int && request.resource.data.size >= 1 && request.resource.data.size <= 10))
+                       && request.resource.data.once is bool);
     }
     match /pickupBots/{botUid} {
       allow read, write: if false;

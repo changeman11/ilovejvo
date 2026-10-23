@@ -46,6 +46,11 @@ async function sitePlayer(discordId) {
       }],
     }),
     withdraw: (id = discordId) => call('DELETE', `/pickupSignups/${id}`),
+    // What the site's vote buttons do: change only the vote on your own sign-up.
+    vote: (size, id = discordId, extra = {}) => call('PATCH', `/pickupSignups/${id}?updateMask.fieldPaths=vote${Object.keys(extra).map((k) => `&updateMask.fieldPaths=${k}`).join('')}`, {
+      fields: { vote: size == null ? { nullValue: null } : { integerValue: String(size) }, ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [k, { stringValue: v }])) },
+    }),
+    setMode: (size) => call('PATCH', '/pickupControl/mode', { fields: { size: { integerValue: String(size) }, once: { booleanValue: false } } }),
   };
 }
 
@@ -77,11 +82,14 @@ test('website queue: sign up and withdraw on the site, Discord sign-ups shown, l
   site.attach(pickup);
   const oldLive = await getDoc('pickupMeta/live');
   const oldBot = await getDoc('pickupMeta/bot');
+  const oldControl = await getDoc('pickupControl/mode');
   t.after(async () => {
     site.stop();
     for (const id of [SITE, DISC]) await fetch(`${DOCS}/pickupSignups/${id}`, { method: 'DELETE', headers: OWNER });
     if (oldLive) await store.rest.commit([{ path: 'pickupMeta/live', data: oldLive }]);
     else await fetch(`${DOCS}/pickupMeta/live`, { method: 'DELETE', headers: OWNER });
+    if (oldControl) await store.rest.commit([{ path: 'pickupControl/mode', data: oldControl }]);
+    else await fetch(`${DOCS}/pickupControl/mode`, { method: 'DELETE', headers: OWNER });
     if (oldBot) await store.rest.commit([{ path: 'pickupMeta/bot', data: oldBot }]);
     else await fetch(`${DOCS}/pickupMeta/bot`, { method: 'DELETE', headers: OWNER });
     await fetch(`${DOCS}/pickupBots/${store.rest.uid}`, { method: 'DELETE', headers: OWNER });
@@ -114,6 +122,23 @@ test('website queue: sign up and withdraw on the site, Discord sign-ups shown, l
   const live = await getDoc('pickupMeta/live');
   assert.deepEqual(live.queue.map((p) => p.from).sort(), ['discord', 'site']);
   assert.ok(live.updatedAt > Date.now() - 60_000);
+
+  // Mode votes: a site vote counts in the bot; a Discord vote shows on the site.
+  assert.equal((await player.vote(3)).status, 200);
+  await until(() => pickup.votes.get(SITE) === 3, 'site vote reaches the bot');
+  assert.equal((await player.vote(3, SITE, { name: 'Renamed' })).status, 403, 'only the vote can change');
+  assert.equal((await player.vote(4, DISC)).status, 403, "can't vote for someone else");
+  assert.equal((await player.vote(99)).status, 403, 'not a real mode');
+  await pickup.select('mode', '2', { id: DISC, name: 'Discord Player', isAdmin: false });
+  await until(async () => (await getDoc(`pickupSignups/${DISC}`))?.vote === 2, 'Discord vote copied to the site');
+
+  // The admin-set mode: from the site (here written with the emulator's admin key) and from Discord.
+  assert.equal((await player.setMode(4)).status, 403, 'players cannot set the mode');
+  await fetch(`${DOCS}/pickupControl/mode`, { method: 'PATCH', headers: OWNER, body: JSON.stringify({ fields: { size: { integerValue: '4' }, once: { booleanValue: true } } }) });
+  await until(() => pickup.fixedMode?.size === 4 && pickup.fixedMode.once, 'site admin mode reaches the bot');
+  await pickup.command('pickup', { sub: 'setmode', choice: 'random' }, { id: 'admin', name: 'Admin', isAdmin: true });
+  await until(async () => (await getDoc('pickupControl/mode'))?.size === null, '/pickup setmode reaches the site');
+  assert.equal(pickup.fixedMode, null);
 
   // Withdrawing on the site takes them out of the queue.
   assert.equal((await player.withdraw()).status, 200);

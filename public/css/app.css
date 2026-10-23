@@ -1401,3 +1401,7 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .pk-elo b { font: 700 26px/1 var(--font-head); }
 .pk-elo small { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .pk-mini-text { display: grid; gap: 3px; }
+.pk-mode { margin: 0 0 8px; font-size: 14px; }
+.pk-votes { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.pk-votes .chip-link { cursor: pointer; }
+.pk-admin { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; padding: 8px 10px; border: 2px dashed var(--coral); border-radius: var(--radius-sm); font-size: 14px; }

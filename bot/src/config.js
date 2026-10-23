@@ -75,6 +75,8 @@ export function loadConfig(env = process.env) {
     modes: modes ?? [2, 3, 4, 5, 6],
     draftOrder,
     countdownSeconds: number('COUNTDOWN_SECONDS', 30, 0, 600),
+    // Votes on the queue card needed to pick the next mode (otherwise it's random).
+    modeVotesNeeded: number('MODE_VOTES_NEEDED', 2, 1, 12),
     pickSeconds: number('PICK_SECONDS', 60, 10, 600),
     readySeconds: number('READY_SECONDS', 60, 10, 600),
     startRating: number('ELO_START', DEFAULT_START, 0, 10000),

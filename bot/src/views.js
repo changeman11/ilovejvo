@@ -59,13 +59,20 @@ export const gameChatName = (game) => `game-${game.number}`;
 // ---------- queue ----------
 // snapshot: { ready: [{id, name, fake}], drafting, countdownEndsAt, games: [{number, size, status}] }
 export function queueView(snapshot, config) {
-  const { ready, drafting = 0, countdownEndsAt = null, games = [] } = snapshot;
+  const { ready, drafting = 0, countdownEndsAt = null, games = [], votes = {}, fixedMode = null } = snapshot;
   const need = minPlayers(config.modes) - ready.length;
   const fits = fittingModes(ready.length, config.modes).map(modeLabel).join(' · ');
   let status;
   if (countdownEndsAt) status = `**${ready.length}** signed up. Starting <t:${unix(countdownEndsAt)}:R>, so others can still join.\nPossible modes: ${fits}`;
   else if (need > 0) status = `**${ready.length}** signed up. Need **${need}** more to start a game.`;
   else status = `**${ready.length}** signed up.`;
+  const voteText = Object.entries(votes).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${modeLabel(Number(s))} ×${n}`).join(', ');
+  const modeLine = fixedMode
+    ? `🎛️ Mode: **${modeLabel(fixedMode.size)}**, set by an admin${fixedMode.once ? ' for the next game' : ''}.`
+    : voteText
+      ? `🗳️ Mode votes: ${voteText}. ${config.modeVotesNeeded} vote${config.modeVotesNeeded === 1 ? '' : 's'} pick the mode; otherwise it's random.`
+      : `🗳️ Want a mode? Vote below: ${config.modeVotesNeeded} vote${config.modeVotesNeeded === 1 ? '' : 's'} pick it.`;
+  status = `${status}\n${modeLine}`;
   const fields = [
     {
       name: `Signed up (${ready.length})`,
@@ -107,6 +114,21 @@ export function queueView(snapshot, config) {
           },
         ],
       },
+      {
+        type: ROW,
+        components: [
+          {
+            type: SELECT,
+            custom_id: 'mode',
+            placeholder: fixedMode ? `Mode set by an admin: ${modeLabel(fixedMode.size)}` : 'Vote for the next mode…',
+            disabled: Boolean(fixedMode),
+            options: [
+              ...config.modes.map((n) => ({ label: modeLabel(n), value: String(n), description: `${votes[n] ?? 0} vote${(votes[n] ?? 0) === 1 ? '' : 's'} · needs ${n * 2} players`, emoji: { name: '🗳️' } })),
+              { label: 'No preference', value: 'none', description: 'Remove your vote' },
+            ],
+          },
+        ],
+      },
       ...siteRow(config, 'Queue, leaderboard & games on I<3JVO'),
     ],
     allowedMentions: noMentions,
@@ -125,7 +147,7 @@ export function checkView(match, config, { ping = [] } = {}) {
   if (match.dropped.length) lines.push(`\nDropped (didn't join in time): ${match.dropped.map(esc).join(', ')}`);
   return {
     content: ping.length
-      ? `🏐 **${modeLabel(match.size)} found!** ${ping.map((id) => `<@${id}>`).join(' ')} join <#${match.lobbyId}> within ${config.readySeconds} seconds.`
+      ? `🏐 **${modeLabel(match.size)} found!**${match.why === 'votes' ? ' (voted)' : match.why === 'admin' ? ' (set by an admin)' : ''} ${ping.map((id) => `<@${id}>`).join(' ')} join <#${match.lobbyId}> within ${config.readySeconds} seconds.`
       : `🏐 **${modeLabel(match.size)} found!** Ready check in <#${match.lobbyId}>.`,
     embeds: [
       {

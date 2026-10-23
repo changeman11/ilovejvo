@@ -4,7 +4,9 @@ The pickup bot runs pick-up games in the JVO Discord. The code is in [`bot/`](bo
 
 1. **Sign up:** players pick **Sign up** (or **Withdraw**) in the menu on the bot's queue card in `#pickup`. They don't need to be in voice.
 2. **Countdown:** once 4 or more are signed up, a 30-second countdown gives others time to join.
-3. **Random mode:** the bot picks a random mode (2v2 to 6v6) from the ones that fit the number signed up.
+3. **Mode:** signed-up players can **vote** for the next mode. Use the second menu on the queue card, or the vote buttons on the site's pickup page.
+   - If a mode that fits gets **2 votes** (`MODE_VOTES_NEEDED`), it's played. Otherwise the bot picks a random mode (2v2 to 6v6) from the ones that fit the number signed up.
+   - **Admins** can set the mode instead, for the next game or until reset, with `/pickup setmode` or the admin box on the site's pickup page. It starts as soon as there are enough players for it.
    - The longest-waiting players get in. Everyone else stays queued for the next game.
    - With 12 signed up, it starts straight away.
 4. **Ready check (the queue "pops"):** the bot makes a **locked** voice channel (`🏐 ready up · 4v4`) and a **locked match chat** (`#ready-up-4v4`).
@@ -337,6 +339,7 @@ The bot gives every I<3JVO club a Discord role:
 | Captains | Press names on the draft card on your turn. Press the winner (or **Cancel game**) on the game card. |
 | Admins | `/pickup start` (start now, optional `mode`). Press the winner on any game card. Pick for an away captain. |
 | Admins | `/pickup result game:<number> winner:<Team 1, Team 2 or Cancel>`: set or **correct** a result. The old Elo change is undone first. |
+| Admins | `/pickup setmode choice:<mode or Random> next_only:<true/false>`: set the mode, or give it back to the community votes. |
 | Admins | `/pickup syncroles`: update club roles from the site now (with `CLUB_ROLES=1`). |
 | Admins (testing) | `/pickup testfill count:<n>` and `/pickup testclear` (only with `ALLOW_TEST_PLAYERS=1`) |
 
