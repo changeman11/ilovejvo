@@ -268,6 +268,20 @@ export async function decideTeam({ uid, team, approve }) {
     ops.push({ type: 'update', path: `players/${team.managerPlayerId}`, data: { teamId: team.id } });
     ops.push(transferOp({ playerId: team.managerPlayerId, to: team.id, kind: 'founded' }));
   }
+  // Invites the founder picked when registering: sent now, from them (the new manager), to the
+  // players who are still free agents.
+  if (approve && team.invitePlayerIds?.length && team.managerUid) {
+    const people = await loadPeople({ fresh: true, admin: true });
+    for (const pid of team.invitePlayerIds.slice(0, 8)) {
+      const p = people.playersById[pid];
+      if (!p?.uid || p.teamId || pid === team.managerPlayerId) continue;
+      ops.push({
+        type: 'set',
+        path: `offers/${newId('offers')}`,
+        data: { teamId: team.id, playerId: pid, playerUid: p.uid, fromUid: team.managerUid, status: 'pending', createdAt: serverTimestamp() },
+      });
+    }
+  }
   await commit(uid, ops);
   invalidate();
 }

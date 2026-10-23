@@ -5,7 +5,7 @@
 // Only the bare shell is pre-cached (a missing file here would stop the worker installing);
 // every other script is cached the first time it loads.
 
-const CACHE = 'jvo-shell-v36';
+const CACHE = 'jvo-shell-v37';
 const SHELL = [
   '/',
   '/index.html',

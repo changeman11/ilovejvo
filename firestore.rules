@@ -259,6 +259,11 @@ service cloud.firestore {
     }
 
     // ---------- Teams ----------
+    // Players a new club's founder picked to invite (sent when an admin approves the club): up to 8.
+    function validInvites() {
+      let d = request.resource.data;
+      return !('invitePlayerIds' in d) || d.invitePlayerIds == null || (d.invitePlayerIds is list && d.invitePlayerIds.size() <= 8);
+    }
     match /teams/{teamId} {
       allow read: if true;
 
@@ -270,7 +275,8 @@ service cloud.firestore {
             && request.resource.data.managerUid == uid()
             && ownsPlayer(request.resource.data.managerPlayerId)
             && playerDoc(request.resource.data.managerPlayerId).get('teamId', null) == null
-            && request.resource.data.keys().hasOnly(['name', 'shortName', 'colors', 'status', 'managerUid', 'managerPlayerId', 'createdBy', 'updatedBy', 'updatedAt']));
+            && validInvites()
+            && request.resource.data.keys().hasOnly(['name', 'shortName', 'colors', 'status', 'managerUid', 'managerPlayerId', 'invitePlayerIds', 'createdBy', 'updatedBy', 'updatedAt']));
 
       allow update: if
         (isAdmin() && stampedByMe() && validName('name'))
@@ -288,8 +294,8 @@ service cloud.firestore {
             && playerDoc(request.resource.data.managerPlayerId).get('uid', '') == request.resource.data.managerUid)
         // While waiting for approval, the person who registered it can add a logo and profile.
         || (signedIn() && resource.data.status == 'pending' && resource.data.managerUid == uid()
-            && stampedByMe() && validTeamProfile(teamId)
-            && changedOnly(['tagline', 'bio', 'theme', 'showcase', 'socials', 'logoPath', 'bannerPath', 'backgroundPath',
+            && stampedByMe() && validTeamProfile(teamId) && validInvites()
+            && changedOnly(['tagline', 'bio', 'theme', 'showcase', 'socials', 'logoPath', 'bannerPath', 'backgroundPath', 'invitePlayerIds',
                             'logoFrame', 'bannerFrame', 'backgroundFrame',
                             'updatedBy', 'updatedAt']));
 
@@ -451,6 +457,13 @@ service cloud.firestore {
       allow create: if signedIn() && stampedByMe()
         && request.resource.data.fromUid == uid()
         && managesTeam(request.resource.data.teamId)
+        && request.resource.data.status == 'pending'
+        && playerDoc(request.resource.data.playerId).get('teamId', null) == null
+        && playerDoc(request.resource.data.playerId).get('uid', null) != null
+        && request.resource.data.playerUid == playerDoc(request.resource.data.playerId).uid
+        && request.resource.data.keys().hasOnly(['teamId', 'playerId', 'playerUid', 'fromUid', 'status', 'createdAt', 'updatedBy', 'updatedAt']);
+      // An admin approving a new club sends the invites its founder picked (from the founder, the new manager).
+      allow create: if isAdmin() && stampedByMe()
         && request.resource.data.status == 'pending'
         && playerDoc(request.resource.data.playerId).get('teamId', null) == null
         && playerDoc(request.resource.data.playerId).get('uid', null) != null

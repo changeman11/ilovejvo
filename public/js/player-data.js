@@ -38,12 +38,13 @@ export async function cancelClaim({ uid, claim }) {
 }
 
 // A free agent registers a new team; it waits for an admin.
-export async function registerTeam({ uid, player, name, shortName, color, takenIds }) {
+// invitePlayerIds: free agents to invite once an admin approves the club (up to 8).
+export async function registerTeam({ uid, player, name, shortName, color, takenIds, invitePlayerIds = [] }) {
   const id = slugId(name, takenIds);
   await commit(uid, [{
     type: 'set',
     path: `teams/${id}`,
-    data: { name, shortName, colors: { primary: color }, status: 'pending', managerUid: uid, managerPlayerId: player.id, createdBy: uid },
+    data: { name, shortName, colors: { primary: color }, status: 'pending', managerUid: uid, managerPlayerId: player.id, invitePlayerIds: invitePlayerIds.slice(0, 8), createdBy: uid },
   }]);
   invalidate();
   return id;

@@ -1133,3 +1133,12 @@ a.team-card:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(
 .reel-item .reel-when { color: #8e93a6; font-size: 11px; margin-left: 4px; }
 .reel-empty { padding: 0 12px; color: #b9bdd0; font-size: 13px; white-space: nowrap; }
 @media (max-width: 420px) { .reel-tabs button { padding: 0 7px; font-size: 11px; } }
+
+/* Invite picker on the club registration form */
+.invite-pick input[type=search] { width: 100%; margin-bottom: 6px; }
+.invite-list { max-height: 220px; overflow-y: auto; display: grid; gap: 2px; border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 4px; }
+.invite-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; }
+.invite-row:hover { background: var(--tint-sky); }
+.invite-row[hidden] { display: none; }
+.invite-row .avatar { width: 28px; height: 28px; border-width: 2px; font-size: 13px; object-fit: cover; }
+.invite-count { margin: 6px 0 0; }

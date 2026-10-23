@@ -67,7 +67,7 @@ function lockedView(me) {
           }).join('') || '<p class="muted" style="padding:16px">Open any team’s page and tap “Request to join”.</p>'}</div>
         </section>
       </div>
-      <div class="stack">${pending ? pendingTeamBlock(pending) : registerBlock()}</div>
+      <div class="stack">${pending ? pendingTeamBlock(pending, me) : registerBlock(me)}</div>
     </div>
     ${pending ? '' : findClubBlock(me)}`;
 }
@@ -96,7 +96,31 @@ function findClubBlock(me) {
     </section>`;
 }
 
-function registerBlock() {
+// Free agents a new club's founder can pick to invite (sent when an admin approves the club).
+const MAX_INVITES = 8;
+function invitePicker(me, chosen = []) {
+  const picked = new Set(chosen);
+  const agents = me.players
+    .filter((p) => p.uid && !p.teamId && p.active !== false && p.id !== me.player.id)
+    .sort((a, b) => (picked.has(b.id) - picked.has(a.id)) || a.displayName.localeCompare(b.displayName));
+  return `
+    <fieldset class="cz invite-pick" data-invite-pick>
+      <legend>Invite players (optional)</legend>
+      <p class="muted small" style="margin:0 0 8px">Pick up to ${MAX_INVITES} free agents. They get an invite from you as soon as an admin approves the club.</p>
+      ${agents.length ? `
+        <input type="search" data-invite-filter placeholder="Search free agents" aria-label="Search free agents">
+        <div class="invite-list">${agents.map((p) => `
+          <label class="check invite-row" data-name="${esc(p.displayName.toLowerCase())}">
+            <input type="checkbox" name="invite" value="${esc(p.id)}" ${picked.has(p.id) ? 'checked' : ''}>
+            ${avatarImg(p, 'avatar sm')}<span>${esc(p.displayName)}</span>
+          </label>`).join('')}</div>
+        <p class="muted small invite-count" aria-live="polite">${picked.size} / ${MAX_INVITES} picked</p>`
+        : '<p class="muted small">No free agents right now. You can invite players later from the Club hub.</p>'}
+    </fieldset>`;
+}
+const pickedInvites = (form) => [...form.querySelectorAll('[name=invite]:checked')].map((i) => i.value).slice(0, MAX_INVITES);
+
+function registerBlock(me) {
   return `
     <section>
       <div class="section-head"><h2>Start a club</h2></div>
@@ -107,6 +131,7 @@ function registerBlock() {
           <label class="field"><span>Short name</span><input type="text" name="shortName" maxlength="5" placeholder="e.g. TAS"></label>
         </div>
         <label class="field"><span>Club colour (the dot next to its name)</span><input type="color" name="color" value="#19c9b1" class="color-input"></label>
+        ${invitePicker(me)}
         <details class="team-extras">
           <summary>Make your club page now (optional)</summary>
           ${customiseFields('team', {}, DEFAULT_STATS, '#19c9b1')}
@@ -116,7 +141,7 @@ function registerBlock() {
     </section>`;
 }
 
-function pendingTeamBlock(t) {
+function pendingTeamBlock(t, me) {
   return `
     <section>
       ${notice(`${t.name} is waiting for approval`, ' An admin will look at it soon. You become its manager once it’s approved. Meanwhile, set up its page.')}
@@ -124,6 +149,7 @@ function pendingTeamBlock(t) {
     <section>
       <div class="section-head"><h2>${esc(t.name)} club page</h2></div>
       <form class="panel" data-form="pending-team" novalidate>
+        ${invitePicker(me, t.invitePlayerIds ?? [])}
         ${customiseFields('team', t, DEFAULT_STATS, t.colors?.primary)}
         <div class="save-bar"><button class="btn btn-primary" type="submit">Save club page</button><p class="form-error" role="alert" hidden style="margin:0"></p></div>
       </form>
@@ -396,6 +422,20 @@ export function mount(el) {
     showError(err.code === 'permission-denied' ? 'That isn’t allowed any more (it may have changed). Refresh and try again.' : 'Something went wrong. Check your connection and try again.', near);
   };
 
+  // Invite picker: search, and stop at the limit.
+  root.addEventListener('input', (e) => {
+    if (!e.target.matches('[data-invite-filter]')) return;
+    const q = e.target.value.trim().toLowerCase();
+    e.target.closest('[data-invite-pick]').querySelectorAll('.invite-row').forEach((r) => { r.hidden = q && !r.dataset.name.includes(q); });
+  });
+  root.addEventListener('change', (e) => {
+    if (!e.target.matches('[data-invite-pick] [name=invite]')) return;
+    const box = e.target.closest('[data-invite-pick]');
+    const n = box.querySelectorAll('[name=invite]:checked').length;
+    if (n > MAX_INVITES) { e.target.checked = false; return; }
+    box.querySelector('.invite-count').textContent = `${Math.min(n, MAX_INVITES)} / ${MAX_INVITES} picked`;
+  });
+
   root.addEventListener('input', (e) => {
     if (!e.target.matches('[data-filter]')) return;
     const q = e.target.value.trim().toLowerCase();
@@ -466,6 +506,7 @@ export function mount(el) {
           uid: user.uid, player: me.player, name,
           shortName: (val('shortName') || name.replace(/[^A-Za-z0-9]/g, '').slice(0, 3)).toUpperCase(),
           color, takenIds: new Set(me.teams.map((t) => t.id)),
+          invitePlayerIds: pickedInvites(form),
         });
         try {
           await saveCustomise({ form, kind: 'team', owner: 'teams', id: teamId, doc: { id: teamId }, save: (changes) => updateTeam({ uid: user.uid, team: { id: teamId }, changes }) });
@@ -478,7 +519,7 @@ export function mount(el) {
         button.disabled = true;
         button.textContent = 'Saving…';
         const t = me.pendingTeam;
-        await saveCustomise({ form, kind: 'team', owner: 'teams', id: t.id, doc: t, save: (changes) => updateTeam({ uid: user.uid, team: t, changes }) });
+        await saveCustomise({ form, kind: 'team', owner: 'teams', id: t.id, doc: t, extra: { invitePlayerIds: pickedInvites(form) }, save: (changes) => updateTeam({ uid: user.uid, team: t, changes }) });
       }
       if (form.dataset.form === 'team') {
         if (!val('name')) return showError('The club needs a name.', form);
