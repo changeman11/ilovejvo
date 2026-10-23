@@ -54,29 +54,46 @@ function joinButton(t) {
     : `<div class="tc-join"><button class="btn btn-sm btn-primary" type="button" data-act="request-join" data-id="${esc(t.id)}">Request to join</button></div>`;
 }
 
+// The banner strip: the club's banner; with none, its logo blurred as a backdrop; with neither,
+// the game's volleyball on the club colour.
+function bannerHtml(t, logo, banner) {
+  if (banner) return `<img src="${esc(banner)}" alt="" loading="lazy" decoding="async" style="${frameStyle(t.bannerFrame)}">`;
+  if (logo) return `<img class="tc-banner-fill" src="${esc(logo)}" alt="" loading="lazy" decoding="async">`;
+  return '<img class="tc-banner-ball" src="/images/art/ball.png" alt="" loading="lazy" decoding="async"><img class="tc-banner-ball small" src="/images/art/ball.png" alt="" loading="lazy" decoding="async">';
+}
+
 function teamCards(teams, people, records) {
   if (!teams.length) return notice('No teams yet', ' Teams appear here once an admin approves them.', '55');
   return `<div class="team-grid">${teams.map((t) => {
     const r = records.get(t.id);
-    const squad = people.players.filter((p) => p.teamId === t.id).length;
+    const squad = people.players
+      .filter((p) => p.teamId === t.id)
+      .sort((a, b) => (b.id === t.managerPlayerId) - (a.id === t.managerPlayerId) || a.displayName.localeCompare(b.displayName));
     const logo = mediaUrl(t.logoPath);
     const banner = mediaUrl(t.bannerPath);
-    const boss = t.managerPlayerId ? people.playersById[t.managerPlayerId] : null;
     return `
       <div class="team-card-wrap">
-      <a class="panel team-card" href="${urls.team(t.id)}" data-link style="--theme:${esc(t.theme ?? t.colors?.primary ?? '#1438d8')}">
-        <div class="tc-banner">${banner ? `<img src="${esc(banner)}" alt="" loading="lazy" decoding="async" style="${frameStyle(t.bannerFrame)}">` : ''}</div>
-        <div class="tc-body">
-          ${logo ? framedImg({ src: logo, cls: 'tc-logo', frame: t.logoFrame })
-            : `<span class="tc-logo mono" style="background:${esc(t.colors?.primary ?? '#ffffff')}">${esc((t.shortName ?? t.name).slice(0, 4))}</span>`}
-          <div class="tc-text">
-            <h3>${esc(t.name)}</h3>
-            ${t.tagline ? `<p class="tc-tag">${esc(t.tagline)}</p>` : ''}
-            <p class="muted small">${squad}/${SQUAD_MAX} players${r ? ` · ${r.wins}–${r.losses} · level ${levelFor(teamXp(r)).level}` : ''}</p>
-            <p class="small tc-mgr">${boss ? `${managerTag()} ${esc(boss.displayName)}` : '<span class="muted">No manager yet</span>'}</p>
+      <div class="panel team-card" style="--theme:${esc(t.theme ?? t.colors?.primary ?? '#1438d8')}">
+        <a class="tc-link" href="${urls.team(t.id)}" data-link>
+          <div class="tc-banner${banner ? '' : logo ? ' from-logo' : ' from-ball'}">${bannerHtml(t, logo, banner)}</div>
+          <div class="tc-body">
+            ${logo ? framedImg({ src: logo, cls: 'tc-logo', frame: t.logoFrame })
+              : `<span class="tc-logo mono" style="background:${esc(t.colors?.primary ?? '#ffffff')}">${esc((t.shortName ?? t.name).slice(0, 4))}</span>`}
+            <div class="tc-text">
+              <h3>${esc(t.name)}</h3>
+              ${t.tagline ? `<p class="tc-tag">${esc(t.tagline)}</p>` : ''}
+              <p class="muted small">${r ? `${r.wins}–${r.losses} · level ${levelFor(teamXp(r)).level}` : 'No matches yet'}</p>
+            </div>
           </div>
+        </a>
+        <div class="tc-squad">
+          <div class="tc-squad-head"><b>Squad</b><span class="muted small">${squad.length}/${SQUAD_MAX}</span></div>
+          ${squad.length ? `<ul>${squad.map((p) => `
+            <li><a href="${urls.player(p.id)}" data-link>${avatarImg(p, 'avatar')}<span class="tc-pname">${esc(p.displayName)}</span></a>
+              ${p.id === t.managerPlayerId ? managerTag('MGR') : ''}${p.number != null ? `<span class="tc-num num">#${esc(p.number)}</span>` : ''}</li>`).join('')}</ul>`
+            : '<p class="muted small" style="margin:0">No players yet.</p>'}
         </div>
-      </a>
+      </div>
       ${joinButton(t)}
       </div>`;
   }).join('')}</div>`;

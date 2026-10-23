@@ -1325,3 +1325,25 @@ body.has-reel .featured { bottom: calc(var(--reel-bottom) + var(--reel-h) + 10px
 .sm-status.proj { background: var(--tint-sky); }
 .sm-status.tbd { background: var(--surface-2, #eef2f7); color: var(--muted); }
 .sm-vs { text-align: center; font: 600 12px var(--font-head); color: var(--muted); border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); padding: 1px 0; }
+
+/* ---------- Teams tab: club cards with their squad ---------- */
+.team-card { display: flex; flex-direction: column; }
+.tc-link { display: block; color: inherit; text-decoration: none; }
+.tc-link:hover .tc-text h3 { text-decoration: underline; }
+.tc-banner { position: relative; height: 88px; }
+/* No banner: the logo, blurred, as a backdrop */
+.tc-banner.from-logo .tc-banner-fill { position: absolute; inset: -20px; width: calc(100% + 40px); height: calc(100% + 40px); object-fit: cover; filter: blur(10px) saturate(1.3); opacity: 0.9; }
+.tc-banner.from-logo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, color-mix(in srgb, var(--theme) 55%, transparent), transparent 70%); }
+/* No banner or logo: the game's volleyball on the club colour */
+.tc-banner.from-ball .tc-banner-ball { position: absolute; right: -14px; top: -26px; height: 150%; width: auto; transform: rotate(-18deg); filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.25)); }
+.tc-banner.from-ball .tc-banner-ball.small { right: auto; left: 38%; top: 14px; height: 52%; transform: rotate(24deg); opacity: 0.55; }
+.tc-squad { border-top: 2px solid var(--line); padding: 10px 14px 12px; margin-top: auto; }
+.tc-squad-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-family: var(--font-head); }
+.tc-squad ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.tc-squad li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tc-squad li a { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; text-decoration: none; color: var(--ink); font-weight: 700; }
+.tc-squad li a:hover .tc-pname { text-decoration: underline; }
+.tc-squad .avatar { width: 28px; height: 28px; border-width: 2px; font-size: 13px; object-fit: cover; }
+.tc-pname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-num { color: var(--muted); font-size: 12px; }
+.tc-squad .mgr-tag { font-size: 10px; padding: 0 6px; }
