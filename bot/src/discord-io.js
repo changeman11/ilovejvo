@@ -2,7 +2,7 @@
 // voice channels, and moving people. Also checks the bot has the permissions it needs and tidies
 // up ready-up channels left over from a crash.
 import { ChannelType, OverwriteType, PermissionFlagsBits as P } from 'discord.js';
-import { LOBBY_PREFIX } from './views.js';
+import { LOBBY_PREFIX, CHAT_PREFIX } from './views.js';
 
 export async function setupDiscord(client, config, log = console) {
   const guild = await client.guilds.fetch(config.guildId).catch(() => null);
@@ -43,13 +43,22 @@ export async function setupDiscord(client, config, log = console) {
     ...adminRoles.map((id) => ({ id, type: OverwriteType.Role, allow: [P.ViewChannel, P.Connect] })),
     ...allow.map((id) => ({ id, type: OverwriteType.Member, allow: [P.ViewChannel, P.Connect] })),
   ];
+  // Locked chat = hidden from everyone except these players, admins and the bot.
+  const TALK = [P.ViewChannel, P.SendMessages, P.ReadMessageHistory];
+  const chatOverwrites = (allow) => [
+    { id: guild.roles.everyone.id, type: OverwriteType.Role, deny: [P.ViewChannel] },
+    { id: me.id, type: OverwriteType.Member, allow: [...TALK, P.EmbedLinks] },
+    ...adminRoles.map((id) => ({ id, type: OverwriteType.Role, allow: TALK })),
+    ...allow.map((id) => ({ id, type: OverwriteType.Member, allow: TALK })),
+  ];
+  const channelFor = async (channelId) => (channelId ? guild.channels.cache.get(channelId) ?? (await guild.channels.fetch(channelId)) : text);
 
   const io = {
-    async post(message) {
-      return (await text.send(message)).id;
+    async post(message, channelId) {
+      return (await (await channelFor(channelId)).send(message)).id;
     },
-    async edit(messageId, message) {
-      await text.messages.edit(messageId, message);
+    async edit(messageId, message, channelId) {
+      await (await channelFor(channelId)).messages.edit(messageId, message);
     },
     async remove(messageId) {
       await text.messages.delete(messageId);
@@ -63,6 +72,19 @@ export async function setupDiscord(client, config, log = console) {
         reason: 'Pickup game',
       });
       return channel.id;
+    },
+    async createText(name, { allow = [] } = {}) {
+      const channel = await guild.channels.create({
+        name,
+        type: ChannelType.GuildText,
+        parent: category?.id,
+        permissionOverwrites: chatOverwrites(allow),
+        reason: 'Pickup match chat',
+      });
+      return channel.id;
+    },
+    async renameChannel(channelId, name) {
+      await guild.channels.edit(channelId, { name, reason: 'Pickup game started' });
     },
     async deleteChannel(channelId) {
       await guild.channels.delete(channelId, 'Pickup game finished');
@@ -81,8 +103,9 @@ export async function setupDiscord(client, config, log = console) {
   // Ready-up channels left over from a crash or restart (nobody can be in a ready check after a
   // restart). Only voice channels in the bot's own category with the bot's name pattern.
   for (const channel of guild.channels.cache.values()) {
-    if (channel.type !== ChannelType.GuildVoice) continue;
-    if (channel.parentId !== (category?.id ?? null) || !channel.name.startsWith(LOBBY_PREFIX)) continue;
+    const leftover = (channel.type === ChannelType.GuildVoice && channel.name.startsWith(LOBBY_PREFIX))
+      || (channel.type === ChannelType.GuildText && channel.name.startsWith(CHAT_PREFIX));
+    if (!leftover || channel.parentId !== (category?.id ?? null)) continue;
     await channel.delete('Leftover pickup ready-up channel').catch((err) => log.warn(`Couldn't delete ${channel.name}: ${err.message}`));
     log.info?.(`Removed a leftover ready-up channel (${channel.name}).`);
   }

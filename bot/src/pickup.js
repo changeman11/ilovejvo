@@ -1,10 +1,17 @@
 // The pickup game manager: sign-up queue -> random mode -> ready check -> captains -> draft -> team
 // voice channels -> result -> Elo. Players sign up / withdraw with the menu on the queue card. It doesn't know about discord.js; it talks to Discord through `io`:
 //
-//   io.post(message) -> messageId        io.edit(messageId, message)     io.remove(messageId)
+// Optional `live` (site-queue.js) links the queue to the I<3JVO website:
+//   live.joined(entry)  someone signed up (entry.from: 'discord' | 'site')
+//   live.left(id)       someone is no longer signed up (withdrew, was picked, was dropped)
+//   live.publish(state) the queue, ready checks, drafts and games on, for the site's pickup page
+//
+//   io.post(message, channelId?) -> messageId    io.edit(messageId, message, channelId?)
+//   io.remove(messageId)                          (no channelId = the #pickup channel)
 //   io.createVoice(name, { allow: [userIds] }) -> channelId   (locked: only those users and admins
 //                                                              can join; everyone can see it)
-//   io.deleteChannel(channelId)
+//   io.createText(name, { allow: [userIds] }) -> channelId    (locked: only they and admins see it)
+//   io.renameChannel(channelId, name)             io.deleteChannel(channelId)
 //   io.channelSize(channelId) -> number of people in it (-1 if the channel is gone)
 //   io.move(userId, channelId) -> true, or false if they aren't in a voice channel
 //
@@ -25,8 +32,10 @@ const systemClock = {
 const LIVE = ['playing', 'disputed'];
 
 export class Pickup {
-  constructor({ io, store, config, clock = systemClock, rng = Math.random, log = console }) {
-    Object.assign(this, { io, store, config, clock, rng, log });
+  constructor({ io, store, config, clock = systemClock, rng = Math.random, log = console, live = null }) {
+    Object.assign(this, { io, store, config, clock, rng, log, live });
+    this.publishTimer = null;
+    this.lastPublished = '';
     this.queue = new Map(); // userId -> { id, name, joinedAt, fake }  (everyone signed up)
     this.busy = new Map(); // userId -> matchId  (in a ready check or draft, so not counted as ready)
     this.matches = new Map(); // matchId -> ready check or draft (see beginCheck / beginDraft)
@@ -46,8 +55,55 @@ export class Pickup {
   // ---------- running things one at a time ----------
   run(fn) {
     const result = this.chain.then(fn);
-    this.chain = result.catch((err) => this.log.error('[pickup]', err));
+    this.chain = result.catch((err) => this.log.error('[pickup]', err)).then(() => this.publishSoon());
     return result;
+  }
+
+  // ---------- the website's live view (when `live` is set) ----------
+  // After anything happens, send the new state to the site (at most every 1.5 s, only if changed).
+  publishSoon() {
+    if (!this.live || this.publishTimer) return;
+    this.publishTimer = this.clock.setTimeout(() => {
+      this.publishTimer = null;
+      this.publishNow();
+    }, 1500);
+  }
+
+  // force: send even if nothing changed (a heartbeat, so the site can tell the bot is running).
+  publishNow({ force = false } = {}) {
+    if (!this.live) return;
+    const state = this.liveState();
+    const json = JSON.stringify({ ...state, updatedAt: 0 });
+    if (!force && json === this.lastPublished) return;
+    this.lastPublished = json;
+    Promise.resolve(this.live.publish(state)).catch((err) => this.log.warn('[pickup] could not update the site:', err.message));
+  }
+
+  liveState() {
+    const names = (ids, match) => ids.map((id) => match.names[id]);
+    const side = (g, s) => g.teams[s].players.map((p) => p.name);
+    return {
+      queue: this.readyList().map((p) => ({ id: p.id, name: p.name, from: p.from ?? 'discord', joinedAt: p.joinedAt })),
+      countdownEndsAt: this.countdown?.endsAt ?? null,
+      matches: [...this.matches.values()].map((m) => ({
+        size: m.size,
+        phase: m.phase,
+        deadline: m.deadline,
+        players: m.players.map((p) => ({ id: p.id, name: p.name, ready: m.confirmed.has(p.id) })),
+        teams: m.phase === 'draft' ? { a: names(m.state.teams.a, m), b: names(m.state.teams.b, m) } : null,
+      })),
+      games: [...this.games.values()]
+        .filter((g) => LIVE.includes(g.status))
+        .map((g) => ({ number: g.number, size: g.size, status: g.status, a: side(g, 'a'), b: side(g, 'b') })),
+      modes: this.config.modes,
+      readySeconds: this.config.readySeconds,
+      updatedAt: this.clock.now(),
+    };
+  }
+
+  // Took someone off the sign-up list (tells the site).
+  unqueue(id) {
+    if (this.queue.delete(id)) this.live?.left(id);
   }
 
   // For events and timers: errors are already logged by run(), so don't pass them on.
@@ -117,6 +173,15 @@ export class Pickup {
     });
   }
 
+  // Sign-ups and withdrawals made on the website (site-queue.js).
+  siteJoin(id, name, joinedAt) {
+    return this.event(() => this.signUp(id, name, { joinedAt, from: 'site' }));
+  }
+
+  siteLeave(id) {
+    return this.event(() => this.withdraw(id));
+  }
+
   // Shortcuts used by the tests.
   join(id, name) {
     return this.event(() => this.signUp(id, name));
@@ -166,10 +231,12 @@ export class Pickup {
   }
 
   // ---------- queue ----------
-  async signUp(id, name) {
+  async signUp(id, name, { joinedAt = this.clock.now(), from = 'discord' } = {}) {
     if (this.busy.has(id)) return { ephemeral: "You're in a game that's getting ready: join your ready-up channel." };
     if (this.queue.has(id)) return { ephemeral: `You're already signed up (#${this.position(id)} in the queue).` };
-    this.queue.set(id, { id, name, joinedAt: this.clock.now(), fake: false });
+    const entry = { id, name, joinedAt, fake: false, from };
+    this.queue.set(id, entry);
+    this.live?.joined(entry);
     await this.queueChanged();
     return { ephemeral: this.busy.has(id) ? "✅ You're in a game! Join your ready-up channel." : `✅ Signed up. You're #${this.position(id)} in the queue.` };
   }
@@ -177,7 +244,7 @@ export class Pickup {
   async withdraw(id) {
     if (this.busy.has(id)) return { ephemeral: "You've been picked for a game. If you can't play, don't join the ready-up channel and the next player takes your place." };
     if (!this.queue.has(id)) return { ephemeral: "You weren't signed up." };
-    this.queue.delete(id);
+    this.unqueue(id);
     await this.queueChanged();
     return { ephemeral: 'Withdrawn from the queue.' };
   }
@@ -290,6 +357,7 @@ export class Pickup {
       confirmed: new Set(players.filter((p) => p.fake).map((p) => p.id)), // pretend players are always ready
       dropped: [],
       lobbyId: null,
+      chatId: null, // the locked match chat, where the ready-check card is
       messageId: null,
       deadline: 0,
       timer: null,
@@ -299,16 +367,24 @@ export class Pickup {
     for (const p of players) this.busy.set(p.id, match.id);
     this.log.info?.(`[pickup] ${modeLabel(size)} ready check: ${players.map((p) => p.name).join(', ')}`);
     try {
-      match.lobbyId = await this.io.createVoice(views.lobbyChannelName(match), { allow: this.realIds(match.players) });
-      this.lobbies.set(match.lobbyId, match.id);
-      this.armCheckTimer(match);
-      match.messageId = await this.io.post(views.checkView(match, this.config, { ping: this.realIds(match.players) }));
+      await this.makeRoom(match);
     } catch (err) {
       // Give up until the queue changes again (no instant retry, so no loop of failures).
       await this.cancelMatch(match, "the bot couldn't set up the ready check");
       throw new Error(`Couldn't start the ready check: ${err.message}`);
     }
     if (this.allConfirmed(match)) await this.beginDraft(match);
+  }
+
+  // The locked ready-up voice channel and the locked match chat (only these players and admins),
+  // with the ready-check card in the chat pinging everyone.
+  async makeRoom(match) {
+    const allow = this.realIds(match.players);
+    match.lobbyId = await this.io.createVoice(views.lobbyChannelName(match), { allow });
+    this.lobbies.set(match.lobbyId, match.id);
+    match.chatId = await this.io.createText(views.chatChannelName(match), { allow });
+    this.armCheckTimer(match);
+    match.messageId = await this.io.post(views.checkView(match, this.config, { ping: allow }), match.chatId);
   }
 
   realIds(players) {
@@ -331,7 +407,7 @@ export class Pickup {
     if (match.phase !== 'check' || !match.players.some((p) => p.id === id) || match.confirmed.has(id)) return;
     match.confirmed.add(id);
     if (this.allConfirmed(match)) return this.beginDraft(match);
-    await this.safeEdit(match.messageId, views.checkView(match, this.config));
+    await this.safeEdit(match.messageId, views.checkView(match, this.config), match.chatId);
   }
 
   async onLobbyLeave(match, id) {
@@ -339,7 +415,7 @@ export class Pickup {
     if (!player) return;
     if (match.phase === 'check') {
       match.confirmed.delete(id); // they can come back before the time is up
-      await this.safeEdit(match.messageId, views.checkView(match, this.config));
+      await this.safeEdit(match.messageId, views.checkView(match, this.config), match.chatId);
       return;
     }
     await this.cancelMatch(match, `${views.esc(player.name)} left the ready-up channel during the draft`, { exclude: id });
@@ -363,23 +439,21 @@ export class Pickup {
       this.busy.set(p.id, match.id);
       if (p.fake) match.confirmed.add(p.id);
     }
-    // The locked channel can't let new people in without extra permissions, so make a new one
-    // for the new line-up and move the players who already confirmed into it.
+    // The locked channels can't let new people in without extra permissions, so make new ones
+    // for the new line-up and move the players who already confirmed into the new voice channel.
     const oldLobby = match.lobbyId;
-    match.lobbyId = await this.io.createVoice(views.lobbyChannelName(match), { allow: this.realIds(match.players) });
-    this.lobbies.set(match.lobbyId, match.id);
+    const oldChat = match.chatId;
     this.lobbies.delete(oldLobby);
     this.oldLobbies.add(oldLobby);
+    await this.makeRoom(match);
     for (const p of match.players) {
       if (p.fake || !match.confirmed.has(p.id)) continue;
       const moved = await this.io.move(p.id, match.lobbyId).catch(() => false);
       if (!moved) match.confirmed.delete(p.id);
     }
     await this.removeLobby(oldLobby);
-    this.armCheckTimer(match);
-    await this.safeEdit(match.messageId, views.checkView(match, this.config));
-    const pinged = this.realIds(replacements);
-    if (pinged.length) await this.io.post(views.replacementView(match, pinged, this.config));
+    await this.deleteChat(oldChat);
+    await this.safeEdit(match.messageId, views.checkView(match, this.config, { ping: this.realIds(match.players) }), match.chatId);
     if (this.allConfirmed(match)) await this.beginDraft(match);
     await this.queueChanged();
   }
@@ -389,7 +463,16 @@ export class Pickup {
     match.players = match.players.filter((p) => p.id !== player.id);
     match.dropped.push(player.name);
     this.busy.delete(player.id);
-    this.queue.delete(player.id);
+    this.unqueue(player.id);
+  }
+
+  async deleteChat(chatId) {
+    if (!chatId) return;
+    try {
+      await this.io.deleteChannel(chatId);
+    } catch (err) {
+      this.log.warn('[pickup] could not delete a match chat:', err.message);
+    }
   }
 
   // Delete an old ready-up channel once nobody's in it (it's checked again when someone leaves).
@@ -417,11 +500,18 @@ export class Pickup {
     if (match.lobbyId) this.lobbies.delete(match.lobbyId);
     for (const p of match.players) {
       if (this.busy.get(p.id) === match.id) this.busy.delete(p.id);
-      if (p.id === exclude) this.queue.delete(p.id);
-      else this.queue.set(p.id, { ...p });
+      if (p.id === exclude) {
+        this.unqueue(p.id);
+      } else {
+        this.queue.set(p.id, { ...p });
+        if (!p.fake) this.live?.joined({ ...p, from: 'discord' }); // makes sure the site still lists them
+      }
     }
-    if (match.messageId) await this.safeEdit(match.messageId, views.matchCancelledView(match, reason));
+    // The match chat goes, so a ready check's cancel notice is posted in #pickup instead.
+    if (match.phase === 'check') await this.io.post(views.matchCancelledView(match, reason)).catch(() => {});
+    else if (match.messageId) await this.safeEdit(match.messageId, views.matchCancelledView(match, reason));
     if (match.lobbyId) await this.removeLobby(match.lobbyId);
+    await this.deleteChat(match.chatId);
     this.log.info?.(`[pickup] ${modeLabel(match.size)} cancelled: ${reason}`);
   }
 
@@ -441,10 +531,10 @@ export class Pickup {
     this.log.info?.(`[pickup] ${modeLabel(match.size)} draft: everyone's ready`);
     if (isComplete(state)) return this.finishDraft(match); // 1v1 if anyone ever sets MODES=1
     this.armPickTimer(match);
-    // A fresh message, so the captains get pinged.
-    const old = match.messageId;
+    // The draft card goes in #pickup (it becomes the game card); the match chat points there.
+    const checkCard = match.messageId;
     match.messageId = await this.io.post(views.draftView(match));
-    if (old) await this.io.remove(old).catch(() => {});
+    if (checkCard) await this.safeEdit(checkCard, views.checkDoneView(match, this.config), match.chatId);
     this.fakeCaptainPicks(match);
   }
 
@@ -508,7 +598,7 @@ export class Pickup {
     const { state, names } = match;
     for (const id of state.players) {
       this.busy.delete(id);
-      this.queue.delete(id); // they're off to play; they queue again by rejoining the queue channel
+      this.unqueue(id); // they're off to play; they sign up again after the game
     }
     const number = Math.max(this.store.nextGameNumber(), this.lastNumber + 1);
     this.lastNumber = number;
@@ -561,6 +651,13 @@ export class Pickup {
       }
     }
     if (lobbyId) await this.removeLobby(lobbyId);
+    // The match chat stays as this game's chat until the result is in.
+    if (match.chatId) {
+      game.channels.chat = match.chatId;
+      this.channelGame.set(match.chatId, game.id);
+      await this.io.renameChannel(match.chatId, views.gameChatName(game)).catch((err) => this.log.warn('[pickup] could not rename the match chat:', err.message));
+      await this.store.saveGame(game).catch(() => {});
+    }
     this.log.info?.(`[pickup] game #${number} ${modeLabel(game.size)} started`);
     if (game.messageId) await this.safeEdit(game.messageId, views.gameView(game, { problems }));
     else game.messageId = await this.io.post(views.gameView(game, { problems }));
@@ -661,7 +758,7 @@ export class Pickup {
   async cleanupChannels(game) {
     if (LIVE.includes(game.status)) return;
     const channels = { ...game.channels };
-    for (const side of ['a', 'b']) {
+    for (const side of Object.keys(channels)) {
       const channelId = channels[side];
       if (!channelId) continue;
       const size = await this.io.channelSize(channelId);
@@ -738,7 +835,7 @@ export class Pickup {
       let removed = 0;
       for (const p of [...this.queue.values()]) {
         if (p.fake && !this.busy.has(p.id)) {
-          this.queue.delete(p.id);
+          this.unqueue(p.id);
           removed++;
         }
       }
@@ -748,10 +845,10 @@ export class Pickup {
     return { content: 'Unknown /pickup option.' };
   }
 
-  async safeEdit(messageId, message) {
+  async safeEdit(messageId, message, channelId) {
     if (!messageId) return;
     try {
-      await this.io.edit(messageId, message);
+      await this.io.edit(messageId, message, channelId);
     } catch (err) {
       this.log.warn('[pickup] could not edit a message:', err.message);
     }

@@ -7,7 +7,9 @@ The pickup bot runs pick-up games in the JVO Discord. The code is in [`bot/`](bo
 3. **Random mode:** the bot picks a random mode (2v2 to 6v6) from the ones that fit the number signed up.
    - The longest-waiting players get in. Everyone else stays queued for the next game.
    - With 12 signed up, it starts straight away.
-4. **Ready check (the queue "pops"):** the bot makes a **locked** voice channel (`🏐 ready up · 4v4`) and pings the players who got in.
+4. **Ready check (the queue "pops"):** the bot makes a **locked** voice channel (`🏐 ready up · 4v4`) and a **locked match chat** (`#ready-up-4v4`).
+   - The match chat is visible only to the picked players and admins. The ready-check card in it pings them, and ticks each player off as they join the voice channel.
+   - Once everyone's in, the chat becomes the game's chat (`#game-12`) until the result is in, then it's deleted.
    - Everyone can see it, but only those players (and admins) can join.
    - Each player confirms by joining it within **60 seconds**.
    - Anyone who doesn't is **dropped** from the queue (they can sign up again). The next player in the queue takes their place and gets pinged.

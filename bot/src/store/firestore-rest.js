@@ -170,11 +170,12 @@ export class FirestoreRest {
   }
 
   // Several writes that all happen or none do.
-  //   writes: [{ path: 'pickupGames/g1', data: {...}, mask?: ['field'], mustNotExist?: true }]
+  //   writes: [{ path: 'pickupGames/g1', data: {...}, mask?: ['field'], mustNotExist?: true }
+  //            or { delete: 'pickupSignups/123' }]
   // Without `mask` the whole document is replaced; with it, only those fields change.
   async commit(writes) {
     return this.call('POST', `${this.docsBase}${this.root}:commit`, {
-      writes: writes.map((w) => ({
+      writes: writes.map((w) => (w.delete ? { delete: `${this.root}/${w.delete}` } : {
         update: { name: `${this.root}/${w.path}`, fields: toFields(w.data) },
         ...(w.mask ? { updateMask: { fieldPaths: w.mask } } : {}),
         ...(w.mustNotExist ? { currentDocument: { exists: false } } : {}),

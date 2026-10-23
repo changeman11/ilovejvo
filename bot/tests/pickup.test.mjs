@@ -41,10 +41,13 @@ class FakeIo {
   voice = new Map(); // userId -> channelId
   posted = [];
   n = 0;
-  async post(m) { const id = `m${++this.n}`; this.messages.set(id, m); this.posted.push(id); return id; }
+  where = new Map(); // messageId -> channel it was posted in ('pickup' or a chat id)
+  async post(m, channel = 'pickup') { const id = `m${++this.n}`; this.messages.set(id, m); this.where.set(id, channel); this.posted.push(id); return id; }
   async edit(id, m) { if (!this.messages.has(id)) throw new Error('Unknown Message'); this.messages.set(id, m); }
   async remove(id) { this.messages.delete(id); }
   async createVoice(name, { allow = [] } = {}) { const id = `vc${++this.n}`; this.channels.set(id, { name, allow }); return id; }
+  async createText(name, { allow = [] } = {}) { const id = `tc${++this.n}`; this.channels.set(id, { name, allow, text: true }); return id; }
+  async renameChannel(id, name) { this.channels.get(id).name = name; }
   async deleteChannel(id) { this.channels.delete(id); }
   async channelSize(id) { return this.channels.has(id) ? [...this.voice.values()].filter((c) => c === id).length : -1; }
   async move(userId, channelId) { if (!this.voice.has(userId)) return false; this.voice.set(userId, channelId); return true; }
@@ -125,6 +128,12 @@ test('full flow: sign up -> countdown -> locked ready check -> 2v2 draft -> lock
   const lobby = env.io.channels.get(check.lobbyId);
   assert.equal(lobby.name, '🏐 ready up · 2v2');
   assert.deepEqual([...lobby.allow].sort(), ['u1', 'u2', 'u3', 'u4']);
+  // ...and a locked match chat, only those four can see, where the ready-check card pings them.
+  const chat = env.io.channels.get(check.chatId);
+  assert.ok(chat.text);
+  assert.equal(chat.name, 'ready-up-2v2');
+  assert.deepEqual([...chat.allow].sort(), ['u1', 'u2', 'u3', 'u4']);
+  assert.equal(env.io.where.get(check.messageId), check.chatId, 'the card is in the match chat');
   const checkMsg = env.io.messages.get(check.messageId);
   assert.deepEqual(checkMsg.allowedMentions.users.sort(), ['u1', 'u2', 'u3', 'u4']);
   assert.match(checkMsg.content, new RegExp(`join <#${check.lobbyId}> within 60 seconds`));
@@ -134,7 +143,11 @@ test('full flow: sign up -> countdown -> locked ready check -> 2v2 draft -> lock
   assert.match(env.io.messages.get(check.messageId).embeds[0].title, /3\/4/);
   await confirm(env, ['u4']);
   assert.equal(check.phase, 'draft', 'everyone in: the draft starts straight away');
-  assert.equal(env.io.messages.has(check.messageId) && env.io.messages.get(check.messageId).embeds[0].title.includes('draft'), true);
+  // The chat's card now says everyone's in; the draft card is a new message in #pickup.
+  assert.equal(env.io.where.get(check.messageId), 'pickup');
+  assert.match(env.io.messages.get(check.messageId).embeds[0].title, /draft/);
+  const card4 = [...env.io.where].find(([, ch]) => ch === check.chatId)[0];
+  assert.match(env.io.messages.get(card4).content, /Everyone's in!/);
 
   const draftMsg = env.io.messages.get(check.messageId);
   assert.match(draftMsg.content, /2v2 draft/);
@@ -153,7 +166,8 @@ test('full flow: sign up -> countdown -> locked ready check -> 2v2 draft -> lock
   }
   assert.match(env.io.channels.get(game.channels.a).name, /^🏐 #1 Team 1 · /);
   assert.ok(!env.io.channels.has(match.lobbyId), 'the ready-up channel is deleted');
-  assert.equal(env.io.channels.size, 2);
+  assert.equal(env.io.channels.get(game.channels.chat).name, 'game-1', 'the match chat became the game chat');
+  assert.equal(env.io.channels.size, 3);
 
   const card = env.io.messages.get(match.messageId);
   assert.deepEqual(card.components[0].components.map((b) => b.custom_id), ['res:g1:a', 'res:g1:b', 'res:g1:cancel']);
@@ -225,8 +239,11 @@ test('a no-show is dropped and the next player in the queue takes their place', 
   assert.ok(!env.io.channels.has(firstLobby));
   assert.deepEqual([...env.io.channels.get(match.lobbyId).allow].sort(), ['u1', 'u2', 'u3', 'u5']);
   for (const id of ['u1', 'u2', 'u3']) assert.equal(env.io.voice.get(id), match.lobbyId);
-  const ping = env.io.messages.get(env.io.posted.at(-1));
-  assert.deepEqual(ping.allowedMentions.users, ['u5']);
+  // A new locked chat for the new line-up too, with a fresh card pinging everyone in it.
+  assert.deepEqual([...env.io.channels.get(match.chatId).allow].sort(), ['u1', 'u2', 'u3', 'u5']);
+  assert.equal(env.io.where.get(match.messageId), match.chatId);
+  assert.deepEqual(env.io.messages.get(match.messageId).allowedMentions.users.sort(), ['u1', 'u2', 'u3', 'u5']);
+  assert.equal([...env.io.channels.values()].filter((c) => c.text).length, 1, 'the old chat was deleted');
   assert.match(env.io.messages.get(match.messageId).embeds[0].description, /Dropped .*Player 4/);
 
   await confirm(env, ['u5']);
@@ -244,7 +261,9 @@ test("not enough players to replace a no-show: cancelled, and the others go back
   assert.equal(env.pickup.matches.size, 0);
   assert.deepEqual(env.pickup.readyList().map((p) => p.id), ['u1', 'u2', 'u3'], 'still signed up, same order');
   assert.ok(!env.pickup.queue.has('u4'));
-  assert.match(env.io.messages.get(match.messageId).content, /ready check cancelled: Player 4 didn't join in time/);
+  const notice = env.io.posted.at(-2) ? env.io.messages.get([...env.io.posted].reverse().find((id) => /cancelled/.test(env.io.messages.get(id)?.content ?? ''))) : null;
+  assert.match(notice.content, /ready check cancelled: Player 4 didn't join in time/);
+  assert.ok(!env.io.channels.has(match.chatId), 'the match chat is deleted');
   // The old ready-up channel goes once the three leave it.
   assert.ok(env.io.channels.has(match.lobbyId));
   for (const id of ['u1', 'u2', 'u3']) {
@@ -405,7 +424,8 @@ test('shutting down cancels a ready check and keeps everyone signed up', async (
   await env.pickup.shutdown();
   assert.equal(env.pickup.matches.size, 0);
   assert.deepEqual(env.pickup.readyList().map((p) => p.id), ['u1', 'u2', 'u3', 'u4']);
-  assert.match(env.io.messages.get(match.messageId).content, /cancelled: the bot is restarting/);
+  assert.ok([...env.io.messages.values()].some((m) => /cancelled: the bot is restarting/.test(m.content)));
+  assert.ok(!env.io.channels.has(match.chatId));
 });
 
 test('/elo and /leaderboard', async () => {
@@ -441,10 +461,10 @@ test("if the bot can't post the ready check, it cancels it and doesn't retry in 
     throw new Error('Missing Permissions');
   };
   await joinAll(env, 12);
-  assert.equal(attempts, 1, 'one try, not a loop');
+  assert.ok(attempts <= 2, 'one try (plus the cancel notice), not a loop');
   assert.equal(env.pickup.matches.size, 0);
   assert.equal(env.pickup.readyList().length, 12, 'everyone still queued');
-  assert.equal(io.channels.size, 0, 'the ready-up channel was removed');
+  assert.equal(io.channels.size, 0, 'the ready-up channel and chat were removed');
   assert.ok(errors.some((e) => /Missing Permissions/.test(e)));
 });
 

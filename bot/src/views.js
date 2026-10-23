@@ -43,6 +43,10 @@ export const teamChannelName = (game, side) => `🏐 #${game.number} ${teamName(
 // when it starts.
 export const LOBBY_PREFIX = '🏐 ready up · ';
 export const lobbyChannelName = (match) => `${LOBBY_PREFIX}${modeLabel(match.size)}`;
+// The locked match chat: "ready-up-4v4" during the ready check and draft, then "game-12".
+export const CHAT_PREFIX = 'ready-up-';
+export const chatChannelName = (match) => `${CHAT_PREFIX}${modeLabel(match.size)}`;
+export const gameChatName = (game) => `game-${game.number}`;
 
 // ---------- queue ----------
 // snapshot: { ready: [{id, name, fake}], drafting, countdownEndsAt, games: [{number, size, status}] }
@@ -122,11 +126,21 @@ export function checkView(match, config, { ping = [] } = {}) {
           { name: `✅ Ready (${ready.length})`, value: ready.length ? ready.map((p) => esc(p.name)).join('\n') : '—', inline: true },
           { name: `⏳ Waiting for (${waiting.length})`, value: waiting.length ? waiting.map((p) => esc(p.name)).join('\n') : '—', inline: true },
         ],
-        footer: { text: 'The ready-up channel is locked: only these players (and admins) can join.' },
+        footer: { text: 'This chat and the ready-up voice channel are locked: only these players (and admins) can get in.' },
       },
     ],
     components: [],
     allowedMentions: { users: ping },
+  };
+}
+
+// Everyone's in: the card in the match chat says so and points to the draft.
+export function checkDoneView(match, config) {
+  const base = checkView(match, config);
+  return {
+    ...base,
+    content: `✅ **Everyone's in!** The ${modeLabel(match.size)} draft is in <#${config.pickupChannelId}>. This chat stays open for the game.`,
+    embeds: base.embeds.map((e) => ({ ...e, color: TEAL, description: 'Everyone joined in time. Captains are picking now.' })),
   };
 }
 
