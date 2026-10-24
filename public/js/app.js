@@ -74,7 +74,10 @@ const routes = [
 // - opening a page that's already on the trail cuts the trail back to it
 // - opening a main-menu page (Fixtures, Stats, Club...) starts a fresh trail from the main menu
 // - switching tabs or filters on the same page doesn't add a step
-const shortTitle = () => (document.title === SITE_NAME ? 'main menu' : document.title.replace(` · ${SITE_NAME}`, ''));
+const shortTitle = () => {
+  const t = document.title.replace(/^\(\d+\)\s*/, ''); // without the bell's "(1) " unread count
+  return t === SITE_NAME ? 'main menu' : t.replace(` · ${SITE_NAME}`, '');
+};
 const here = () => location.pathname + location.search;
 const trailNow = () => history.state?.trail ?? [];
 if (!history.state?.trail) history.replaceState({ trail: [] }, '');
