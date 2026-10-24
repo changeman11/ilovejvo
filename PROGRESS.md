@@ -20,6 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (partner's PC) · Zapdis's character
+- Why it never showed: Zapdis's picture (posted twice) is on a near-black background (12,12,14), so it was set aside by hand (`skipped.json` / `skipped.txt`) and the bot's cut-out refused dark backgrounds.
+- `logic/cutout.js` now handles a **flat** near-black background: only pixels within 5 of it are cut (the outlines are 13,13,20, 8 away), pockets between the legs too, dark clothes kept; uneven dark backgrounds are still refused. Loose specks under 0.3% of the picture are dropped (a stray mark had stretched the box). Tested (`cutout.test.mjs`) and checked on the real picture.
+- Took both posts off the skipped lists; the bot adds it on its next 5-minute check (the second post is a repeat).
+- Other pictures set aside for a dark background stay skipped until they're taken off those lists too.
+
 ### 2026-10-25 · Claude (owner's PC) · changelog posted, character ❌ fix · bot UPLOADED
 - The bot posted the 3-part changelog in #i-love-jvowebapp (owner's go-ahead). CHANGELOG.md entry 2026-10-25 = what was posted.
 - #in-game-characters: 50 pictures. 16 from the channel on the site (+ the original 19 = 37 selectable now, 3 added by the bot), 32 set aside by hand (20 repeats, 12 not a single character), all accounted for.
