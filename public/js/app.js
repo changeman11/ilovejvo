@@ -27,6 +27,7 @@ import { updateFeatured } from './featured.js';
 import { updateTrophy } from './trophy.js';
 import { syncSchedules } from './admin-sync.js';
 import { startStatsReader, readWaitingStats } from './stats-reader.js';
+import { botReadsStats } from './config.js';
 import { stopLive, keptNow, swapKept } from './live.js';
 import { startChatPanel } from './chat-panel.js';
 import './characters.js'; // switches the court picture when characters are on
@@ -334,7 +335,7 @@ async function adminChanged() {
   } catch { /* stay hidden */ }
   document.querySelectorAll('.admin-only').forEach((el) => { el.hidden = !isAdmin; });
   updateBell({ force: true }); // admin to-dos appear (or go) in the bell
-  if (isAdmin) readWaitingStats(); // read any screenshots that came in while nobody was signed in
+  if (isAdmin && !botReadsStats) readWaitingStats(); // read any screenshots that came in while nobody was signed in
 }
 
 // Desktop bars and the bell follow the player's sign-in (which can also make someone a Discord admin).
@@ -355,8 +356,8 @@ document.addEventListener('jvo-admin-mode', () => {
 });
 
 show();
-// Admin browsers read end-of-match screenshots as they come in (stats-reader.js).
-startStatsReader();
+// Admin browsers read end-of-match screenshots as they come in (stats-reader.js), unless the bot does.
+if (!botReadsStats) startStatsReader();
 
 // Updates: the service worker is re-checked every 10 minutes (and when the tab comes back). When a
 // new version of the site has been published, the next page change does a full load, so a tab left

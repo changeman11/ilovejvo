@@ -9,7 +9,9 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const SHARED_RULES = ['flow.js', 'votes.js', 'match.js', 'results.js', 'defaults.js', 'season.js', 'standings.js', 'stat-style.js'];
+export const SHARED_RULES = ['flow.js', 'votes.js', 'match.js', 'results.js', 'defaults.js', 'season.js', 'standings.js', 'stat-style.js',
+  // The stats reader (bot/src/stats-read.js): table layout, digits, name pictures, who's who.
+  'endscreen.js', 'glyphs.js', 'namepics.js', 'whois.js'];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const fromDir = join(root, 'public', 'js', 'rules');

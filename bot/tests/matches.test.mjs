@@ -61,7 +61,7 @@ test('confirm: the newest vote from the other team that we have not matched', ()
 });
 
 // ---------- the whole thing ----------
-function world({ now = T0 + MIN } = {}) {
+function world({ now = T0 + MIN, reader = null } = {}) {
   const clock = { t: now, now() { return this.t; }, setInterval() { return null; }, clearInterval() {} };
   const event = { id: 'night', title: 'Exhibition Night', published: true, status: 'upcoming', date: T0, matchFormat: {} };
   const bundle = {
@@ -130,9 +130,48 @@ function world({ now = T0 + MIN } = {}) {
     matchRemindMinutes: 10, matchRemindMax: 2, matchCloseMinutes: 15,
     firebase: { storageBucket: 'i-love-jvo.firebasestorage.app' },
   };
-  const matches = new MatchThreads({ io, site, rest, config, clock, log: { info() {}, warn() {}, error() {} } });
+  const matches = new MatchThreads({ io, site, rest, config, clock, reader, log: { info() {}, warn() {}, error() {} } });
   return { matches, io, rest, db, bundle, site, clock };
 }
+
+test('the bot reads the screenshot itself: numbers as read, names by team side, text and elimination', async () => {
+  const line = (side, row, name, pts, print) => ({ side, row, nameText: name, name, print, stats: { pts: { value: pts, sure: true, why: null }, spk: { value: 1, sure: pts !== 3, why: null } } });
+  const reads = [];
+  const reader = {
+    seedPrints: {},
+    async read(buf) {
+      reads.push(buf);
+      // The away team is on the left this time.
+      return { size: '1920x1080', lines: [line(0, 0, 'Ben', 9, 'pic-ben'), line(0, 1, 'Bo', 3, 'pic-bo'), line(1, 0, 'Ari', 12, 'pic-ari'), line(1, 1, 'xX_q_Xx', 7, 'pic-ana')] };
+    },
+  };
+  const w = world({ reader });
+  await w.matches.start();
+  w.bundle.submissions = [{ id: 'f1__dA1', fixtureId: 'f1', teamId: 'reef', screenshotPaths: ['players/dA1/shot/end.png'], updatedAt: 5 }];
+  w.bundle.results.f1 = { id: 'f1', sets: [{ home: 10, away: 5 }, { home: 10, away: 5 }], statsStatus: 'pending', playerStats: {}, confirmedBy: ['f1__dA1'] };
+  await w.matches.sync();
+  await w.matches.idle();
+  assert.equal(reads.length, 1);
+  const draft = w.bundle.results.f1.statsDraft;
+  assert.equal(draft.shot, 'players/dA1/shot/end.png');
+  assert.equal(draft.reader, 'bot');
+  assert.deepEqual(draft.rows.map((r) => [r.side, r.name, r.playerId]), [['left', 'Ben', 'dB1'], ['left', 'Bo', 'dB2'], ['right', 'Ari', 'dA1'], ['right', 'xX_q_Xx', 'dA2']]);
+  assert.equal(draft.rows[3].matchedBy, 'the only one left');
+  assert.equal(draft.rows[1].stats.spk.sure, false, 'unsure numbers stay marked');
+  const write = w.rest.commits.find((c) => c[0].data.statsDraft)[0];
+  assert.deepEqual(write.mask, ['statsDraft', 'updatedBy']);
+  // Everyone was placed, so players are asked to check their stats (not who's who).
+  assert.ok(w.io.posts.some((p) => p.message.embeds?.[0]?.title?.includes('stats')), 'stats check posted');
+  assert.ok(!w.io.posts.some((p) => p.message.embeds?.[0]?.title === '❓ Who’s who?'));
+  // Not read again.
+  await w.matches.sync();
+  await w.matches.idle();
+  assert.equal(reads.length, 1);
+  // A player confirming their line teaches the bot their name picture (the reader's own guess doesn't).
+  assert.equal(w.db.get('pickupMeta/namePrints'), undefined);
+  await w.matches.button('mt:ok:night__f1', user(ids.a2));
+  assert.deepEqual(w.db.get('pickupMeta/namePrints').players, { dA2: ['pic-ana'] });
+});
 const user = (id) => ({ id, name: 'someone' });
 // The match card in a thread as it looks now (the latest edit, or as first posted).
 const lastCard = (io, threadId = 'th1') => [...io.edits].reverse().find((e) => e.threadId === threadId)?.message

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { namePrint, printSimilarity, matchPrints, nameArea } from '../public/js/rules/namepics.js';
+import { namePrint, printSimilarity, matchPrints, nameArea, printToText, printFromText } from '../public/js/rules/namepics.js';
 
 // A name area with "letters": a pattern of bars from a seed (each name gets its own look).
 // Drawn once at 120×30, then scaled (as the game draws the same name bigger on bigger screens).
@@ -38,6 +38,14 @@ test('the name stops before a badge and above the title pill', () => {
   assert.equal(a.x0, 4);
   assert.ok(a.x1 < 60, `stops before the badge (${a.x1})`);
   assert.ok(a.y1 < 20, `ends above the title (${a.y1})`);
+});
+
+test('a print survives being stored as text', () => {
+  const p = name(5);
+  const back = printFromText(printToText(p));
+  assert.equal(back.width, p.width);
+  assert.deepEqual([...back.bits], [...p.bits]);
+  assert.equal(printFromText('junk'), null);
 });
 
 test('lines are given the right players, each once; an unknown name gets nobody', () => {

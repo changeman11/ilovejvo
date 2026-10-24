@@ -35,6 +35,11 @@ export const uploadsReady = useEmulators || liveUploadsReady;
 // scripts/cut-characters.mjs). false = the original court picture with its one character.
 export const cyclingCharacters = true;
 
+// Who reads end-of-match screenshots automatically (2026-10-25): the Discord bot (bot/src/stats-read.js,
+// exact digit reading + name pictures). false = admin browsers do it in the background again
+// (stats-reader.js, the older Tesseract reader). Admins can always read one by hand on the result page.
+export const botReadsStats = true;
+
 // The game's Steam page (the "wishlist" button).
 export const steamUrl = 'https://store.steampowered.com/app/5037200/';
 // JVO's Discord invite link, e.g. 'https://discord.gg/abc123'. Empty = the "discord" button is hidden.

@@ -111,6 +111,9 @@ export function loadConfig(env = process.env) {
     matchRemindMinutes: number('MATCH_REMIND_MINUTES', 10, 1, 240),
     matchRemindMax: number('MATCH_REMIND_MAX', 6, 0, 50),
     matchCloseMinutes: number('MATCH_CLOSE_MINUTES', 15, 0, 1440),
+    // The bot reads each match's end-of-match screenshot itself (stats-read.js) and fills in the
+    // stats for players to check in the thread. READ_STATS=0 leaves it to admin browsers again.
+    readStats: text('READ_STATS', '1') !== '0',
     // 1v1 ranked queue (ranked.js). Channels are made if these are empty.
     // Welcome new members here (needs the Server Members intent). Empty = no welcomes.
     welcomeChannelId: discordId('WELCOME_CHANNEL_ID', '', false),

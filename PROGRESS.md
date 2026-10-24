@@ -20,6 +20,13 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (partner's PC) · the bot reads stats screenshots (NOT deployed / uploaded yet)
+- Bot: `stats-read.js` + `logic/reading.js` read each thread match's screenshot as soon as its score is in and save the draft; who's who and "check your stats" follow as before. Names are placed by team side, text and name pictures; unclear ones are left for who's who (never guessed). Pictures learned from confirmed/answered lines (`pickupMeta/namePrints`, already writable by the bot).
+- Bot needs `tesseract.js` (in bot/package.json; downloads its English data into `bot/data/` on first read). New `READ_STATS=0` turns it off.
+- Site: `botReadsStats` stops admin browsers reading in the background (cache v66). Needs a hosting deploy at the same time as the bot upload.
+- End-to-end on the lab's 48 readable screenshots: 384 lines, 3040 numbers identical to the eye-checked lab reading (3 unsure), names 0 wrong (321 placed with no stored pictures, 350 with).
+- Only matches with a Discord thread are read by the bot; others can still be read by hand on the admin result page.
+
 ### 2026-10-25 · Claude (partner's PC) · stats reader lab (not deployed, nothing on the site changed yet)
 - `scripts/ocr-lab/` tests readers on every match with screenshots + saved stats (40 matches, 50 screenshots; downloads go to `/ocr-lab/`, git-ignored). Saved stats aren't fully trusted (confirmed in a hurry), so differences were checked by eye (`checked.json`).
 - **Numbers:** new `rules/glyphs.js` matches each digit against the game's own digits (learned only where the old reader AND the saved stats agree, outliers dropped). On 3040 cells: 0 silent mistakes, 4 marked unsure (2 under the "hide" overlay). The old Tesseract reader got at least 7 wrong (6/9 read as 0), and those mistakes are in some saved results.

@@ -28,6 +28,7 @@ import {
   unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot, screenshotLike,
   confirmLines, fixLine, parseStatLine, lineNumbers, canEditLine,
 } from './logic/matches.js';
+import { shotToRead, placeLines, knownPrints, learnPrints } from './logic/reading.js';
 import * as views from './match-views.js';
 
 // A reading players can confirm: stats not submitted yet, and at least one line down as a player.
@@ -39,8 +40,13 @@ const IMAGE = /^image\/(png|jpeg|webp|gif)$/;
 const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 
 export class MatchThreads {
-  constructor({ io, site, rest, config, log = console, clock = systemClock }) {
-    Object.assign(this, { io, site, rest, config, log, clock });
+  // reader: a ShotReader (stats-read.js), or null to leave reading screenshots to admin browsers.
+  constructor({ io, site, rest, config, log = console, clock = systemClock, reader = null }) {
+    Object.assign(this, { io, site, rest, config, log, clock, reader });
+    this.tried = new Map(); // screenshot path -> when the bot last read it
+    this.reading = null; // the screenshot being read now (one at a time), as a promise
+    this.namePrints = {}; // { playerId: [name picture as text] } (pickupMeta/namePrints)
+    this.fresh = new Map(); // docId -> a statsDraft the bot just saved, until the site copy has it
     this.threads = new Map(); // docId -> matchThreads doc
     this.cards = new Map(); // docId -> JSON of the card as last posted (not saved)
     this.asks = new Map(); // docId -> JSON of the "who's who" message as last posted
@@ -60,11 +66,17 @@ export class MatchThreads {
     do {
       seen = this.chain;
       await seen;
-    } while (seen !== this.chain);
+      if (this.reading) await this.reading;
+    } while (seen !== this.chain || this.reading);
   }
 
   async start() {
     for (const { id, data } of await this.rest.list('matchThreads')) this.threads.set(id, data);
+    if (this.reader) {
+      // Name pictures players confirmed before, on top of the ones learned from past matches.
+      const stored = await Promise.resolve(this.rest.get?.('pickupMeta/namePrints')).catch(() => null);
+      this.namePrints = { ...(this.reader.seedPrints ?? {}), ...(stored?.players ?? {}) };
+    }
     this.timer = this.clock.setInterval(() => this.sync(), TICK);
     this.timer?.unref?.();
     this.log.info?.(`[matches] match threads in <#${this.io.channelId}> (${[...this.threads.values()].filter((t) => t.status !== 'closed').length} open)`);
@@ -98,12 +110,18 @@ export class MatchThreads {
       playersById[p.id] = { ...p, captain: isCaptain(team, p) };
     }
     const site = this.config.siteUrl;
+    let result = b.results[f.id] ?? null;
+    const fresh = this.fresh.get(id);
+    if (fresh && result) {
+      if ((result.statsDraft?.readAt ?? 0) >= fresh.readAt) this.fresh.delete(id); // the site has it now
+      else result = { ...result, statsDraft: fresh };
+    }
     return {
       id, b, f, home, away, subs, playersById,
       homeSquad: squadOf(f.homeTeamId, home, players),
       awaySquad: squadOf(f.awayTeamId, away, players),
       votes: tallyVotes(subs, f),
-      result: b.results[f.id] ?? null,
+      result,
       format: formatOf(b, f),
       url: site ? `${site}/match/${encodeURIComponent(b.event.id)}/${encodeURIComponent(f.id)}` : '',
     };
@@ -134,6 +152,7 @@ export class MatchThreads {
         if (t.status === 'closed') {
           const m = this.view(id);
           if (m?.result) await this.findShots(id, m, now);
+          if (m?.result) this.readStats(id, m, now);
           if (m?.result && unknownNames(m.result).length && t.askShot !== m.result.statsDraft?.shot) await this.askNames(id, m, now);
           if (m?.result && hasReading(m.result) && this.threads.get(id).checkShot !== m.result.statsDraft?.shot) await this.postCheck(id, m, now);
           continue;
@@ -177,6 +196,7 @@ export class MatchThreads {
     if (m.result) {
       if (t.status === 'open') t = await this.finish(id, t, m, now);
       await this.findShots(id, m, now);
+      this.readStats(id, m, now);
       await this.askNames(id, m, now);
       await this.postCheck(id, m, now);
       t = this.threads.get(id);
@@ -269,8 +289,75 @@ export class MatchThreads {
     }
     await this.save(id, { shotScanAt: now, threadShotsAt: now });
     const who = [...new Set(posted.map((p) => p.authorId))].map((a) => `<@${a}>`).join(', ');
-    await this.io.post({ content: `📸 Found ${paths.length === 1 ? 'a screenshot' : `${paths.length} screenshots`} from ${who} here and added ${paths.length === 1 ? 'it' : 'them'} to the site. Staff will read the stats from ${paths.length === 1 ? 'it' : 'them'}.`, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
+    await this.io.post({ content: `📸 Found ${paths.length === 1 ? 'a screenshot' : `${paths.length} screenshots`} from ${who} here and added ${paths.length === 1 ? 'it' : 'them'} to the site. ${this.reader ? 'Reading the stats now…' : `Staff will read the stats from ${paths.length === 1 ? 'it' : 'them'}.`}`, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
     this.log.info?.(`[matches] copied ${paths.length} thread screenshot(s) for ${id}`);
+  }
+
+  // ---------- Reading the screenshot (stats-read.js) ----------
+  // A match with its score in and a screenshot nobody has read: the bot reads it and saves the
+  // reading as result.statsDraft, then asks who's who / "check your stats" as for any reading.
+  // The reading itself runs outside the queue (it takes a few seconds), so buttons aren't kept waiting.
+  readStats(id, m, now) {
+    if (!this.reader || this.reading) return;
+    const shot = shotToRead(m.result, m.subs, { tried: this.tried, now });
+    if (!shot) return;
+    this.tried.set(shot, now);
+    const job = (async () => {
+      const files = await this.shotFiles(shot);
+      if (!files.length) return { error: 'couldn’t download the screenshot' };
+      return this.reader.read(files[0].data);
+    })().catch((err) => ({ error: `couldn’t read it (${err.message})` }));
+    this.reading = job.then((out) => this.run(() => this.saveReading(id, shot, out)))
+      .catch((err) => this.log.warn('[matches] stats reading:', err.message))
+      .finally(() => { this.reading = null; });
+  }
+
+  async saveReading(id, shot, out) {
+    const m = this.view(id);
+    if (!m?.result || m.result.statsStatus !== 'pending') return; // staff finished it meanwhile
+    if (m.result.statsDraft?.shot === shot && m.result.statsDraft.rows) return; // read meanwhile (a browser)
+    await this.rest.token();
+    const botUid = this.rest.uid;
+    const now = this.clock.now();
+    const extra = (teamId) => (m.b.rosters?.[teamId]?.playerIds ?? []).map((pid) => m.playersById[pid]).filter(Boolean);
+    const squad = (list, teamId) => [...list, ...extra(teamId).filter((p) => !list.some((q) => q.id === p.id))];
+    const statsDraft = out.error
+      ? { shot, readAt: now, by: botUid, reader: 'bot', error: out.error }
+      : {
+        shot, readAt: now, by: botUid, reader: 'bot',
+        rows: placeLines(out.lines, {
+          homeTeamId: m.f.homeTeamId, awayTeamId: m.f.awayTeamId,
+          homeSquad: squad(m.homeSquad, m.f.homeTeamId), awaySquad: squad(m.awaySquad, m.f.awayTeamId),
+          prints: knownPrints(this.namePrints),
+        }),
+      };
+    const path = `events/${m.b.event.id}/results/${m.f.id}`;
+    try {
+      await this.rest.commit([
+        { path, data: { statsDraft, updatedBy: botUid }, mask: ['statsDraft', 'updatedBy'], serverTime: ['updatedAt'] },
+        { path: `auditLog/${now.toString(36)}${Math.random().toString(36).slice(2, 12)}`, data: { by: botUid, action: 'update', path, before: { statsDraft: m.result.statsDraft ?? null }, after: { statsDraft } }, serverTime: ['at'] },
+      ]);
+    } catch (err) {
+      this.log.warn('[matches] could not save a stats reading:', err.message);
+      return;
+    }
+    const rows = statsDraft.rows ?? [];
+    this.log.info?.(`[matches] read ${id}: ${out.error ?? `${rows.length} lines, ${rows.filter((r) => r.playerId).length} placed, ${rows.flatMap((r) => Object.values(r.stats ?? {})).filter((c) => c && !c.sure).length} unsure numbers`}`);
+    if (out.error) return;
+    // Ask straight away: until the site copy of the result catches up, view() uses this reading.
+    this.fresh.set(id, statsDraft);
+    await this.askNames(id, this.view(id), now);
+    await this.postCheck(id, this.view(id), now);
+  }
+
+  // Remembers the name pictures of lines people have said are right (see learnPrints).
+  async learnNames(rows) {
+    if (!this.reader) return;
+    const next = learnPrints(this.namePrints, rows);
+    if (!next) return;
+    this.namePrints = next;
+    await this.rest.commit([{ path: 'pickupMeta/namePrints', data: { players: next }, serverTime: ['updatedAt'] }])
+      .catch((err) => this.log.warn('[matches] could not save name pictures:', err.message));
   }
 
   // ---------- 📊 Check your stats: players confirm or fix their own line ----------
@@ -323,6 +410,8 @@ export class MatchThreads {
       { path, data: { statsDraft, updatedBy: botUid }, mask: ['statsDraft', 'updatedBy'], serverTime: ['updatedAt'] },
       { path: `auditLog/${now.toString(36)}${Math.random().toString(36).slice(2, 12)}`, data: { by: botUid, action: 'update', path, before: { statsDraft: m.result.statsDraft }, after: { statsDraft } }, serverTime: ['at'] },
     ]);
+    if (this.fresh.has(m.id)) this.fresh.set(m.id, statsDraft);
+    await this.learnNames(rows);
   }
 
   // Who's pressing, for the stats check. -> { m, editor, players } or { error }
@@ -472,6 +561,8 @@ export class MatchThreads {
       this.log.warn('[matches] name claim refused:', err.message);
       return { ephemeral: 'That couldn’t be saved: staff may have just checked the stats. Ask them to fix it on the site.' };
     }
+    if (this.fresh.has(id)) this.fresh.set(id, statsDraft);
+    await this.learnNames(claim.rows);
     const row = claim.rows[i];
     const t = this.threads.get(id);
     const name = views.safeName(row.name);

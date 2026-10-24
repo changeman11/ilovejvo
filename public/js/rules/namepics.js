@@ -84,6 +84,23 @@ export function namePrint(ink, w, h) {
   return { bits, width: Math.min(NAME_W, Math.round((right - left + 1) * scale)) };
 }
 
+// A print as short text, to store it: "<width>:<hex of the bits, 4 per digit>" (171 characters).
+export function printToText(p) {
+  let hex = '';
+  for (let i = 0; i < p.bits.length; i += 4) hex += ((p.bits[i] << 3) | (p.bits[i + 1] << 2) | (p.bits[i + 2] << 1) | p.bits[i + 3]).toString(16);
+  return `${p.width}:${hex}`;
+}
+export function printFromText(text) {
+  const m = /^(\d+):([0-9a-f]+)$/.exec(String(text ?? ''));
+  if (!m || m[2].length * 4 !== NAME_H * NAME_W) return null;
+  const bits = new Uint8Array(NAME_H * NAME_W);
+  for (let i = 0; i < m[2].length; i++) {
+    const v = parseInt(m[2][i], 16);
+    bits[i * 4] = (v >> 3) & 1; bits[i * 4 + 1] = (v >> 2) & 1; bits[i * 4 + 2] = (v >> 1) & 1; bits[i * 4 + 3] = v & 1;
+  }
+  return { bits, width: Number(m[1]) };
+}
+
 // The game cuts long names short to make room for badges ("coraxplora" -> "coraxpl…" next to
 // "you"), so two pictures of one name are compared over the start they share: the narrower one's
 // width, less about one letter (where its "…" may be). Shared starts shorter than MIN_SHARED

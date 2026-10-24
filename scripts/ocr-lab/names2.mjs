@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { createWorker } from 'tesseract.js';
 import { STAT_ORDER, nameSearchRect, cleanName } from '../../public/js/rules/endscreen.js';
-import { isNameInk, nameArea, namePrint } from '../../public/js/rules/namepics.js';
+import { isNameInk, nameArea, namePrint, printToText } from '../../public/js/rules/namepics.js';
 import { whoIsWho } from '../../public/js/rules/whois.js';
 
 const LAB = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'ocr-lab');
@@ -92,6 +92,11 @@ for (const m of matches) {
     });
   }
 }
+// Name pictures for the bot to start with (bot/src/reader/name-prints.json): the newest 6 per
+// player, from lines paired with their player by the numbers.
+const seed = {};
+for (const l of [...lines].reverse()) if (l.truth && l.print && (seed[l.truth] ??= []).length < 6) seed[l.truth].push(printToText(l.print));
+writeFileSync(join(LAB, 'name-prints.json'), JSON.stringify(seed));
 writeFileSync(join(LAB, 'names2-wrong.json'), JSON.stringify(wrong, null, 1));
 writeFileSync(join(LAB, 'names2-ask.json'), JSON.stringify(asked, null, 1));
 const pct = (a, b) => `${((100 * a) / b).toFixed(1)}%`;

@@ -14,6 +14,7 @@ import { SiteQueue, RankedSiteQueue } from './site-queue.js';
 import { Ranked } from './ranked.js';
 import { welcomeMember } from './welcome.js';
 import { MatchThreads } from './matches.js';
+import { ShotReader } from './stats-read.js';
 import { SiteWatch } from './site-watch.js';
 import { StatRoles } from './stat-roles.js';
 import { Characters } from './characters.js';
@@ -111,7 +112,8 @@ client.once(Events.ClientReady, async () => {
     // Match threads: a thread per site match, votes saved to the site (needs STORE=firebase).
     if (config.matchThreads) {
       matchSite = new SiteWatch({ firebase: config.firebase, log, onChange: () => matches?.sync() });
-      matches = new MatchThreads({ io: discord.matchIo, site: matchSite, rest: store.rest, config, log });
+      const reader = config.readStats ? new ShotReader({ log }) : null;
+      matches = new MatchThreads({ io: discord.matchIo, site: matchSite, rest: store.rest, config, log, reader });
       matchSite.start();
       await matches.start();
       if (!(await checkMessageContent(config.token))) {

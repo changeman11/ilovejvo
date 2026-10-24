@@ -16,6 +16,7 @@
   "dependencies": {
     "discord.js": "14.27.0",
     "firebase": "12.19.0",
-    "sharp": "^0.34.4"
+    "sharp": "^0.34.4",
+    "tesseract.js": "5.1.1"
   }
 }
