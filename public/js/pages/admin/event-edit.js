@@ -713,7 +713,15 @@ export function mount(el) {
         const b = page.b;
         const doomed = b.fixtures.filter((f) => !f.virtual && !b.results[f.id]);
         const kept = b.fixtures.filter((f) => !f.virtual && b.results[f.id]).length;
-        if (!window.confirm(`Delete ${doomed.length} fixture${doomed.length === 1 ? '' : 's'} without a result${kept ? ` (${kept} with results stay)` : ''} and rebuild the automatic fixtures from the current teams?`)) return;
+        const confirmation = window.prompt(
+          `WARNING: Clearing fixtures during an event could be a serious mistake.\n\n`
+          + `This permanently deletes ${doomed.length} fixture${doomed.length === 1 ? '' : 's'} without a result and their submitted score votes.\n`
+          + `${kept} fixture${kept === 1 ? '' : 's'} with saved results will be kept.\n`
+          + `It also unlocks the schedule, allowing automatic fixtures to rebuild from the current teams. This can disrupt tonight’s matches. There is no undo.\n\n`
+          + `Only continue if you deliberately want to reset the remaining fixtures. Type CONFIRM exactly to continue, or press Cancel to keep them.`,
+          '',
+        );
+        if (confirmation !== 'CONFIRM') return;
         button.disabled = true;
         await clearFixtures({ eventId: page.id, uid, fixtures: doomed, event: b.event, submissions: b.submissions });
         refresh();

@@ -2,6 +2,8 @@
 
 > **Site name (since 2026-10-21): "I<3JVO"** (was "JVO Hub"). Use it everywhere people see the name. Write it as `I&lt;3JVO` inside HTML. The project folder and package name stay `jvo-hub`.
 
+- **Clear fixtures safeguard (2026-10-24):** the admin must type exact uppercase `CONFIRM` into a warning prompt before any clearing occurs. Cancel, blank and other text leave everything untouched. The warning explains deletion of unresulted fixtures and their score votes, preserved results, schedule unlocking/rebuilding and no undo.
+
 ## CURRENT SCOPE (changed 2026-10-21, latest) — read this first
 
 **The site's job: record stats and show fixtures for exhibition nights and tournaments.** No league or seasons.
