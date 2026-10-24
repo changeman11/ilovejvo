@@ -330,6 +330,12 @@ a.fx:hover { background: var(--surface-2); }
 .sl-chip.warn { background: #fff3c4; color: #7a5a00; }
 .sl-chip.grey { background: var(--line); color: var(--muted); }
 .sl-problems { list-style: none; margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: #fff3c4; color: #5c4400; font-size: 14px; display: grid; gap: 2px; }
+.sl-flags { list-style: none; margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: #ffe1e6; color: #8a1230; font-size: 14px; display: grid; gap: 2px; border-left: 4px solid #e0315a; }
+.sl-card.flagged { border-color: #e0315a; }
+.sl-group { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin: 22px 0 10px; }
+.sl-group h2 { margin: 0; font-size: 20px; }
+.sl-group .muted { margin: 2px 0 0; font-size: 14px; }
+.sl-card details > summary { cursor: pointer; margin-top: 8px; font-weight: 700; color: var(--muted); font-size: 14px; }
 .sl-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 12px; align-items: start; }
 .sl-shot { order: 2; max-width: 520px; }
 .sl-shot img { width: 100%; border-radius: 8px; border: 2px solid var(--line); display: block; }

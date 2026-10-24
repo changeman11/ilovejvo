@@ -203,7 +203,11 @@ export function fixLine({ result, playerId, stats, editor, isStaff = false, team
   const i = rows.findIndex((r) => r.playerId === playerId);
   if (i < 0) return { error: 'That player isn’t on the reading. Sort out “Who’s who” first.' };
   const by = String(editor?.discordId ?? 'staff');
-  const next = { ...rows[i], stats: Object.fromEntries(STAT_KEYS.map((k) => [k, { value: stats[k], sure: true }])), editedBy: by, confirmedBy: by };
+  // Kept for staff (the fraud checks show what was changed, and by whom): the numbers the
+  // screenshot showed (from before the first edit) and whether it was the player, a captain or staff.
+  const readStats = rows[i].readStats ?? Object.fromEntries(STAT_KEYS.map((k) => [k, rows[i].stats?.[k]?.value ?? null]));
+  const editedAs = isStaff ? 'staff' : editor?.id === playerId ? 'self' : 'captain';
+  const next = { ...rows[i], stats: Object.fromEntries(STAT_KEYS.map((k) => [k, { value: stats[k], sure: true }])), editedBy: by, editedAs, readStats, confirmedBy: by };
   return { rows: rows.map((r, j) => (j === i ? next : r)) };
 }
 

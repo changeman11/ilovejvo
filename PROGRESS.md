@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (partner's PC) · stats publishing rework + fraud flags (NOT deployed / uploaded yet)
+- `/admin/stats`: Ready to publish (one click for all), Check before publishing (🚩 warnings, publish anyway or Edit), Waiting. Edit page unchanged.
+- Warnings (`rules/stat-checks.js`): unusually high numbers for the sets played, team PTS more than the team won, numbers changed by a captain/the player (shows what changed), hand-named lines that don't look like the player. On the 40 saved matches only 1–3 would have been flagged.
+- Bot: fixing a line in Discord now keeps the screenshot's numbers (`readStats`) and who did it (`editedAs`). Needs a bot upload with the site deploy (cache v67).
+
 ### 2026-10-25 · Claude (partner's PC) · saved stats corrected, announcement posted
 - `scripts/ocr-lab/fixes.mjs` compares every saved result with the bot's reading (a line counts only when its name and its numbers agree). Fixed on the admin result pages (audit-logged): 16 numbers (6/9 saved as 0, all checked by eye) and 9 missing lines (dangib, Gwoncc, jac0 ×2 each; Zay🤍, ﾒIsshinﾒ, ladis washerum). Re-run afterwards: 0 left to fix.
 - Not fixed (need a person): lines "Dolly" (WTD, 4 matches), "Oli" and "Ma" (Morioh), "Ingenious" (SFC) match no profile; Volkaineo's line in ORC v PRAWN has rec/set cut off; HFD v SOTB has a screenshot from another match attached.

@@ -38,6 +38,11 @@ export function draftSummary(result, ctx, statKeys) {
       confirmed: Boolean(r.confirmedBy),
       edited: Boolean(r.editedBy),
       unsure: !r.confirmedBy && statKeys.some((k) => r.stats?.[k] && r.stats[k].sure === false),
+      // For the fraud checks (rules/stat-checks.js): who changed the numbers by hand (Discord ID),
+      // as whom ('self' | 'captain' | 'staff'; older edits don't say), and what the screenshot said.
+      ...(r.editedBy ? { editedBy: String(r.editedBy), editedAs: r.editedAs ?? null, readStats: r.readStats ?? null } : {}),
+      // Named by a person in Who's who (not by the reader).
+      ...(r.answeredBy || r.claimedBy ? { namedBy: String(r.answeredBy || r.claimedBy) } : {}),
     });
   }
   return { lines, unknown, offTeam, confirmed: lines.filter((l) => l.confirmed).length, total: lines.length };

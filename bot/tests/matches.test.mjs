@@ -411,6 +411,8 @@ test('check your stats: players confirm their own line, captains their team, and
   assert.equal(fixed.stats.pts.value, 9);
   assert.equal(fixed.stats.dig.value, 3);
   assert.equal(fixed.editedBy, ids.a1);
+  assert.equal(fixed.editedAs, 'captain', 'Ari is the captain, fixing Ana’s line');
+  assert.equal(fixed.readStats.pts, 8, 'what the screenshot said is kept for staff');
 
   // Ari confirms his own: all 4 done; the card says so.
   await w.matches.button('mt:ok:night__f1', user(ids.a1));
