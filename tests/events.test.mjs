@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { eventDateLabel, sortEvents, validateEvent, dateFromInputs, inputsFromDate } from '../public/js/rules/events.js';
+import { eventDateLabel, sortEvents, validateEvent, dateFromInputs, inputsFromDate, zoneLabel, countdownParts } from '../public/js/rules/events.js';
 
 const base = { type: 'exhibition', title: 'Showmatch night', status: 'upcoming', summary: '', date: null };
 
@@ -46,4 +46,27 @@ test('validation', () => {
   assert.equal(validateEvent({ ...base, type: 'tournament', teamSize: 0 }).length, 1);
   assert.deepEqual(validateEvent({ ...base, type: 'tournament', teamSize: 4 }), []);
   assert.equal(validateEvent({ ...base, summary: 'x'.repeat(281) }).length, 1);
+});
+
+test('times name the viewer’s own time zone: AEDT / NZDT, or the city when the browser only knows GMT+11', () => {
+  const ms = Date.UTC(2026, 9, 24, 7, 0); // 6:00 pm in Sydney, 8:00 pm in Auckland
+  assert.equal(zoneLabel(ms, 'en-AU', 'Australia/Sydney'), 'AEDT');
+  assert.equal(zoneLabel(ms, 'en-NZ', 'Pacific/Auckland'), 'NZDT');
+  assert.equal(zoneLabel(ms, 'en-US', 'Australia/Sydney'), 'Sydney time');
+  assert.equal(zoneLabel(ms, 'en-US', 'Australia/Lord_Howe'), 'Lord Howe time');
+  assert.equal(zoneLabel(ms, 'en-US', 'UTC'), 'UTC');
+  assert.match(eventDateLabel({ date: ms }, 'en-AU', 'Australia/Sydney'), /24 Oct 2026 · 6:00\s?pm AEDT$/iu);
+  assert.match(eventDateLabel({ date: ms }, 'en-NZ', 'Pacific/Auckland'), /8:00\s?pm NZDT$/iu);
+});
+
+test('countdown: h:mm:ss under a day, days when further out, live once started', () => {
+  const start = Date.UTC(2026, 9, 24, 7, 0);
+  const under = countdownParts(start, start - (1 * 3600 + 39 * 60 + 12) * 1000);
+  assert.equal(under.short, '1:39:12');
+  assert.deepEqual(under.parts, [['01', 'hrs'], ['39', 'min'], ['12', 'sec']]);
+  const days = countdownParts(start, start - (2 * 86400 + 4 * 3600 + 15 * 60) * 1000);
+  assert.equal(days.short, '2d 04h 15m');
+  assert.deepEqual(days.parts[0], [2, 'days']);
+  assert.equal(countdownParts(start, start - 86400000).parts[0][1], 'day');
+  assert.deepEqual(countdownParts(start, start + 1000), { live: true, parts: [], short: 'live now' });
 });

@@ -31,7 +31,7 @@
     - `staffTag()` in ui.js shows a round icon next to the name everywhere (`playerLink`, squads, search, bottom bar), and the role name on profile pages, chat and comments.
     - Roles and icons are in `STAFF_ROLES`. It's display only: admin powers still come from `/admins`.
   - **LFT:** `players.lft` (bool, set on the Me page). It shows an LFT tag on free agents (`isLft`/`lftTag` in ui.js), and LFT players are listed first in free agents and the invite pickers.
-  - **Featured event** (`js/featured.js`): admins pin one with `event.featured`; otherwise it's the soonest upcoming event. It's a full card top right on screens ≥1800px, and a pill bottom right otherwise; "×" hides it until a different event is featured.
+  - **Featured event** (`js/featured.js`): admins pin one with `event.featured`; otherwise it's the soonest upcoming event. It's a full card top right on screens ≥1800px (countdown boxes), and a two-line pill bottom right otherwise (full width on phones). It shows the start in the viewer's own time zone, named (`zoneLabel()` in `rules/events.js`: "AEDT", or the city, "Sydney time", where the browser only knows GMT+11; event dates everywhere use it too), and a countdown ticking every second (`countdownParts()`), then "live now" for 3 hours. "×" folds it into a small ★ tab with the time left (per event, on the device; changed 2026-10-24, it used to hide it for good); pressing the tab opens it again.
   - **Solo sign-ups:**
     - `event.solos` turns them on, saved as `events/{e}/solos/{playerId}`. Rules are in `solosOpen()`, with the same timing as club sign-ups.
     - On the admin Teams tab, the Solo players panel builds mix teams by hand or with Auto-group (teams of `event.teamSize`).

@@ -1,72 +1,119 @@
-// FEATURED! card: the next big event, on the right side of the screen (desktop) or as a banner
-// at the top of Home (phones). Shows the name, date, a live countdown, how many have signed up,
-// and a button to the event. Admins can pin an event with "Feature this event"; otherwise it's
-// the soonest upcoming event. "×" hides it until there's a different featured event.
+// FEATURED! card: the next big event. A full card top right on wide screens (≥1800px), a two-line
+// pill bottom right otherwise. Shows the name, the start in the viewer's own time zone (named, e.g.
+// "6:00 pm AEDT" or "Auckland time"), a countdown that ticks every second, how many have signed up,
+// and a button to the event. Admins can pin an event with "Feature this event"; otherwise it's the
+// soonest upcoming event. "×" folds it into a small ★ tab (remembered per event on this device);
+// pressing the tab opens it again, so it never disappears for good.
 
 import { loadAllBundles } from './data.js';
 import { esc, urls, fmtDay, fmtTime } from './ui.js';
 import { signupsOpen } from './rules/autofix.js';
+import { zoneLabel, countdownParts } from './rules/events.js';
 
-const HIDE_KEY = 'jvo.featuredHidden';
+const FOLD_KEY = 'jvo.featuredHidden'; // id of the event folded away on this device
+const LIVE_FOR = 3 * 3600000; // shown as "live now" for 3 hours after the start
 let el = null;
 let timer = null;
 
-const hiddenFor = () => { try { return localStorage.getItem(HIDE_KEY) ?? ''; } catch { return ''; } };
+const foldedFor = () => { try { return localStorage.getItem(FOLD_KEY) ?? ''; } catch { return ''; } };
+const setFolded = (id) => { try { id ? localStorage.setItem(FOLD_KEY, id) : localStorage.removeItem(FOLD_KEY); } catch { /* fine */ } };
 
 function pick(bundles, now) {
-  const upcoming = bundles.filter((b) => b.event.published && b.event.status === 'upcoming' && (!b.event.date || b.event.date > now - 3 * 3600000));
+  const upcoming = bundles.filter((b) => b.event.published && b.event.status === 'upcoming' && (!b.event.date || b.event.date > now - LIVE_FOR));
   const pinned = upcoming.find((b) => b.event.featured);
   if (pinned) return pinned;
   return upcoming.filter((b) => b.event.date).sort((a, z) => a.event.date - z.event.date)[0] ?? upcoming[0] ?? null;
 }
 
-function countdown(ms, now) {
-  if (!ms) return 'Date TBD';
-  const d = ms - now;
-  if (d <= 0) return 'On now!';
-  const days = Math.floor(d / 86400000);
-  const hours = Math.floor((d % 86400000) / 3600000);
-  const mins = Math.floor((d % 3600000) / 60000);
-  if (days) return `in ${days}d ${hours}h`;
-  if (hours) return `in ${hours}h ${mins}m`;
-  return `in ${mins}m`;
+// ---------- The viewer's own time zone ----------
+
+// "Today", "Tomorrow", or "Sat, 25 Oct", in the viewer's time zone.
+function dayLabel(ms, now) {
+  const start = (t) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+  const days = Math.round((start(ms) - start(now)) / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return fmtDay(ms);
 }
+
+const longFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZoneName: 'long' });
+
+// ---------- Countdown ----------
+
+function countdownHtml(e, now) {
+  if (!e.date || e.timeTbd) return '<span class="featured-count tbd">Time TBD</span>';
+  const c = countdownParts(e.date, now);
+  return `
+    <span class="featured-count${c.live ? ' live' : ''}" data-countdown="${e.date}" role="timer" aria-live="off">
+      <span class="fc-short">${c.live ? '<i class="fc-dot"></i>' : '⏱ '}${esc(c.short)}</span>
+      <span class="fc-boxes">${c.live ? '<b class="fc-live"><i class="fc-dot"></i> live now</b>' : c.parts.map(([v, l]) => `<span class="fc-box"><b class="num">${v}</b><small>${l}</small></span>`).join('')}</span>
+    </span>`;
+}
+
+function tick() {
+  if (!el) return;
+  const now = Date.now();
+  const mini = el.querySelector('.fc-mini'); // folded ★ tab
+  if (mini) { mini.textContent = countdownParts(Number(mini.dataset.at), now).short; return; }
+  const c = el.querySelector('[data-countdown]');
+  if (!c) return;
+  const ms = Number(c.dataset.countdown);
+  const parts = countdownParts(ms, now);
+  if (parts.live !== c.classList.contains('live')) { updateFeatured(); return; } // it just started: redraw
+  if (parts.live) return;
+  c.querySelector('.fc-short').textContent = `⏱ ${parts.short}`;
+  const boxes = c.querySelectorAll('.fc-box b');
+  if (boxes.length === parts.parts.length) parts.parts.forEach(([v], i) => { boxes[i].textContent = v; });
+  else c.outerHTML = countdownHtml({ date: ms }, now); // the last day ran out: one box fewer
+}
+
+// ---------- Drawing ----------
 
 export async function updateFeatured() {
   let bundles;
   try { bundles = await loadAllBundles(); } catch { return; }
   const now = Date.now();
   const b = pick(bundles, now);
-  if (!b || hiddenFor() === b.event.id) {
+  clearInterval(timer);
+  if (!b) {
     el?.remove();
     el = null;
-    clearInterval(timer);
     return;
   }
   const e = b.event;
+  el ??= document.body.appendChild(Object.assign(document.createElement('aside'), { className: 'featured' }));
+  el.setAttribute('aria-label', 'Featured event');
+
+  // Folded: a small ★ tab with the time left; pressing it opens the card again.
+  if (foldedFor() === e.id) {
+    el.className = 'featured folded';
+    const mini = e.date && !e.timeTbd ? countdownParts(e.date, now).short : '';
+    el.innerHTML = `<button class="featured-open" type="button" title="Show the featured event: ${esc(e.title)}" aria-label="Show the featured event">★${mini ? ` <span class="fc-mini num" data-at="${e.date}">${esc(mini)}</span>` : ''}</button>`;
+    el.querySelector('.featured-open').addEventListener('click', () => { setFolded(''); updateFeatured(); });
+    if (mini) timer = setInterval(tick, 1000);
+    return;
+  }
+
+  el.className = 'featured';
   const teams = b.plan.teamIds.length;
   const solos = (b.solos ?? []).length;
   const open = signupsOpen(e, now) || (e.solos && signupsOpen({ ...e, signups: true }, now));
-  el ??= document.body.appendChild(Object.assign(document.createElement('aside'), { className: 'featured' }));
-  el.setAttribute('aria-label', 'Featured event');
-  const when = e.date ? `${fmtDay(e.date)}${e.timeTbd ? '' : ` · ${fmtTime(e.date)}`}` : 'Date TBD';
+  const when = !e.date ? 'Date TBD'
+    : e.timeTbd ? `${dayLabel(e.date, now)} · time TBD`
+      : `${dayLabel(e.date, now)} · ${fmtTime(e.date)} ${zoneLabel(e.date)}`;
+  const whenTitle = e.date && !e.timeTbd ? `Starts ${longFmt.format(e.date)} (your local time)` : '';
   el.innerHTML = `
-    <button class="featured-close" type="button" aria-label="Hide the featured event" title="Hide">×</button>
-    <span class="featured-tag">★ featured!</span>
+    <button class="featured-close" type="button" aria-label="Fold the featured event away" title="Fold away">×</button>
+    <span class="featured-tag">★<span class="ft-word"> featured!</span></span>
     <a class="featured-body" href="${urls.event(e.id)}" data-link>
       <b class="featured-title">${esc(e.title)}</b>
-      <span class="featured-when">${esc(when)}</span>
-      <span class="featured-count" data-countdown="${e.date ?? ''}">${esc(countdown(e.date, now))}</span>
+      <span class="featured-info">
+        <span class="featured-when"${whenTitle ? ` title="${esc(whenTitle)}"` : ''}>${esc(when)}</span>
+        ${countdownHtml(e, now)}
+      </span>
       <span class="featured-meta">${teams} club${teams === 1 ? '' : 's'}${solos ? ` · ${solos} solo` : ''} in</span>
     </a>
     <a class="btn btn-sm featured-btn" href="${urls.event(e.id)}" data-link>${open ? 'Sign up' : 'See event'}</a>`;
-  el.querySelector('.featured-close').addEventListener('click', () => {
-    try { localStorage.setItem(HIDE_KEY, e.id); } catch { /* fine */ }
-    updateFeatured();
-  });
-  clearInterval(timer);
-  timer = setInterval(() => {
-    const c = el?.querySelector('[data-countdown]');
-    if (c) c.textContent = countdown(Number(c.dataset.countdown) || null, Date.now());
-  }, 30000);
+  el.querySelector('.featured-close').addEventListener('click', () => { setFolded(e.id); updateFeatured(); });
+  if (e.date && !e.timeTbd) timer = setInterval(tick, 1000);
 }

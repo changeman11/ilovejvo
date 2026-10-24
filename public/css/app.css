@@ -1165,31 +1165,60 @@ h1 .staff-tag.with-label { font-size: 12px; margin-left: 10px; position: relativ
 .lft-switch input { margin-top: 4px; }
 
 /* ---------- FEATURED! event (js/featured.js) ---------- */
-/* Compact pill bottom right (phones and laptops); a full card top right on wide screens. */
+/* A two-line pill bottom right (phones and laptops); a full card with countdown boxes top right on
+   wide screens. Folded (×): a small ★ tab with the time left. */
 .featured {
   position: fixed; z-index: 25; right: 56px; bottom: calc(var(--reel-bottom) + 10px);
-  display: flex; align-items: center; gap: 8px; max-width: min(380px, calc(100vw - 76px));
+  display: flex; align-items: center; gap: 10px; max-width: min(400px, calc(100vw - 76px));
   padding: 6px 30px 6px 10px; background: #12131a; color: #fff; border: 3px solid var(--yellow); border-radius: 16px;
   box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25);
 }
 body.has-reel .featured { bottom: calc(var(--reel-bottom) + var(--reel-h) + 10px); }
 .featured-tag { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--yellow); color: var(--ink); font: 700 11px/1.6 var(--font-head); text-transform: uppercase; letter-spacing: 0.04em; animation: featured-pop 2.4s ease-in-out infinite; }
 @keyframes featured-pop { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg) scale(1.06); } }
-@media (prefers-reduced-motion: reduce) { .featured-tag { animation: none; } }
-.featured-body { display: flex; align-items: baseline; gap: 8px; min-width: 0; color: #fff; text-decoration: none; }
-.featured-title { font: 600 15px var(--font-head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.featured-count { flex: none; color: var(--yellow); font-weight: 800; font-size: 13px; }
-.featured-when, .featured-meta, .featured-btn { display: none; }
+.featured-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; color: #fff; text-decoration: none; }
+.featured-title { font: 600 15px/1.2 var(--font-head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.featured-info { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12px; }
+.featured-when { min-width: 0; color: #b9bdd0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.featured-count { flex: none; color: var(--yellow); font-weight: 800; font-variant-numeric: tabular-nums; }
+.featured-count.tbd { color: #b9bdd0; font-weight: 600; }
+.featured-count.live, .fc-live { color: #ff8a7a; }
+.fc-boxes { display: none; }
+.fc-dot { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: #ff5a4a; vertical-align: 1px; animation: fc-pulse 1.2s ease-in-out infinite; }
+@keyframes fc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .featured-tag, .fc-dot { animation: none; } }
+.featured-meta, .featured-btn { display: none; }
 .featured-close { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: #8e93a6; font-size: 18px; cursor: pointer; padding: 2px 6px; }
 .featured-close:hover { color: #fff; }
+/* Folded away: a small tab that opens it again. */
+.featured.folded { padding: 0; }
+.featured-open { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 0; background: none; color: var(--yellow); font: 700 16px/1.2 var(--font-head); cursor: pointer; }
+.featured-open .fc-mini { color: #fff; font: 800 12px var(--font-body); font-variant-numeric: tabular-nums; }
+.featured-open:hover .fc-mini { color: var(--yellow); }
+/* Phones and tablets: the pill can use the whole width (the chat tab sits higher up). */
+@media (max-width: 1023px) {
+  .featured { right: 12px; max-width: calc(100vw - 24px); }
+}
+@media (max-width: 479px) {
+  .featured:not(.folded) { left: 12px; gap: 8px; }
+  .featured-tag .ft-word { display: none; }
+}
 @media (min-width: 1800px) {
-  .featured { top: 100px; bottom: auto; right: 64px; width: 270px; flex-direction: column; align-items: stretch; gap: 8px; padding: 14px 16px 16px; }
+  .featured { top: 100px; bottom: auto; right: 64px; }
   body.has-reel .featured { bottom: auto; }
+  .featured:not(.folded) { width: 290px; flex-direction: column; align-items: stretch; gap: 8px; padding: 14px 16px 16px; }
   .featured-tag { align-self: flex-start; font-size: 13px; }
-  .featured-body { flex-direction: column; align-items: flex-start; gap: 3px; }
-  .featured-title { font-size: 22px; white-space: normal; line-height: 1.15; }
-  .featured-count { font-size: 18px; }
-  .featured-when, .featured-meta { display: block; color: #b9bdd0; font-size: 13px; }
+  .featured-body { gap: 6px; }
+  .featured-title { font-size: 22px; line-height: 1.15; white-space: normal; }
+  .featured-info { flex-direction: column; align-items: flex-start; gap: 8px; font-size: 13px; }
+  .featured-when { white-space: normal; }
+  .fc-short { display: none; }
+  .fc-boxes { display: flex; gap: 6px; }
+  .fc-box { display: grid; place-items: center; min-width: 52px; padding: 5px 4px 3px; background: #1f2130; border: 2px solid #2c2f44; border-radius: 10px; }
+  .fc-box b { color: var(--yellow); font: 22px/1.1 var(--font-num); }
+  .fc-box small { color: #b9bdd0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .fc-live { font-size: 18px; }
+  .featured-meta { display: block; color: #b9bdd0; font-size: 13px; }
   .featured-btn { display: inline-flex; justify-content: center; background: var(--yellow); color: var(--ink); }
   .featured-close { top: 8px; transform: none; }
 }

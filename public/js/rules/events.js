@@ -14,14 +14,40 @@ export const EVENT_STATUSES = {
   cancelled: 'Cancelled',
 };
 
-const dayFmt = (locale) => new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-const timeFmt = (locale) => new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+const dayFmt = (locale, timeZone) => new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone });
+const timeFmt = (locale, timeZone) => new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone });
+
+// Times are always shown in the viewer's own time zone, named so they know: "AEDT", "NZDT"... or,
+// where the browser only knows "GMT+11" (e.g. US English settings), the city: "Sydney time".
+// locale / timeZone default to the viewer's (they're passed in tests).
+export function zoneLabel(ms, locale = undefined, timeZone = undefined) {
+  const tz = new Intl.DateTimeFormat(locale, { timeZoneName: 'short', timeZone }).formatToParts(ms).find((p) => p.type === 'timeZoneName')?.value ?? '';
+  if (tz && !/^(GMT|UTC)/.test(tz)) return tz;
+  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+  return zone.includes('/') ? `${zone.split('/').pop().replace(/_/g, ' ')} time` : tz;
+}
 
 // "Date TBD", "Sat, 14 Nov 2026 · Time TBD" or "Sat, 14 Nov 2026 · 7:00 pm AEDT".
-export function eventDateLabel(event, locale = undefined) {
+export function eventDateLabel(event, locale = undefined, timeZone = undefined) {
   if (!event?.date) return 'Date TBD';
-  const day = dayFmt(locale).format(event.date);
-  return event.timeTbd ? `${day} · Time TBD` : `${day} · ${timeFmt(locale).format(event.date)}`;
+  const day = dayFmt(locale, timeZone).format(event.date);
+  return event.timeTbd ? `${day} · Time TBD` : `${day} · ${timeFmt(locale, timeZone).format(event.date)} ${zoneLabel(event.date, locale, timeZone)}`;
+}
+
+// Time left until `ms`: { live, parts: [[value, label]...], short }. Used by the FEATURED! card.
+// short: "1:39:12" (under a day) or "2d 04h 15m"; live once it has started.
+const pad2 = (n) => String(n).padStart(2, '0');
+export function countdownParts(ms, now) {
+  const left = ms - now;
+  if (left <= 0) return { live: true, parts: [], short: 'live now' };
+  const s = Math.floor(left / 1000);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  const parts = [...(days ? [[days, days === 1 ? 'day' : 'days']] : []), [pad2(hours), 'hrs'], [pad2(mins), 'min'], [pad2(secs), 'sec']];
+  const short = days ? `${days}d ${pad2(hours)}h ${pad2(mins)}m` : `${hours}:${pad2(mins)}:${pad2(secs)}`;
+  return { live: false, parts, short };
 }
 
 export const isUpcoming = (e) => (e.status ?? 'upcoming') === 'upcoming';
