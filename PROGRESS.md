@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (partner's PC) · pages keep their place (NOT deployed yet, cache v68)
+- `app.js`: `refresh()` after a save now redraws in place (no loading placeholder), keeping the scroll and opened `<details>`; live redraws keep them too. Going back (back link, Esc, browser back, breadcrumbs) returns to where you were on that page (`scrollMemo`, `history.scrollRestoration = 'manual'`). Opening a new page still starts at the top.
+
 ### 2026-10-25 · Claude (partner's PC) · stats publishing rework + fraud flags (NOT deployed / uploaded yet)
 - `/admin/stats`: Ready to publish (one click for all), Check before publishing (🚩 warnings, publish anyway or Edit), Waiting. Edit page unchanged.
 - Warnings (`rules/stat-checks.js`): unusually high numbers for the sets played, team PTS more than the team won, numbers changed by a captain/the player (shows what changed), hand-named lines that don't look like the player. On the 40 saved matches only 1–3 would have been flagged.

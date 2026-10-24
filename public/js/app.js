@@ -122,10 +122,24 @@ function goBack() {
   if (!target) return;
   const trail = trailNow();
   const rest = trail.at(-1)?.href === target.href ? trail.slice(0, -1) : [];
+  rememberScroll();
   history.replaceState({ trail: rest }, '', target.href);
-  window.scrollTo(0, 0);
-  show();
+  show({ scrollY: scrollMemo.get(target.href) ?? 0 }); // back where you were on that page
 }
+
+// ---------- Keeping your place on a page ----------
+// Where each page was scrolled to (by address), so going back to it lands where you left it, and
+// redraws (live updates, refresh after a save) keep the scroll and any opened sections.
+const scrollMemo = new Map();
+const rememberScroll = () => {
+  scrollMemo.set(here(), window.scrollY);
+  if (scrollMemo.size > 50) scrollMemo.delete(scrollMemo.keys().next().value);
+};
+// Opened <details> sections, by their summary text.
+const openSections = (root) => new Set([...root.querySelectorAll('details[open] > summary')].map((s) => s.textContent.trim()));
+const reopenSections = (root, open) => {
+  if (open.size) root.querySelectorAll('details > summary').forEach((s) => { if (open.has(s.textContent.trim())) s.parentElement.open = true; });
+};
 
 document.addEventListener('click', (e) => {
   const link = e.target.closest('a[data-back]');
@@ -171,7 +185,9 @@ const SITE_NAME = 'I<3JVO';
 const main = document.getElementById('main');
 let renderId = 0;
 
-async function show({ quiet = false } = {}) {
+// quiet: keep the page as it is until the new one is ready (a redraw of the same page, keeping
+// the scroll and opened sections). scrollY: where to put the page once drawn (going back).
+async function show({ quiet = false, scrollY = null } = {}) {
   const path = location.pathname.replace(/\/+$/, '') || '/';
   if (redirects[path]) {
     history.replaceState(history.state, '', redirects[path]);
@@ -196,8 +212,13 @@ async function show({ quiet = false } = {}) {
     if (id !== renderId) return; // the user already moved on
     const { html, title } = typeof out === 'string' ? { html: out } : out;
     const before = keptNow(main); // parts that carry on through a redraw (e.g. the team chat)
+    const y = window.scrollY;
+    const open = quiet ? openSections(main) : new Set();
     main.innerHTML = back + html;
     swapKept(main, before);
+    reopenSections(main, open);
+    if (scrollY != null) window.scrollTo(0, scrollY);
+    else if (quiet) window.scrollTo(0, y);
     dirty = false;
     livePill?.remove();
     livePill = null;
@@ -226,18 +247,28 @@ function navigate(href, { keepScroll = false, replace = false } = {}) {
     location.assign(href);
     return;
   }
-  if (href !== here()) {
-    const samePage = pathOf(href) === pathOf(here());
-    const trail = replace ? trailNow().filter((t) => t.href !== href) : trailFor(href);
-    // Tabs and filters on the same page replace the entry, so browser back skips them too.
-    if (replace || samePage) history.replaceState({ trail }, '', href);
-    else history.pushState({ trail }, '', href);
-    if (!keepScroll) window.scrollTo(0, 0);
+  if (href === here()) {
+    show({ quiet: true }); // the same address again: a redraw, keeping your place
+    return;
   }
-  show();
+  const samePage = pathOf(href) === pathOf(here());
+  // Going back up to a page on the trail (its "back" link, a breadcrumb): where you left it.
+  const backUp = trailNow().some((t) => t.href === href);
+  const trail = replace ? trailNow().filter((t) => t.href !== href) : trailFor(href);
+  rememberScroll();
+  // Tabs and filters on the same page replace the entry, so browser back skips them too.
+  if (replace || samePage) history.replaceState({ trail }, '', href);
+  else history.pushState({ trail }, '', href);
+  if (keepScroll) show({ quiet: samePage, scrollY: window.scrollY });
+  else if (backUp) show({ scrollY: scrollMemo.get(href) ?? 0 });
+  else {
+    window.scrollTo(0, 0);
+    show();
+  }
 }
 
-setNav({ navigate, refresh: () => show(), refreshQuietly: () => show({ quiet: true }) });
+// refresh() after a save redraws in place: no loading placeholder, same scroll, same open sections.
+setNav({ navigate, refresh: () => show({ quiet: true }), refreshQuietly: () => show({ quiet: true }) });
 
 // ---------- Live updates: nobody needs to refresh (data.js keeps every read live) ----------
 // When anything on the page changes in the database, the page redraws itself quietly. If the person
@@ -318,7 +349,12 @@ document.addEventListener('change', (e) => {
   if (select) navigate(select.value, { keepScroll: true });
 });
 
-window.addEventListener('popstate', show);
+// Browser back / forward: the page as you left it.
+history.scrollRestoration = 'manual';
+window.addEventListener('popstate', () => show({ scrollY: scrollMemo.get(here()) ?? 0 }));
+// Remember the place on the way out of a page by browser back too (popstate fires after the move).
+let scrollTimer = null;
+window.addEventListener('scroll', () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(rememberScroll, 150); }, { passive: true });
 
 // The "Admin" menu link appears for admins: the admin login, or a Discord admin (see auth.js currentAdmin).
 let adminKey = null;
