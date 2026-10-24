@@ -61,7 +61,16 @@ if (config.ranked) {
 let welcomeOn = false;
 if (config.welcomeChannelId) {
   welcomeOn = await checkMembersIntent(config.token);
-  if (!welcomeOn) log.warn('⚠️  WELCOME_CHANNEL_ID is set, but "Server Members Intent" is off in the Developer Portal (Bot page), so new members are not welcomed. See BOT-SETUP.md, Part 8.');
+  if (!welcomeOn) {
+    log.warn('⚠️  WELCOME_CHANNEL_ID is set, but "Server Members Intent" is off in the Developer Portal (Bot page), so new members are not welcomed. See BOT-SETUP.md, Part 8.');
+    // Check every 5 minutes; once it's switched on, restart (the service starts the bot again,
+    // this time with welcomes on). No need to restart by hand.
+    setInterval(async () => {
+      if (!(await checkMembersIntent(config.token))) return;
+      log.info('[welcome] Server Members Intent is now on: restarting to turn welcomes on.');
+      process.kill(process.pid, 'SIGTERM');
+    }, 5 * 60 * 1000).unref();
+  }
 }
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, ...(welcomeOn ? [GatewayIntentBits.GuildMembers] : [])] });
 let discordIo = null;

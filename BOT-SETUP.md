@@ -342,7 +342,7 @@ Discord only tells bots about new members if you allow it:
 
 1. https://discord.com/developers/applications → **I<3JVO** → **Bot**.
 2. Under **Privileged Gateway Intents**, turn on **Server Members Intent** → **Save Changes**.
-3. Restart the bot (or ask Claude to). The log then says `[welcome] new members are welcomed in …`.
+3. That's it: on the server, the bot checks every 5 minutes and restarts itself once it's on. The log then says `[welcome] new members are welcomed in …`. (Run on your PC, it stops instead; start it again.)
 
 Until that's on, the bot runs normally and just doesn't welcome anyone. It checks at start-up, so it never asks Discord for something that's switched off.
 
