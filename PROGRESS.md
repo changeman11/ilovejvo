@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · new characters not showing for returning visitors · site DEPLOYED (cache v65)
+- Cause: `firebase.json` caches `/images/**` for 7 days, and `images/characters/list.json` is under it, so browsers kept the old 19-character list. Fix: `/images/**/*.json` is `no-cache`, and characters.js fetches the list with `cache: 'no-cache'`. Checked live in a browser that had the old list: picker now 34 (15 new), picking a new one works.
+
 ### 2026-10-25 · Claude (owner's PC) · trophy card visual fixes · site DEPLOYED (cache v64)
 - Logo flicker (square ↔ circle): the trophy card was rebuilt on every live redraw, reloading the logos. Now rebuilt only when its content changes (`el.dataset.html`); clicks handled once on the card. Trophy logos are rounded squares.
 - Card moved clear of the chat tab (right: 56px; phones 50px; wide screens 64px under FEATURED!).

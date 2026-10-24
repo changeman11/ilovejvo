@@ -35,7 +35,8 @@ let list = null;
 async function loadList() {
   if (!list) {
     const [files, added] = await Promise.all([
-      fetch(`${DIR}list.json`).then((r) => r.json()).catch(() => []),
+      // no-cache: always check for a newer list (images are cached for a week; the list must not be).
+      fetch(`${DIR}list.json`, { cache: 'no-cache' }).then((r) => r.json()).catch(() => []),
       getDocs(collection(db, 'characters')).then((s) => s.docs.map((d) => d.data())).catch(() => []),
     ]);
     for (const c of added) if (c.path) srcs.set(`${c.key}.png`, mediaUrl(c.path));
