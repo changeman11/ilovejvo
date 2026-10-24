@@ -20,6 +20,14 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · 3rd place button, thread screenshots, home/away balance, Stats page · site + bot DEPLOYED (cache v60)
+- **DEMO EXHIBITION NIGHT 3rd place:** not added to live data from here (no admin sign-in). The owner presses **Add 3rd place match** on its admin Fixtures tab: it sets `finals.thirdPlace` and saves `finals-3rd` (semi-final losers) straight away; then enter score + stats as usual.
+- **Bot thread screenshots:** GIFs/memes posted after the screenshot were being copied instead (newest first) and the bot stopped looking. Now only screenshot-like pictures count, and GIF-only copies are looked at again.
+- **Home/away:** balanced per team in new round robins (tested 3-12 teams: never more than 1 off even, never more than 3 in a row on one side).
+- **Stats page:** award cards + styled table; names/emoji/colours shared with the bot (`rules/stat-style.js`).
+- Tests 206 (site) + 77 (bot) pass. Checked locally (desktop + phone).
+- Noticed, not fixed: at exactly 1024 px wide with a player and an admin both signed in, the top bar's icons stick out 10 px (page scrolls sideways a little).
+
 ### 2026-10-24 · Claude (owner's PC) · free club moves · site + rules DEPLOYED (cache v59)
 - Players leave their club straight away (Club hub → Leave); a lone manager's leaving disbands the club. Joining unchanged (one yes). Every club move (leave, accepting a join/invite) pauses while any event is running (10 min before start → finished/done/12 h). Rules: player may clear their own `teamId` (managers only when disbanding in the same save), manager may disband as last player, transfers kinds `left`/`disbanded` for players. Me page links to the Club hub for leaving.
 - Tested locally: pause message during a running event; leaving after it; lone manager disbands. Tests 204 pass.

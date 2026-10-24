@@ -51,3 +51,27 @@ test('home games are spread fairly', () => {
   for (const f of fx) homes[f.homeTeamId] = (homes[f.homeTeamId] ?? 0) + 1;
   for (const count of Object.values(homes)) assert.equal(count, 5);
 });
+
+test('home and away are balanced: every team within one of an even split, no long away runs', async () => {
+  const { roundRobin } = await import('../public/js/rules/schedule.js');
+  for (const n of [3, 4, 5, 6, 7, 8, 10, 12]) {
+    const teams = Array.from({ length: n }, (_, i) => `t${i}`);
+    const games = roundRobin(teams);
+    for (const t of teams) {
+      const mine = games.filter((g) => g.homeTeamId === t || g.awayTeamId === t).sort((x, y) => x.round - y.round);
+      const home = mine.filter((g) => g.homeTeamId === t).length;
+      const away = mine.length - home;
+      assert.ok(Math.abs(home - away) <= 1, `${n} teams: ${t} has ${home} home, ${away} away`);
+      let run = 0;
+      let worst = 0;
+      let prev = null;
+      for (const g of mine) {
+        const side = g.homeTeamId === t ? 'h' : 'a';
+        run = side === prev ? run + 1 : 1;
+        prev = side;
+        worst = Math.max(worst, run);
+      }
+      assert.ok(worst <= 3, `${n} teams: ${t} has ${worst} in a row on one side`);
+    }
+  }
+});

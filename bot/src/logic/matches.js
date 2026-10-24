@@ -224,8 +224,23 @@ export function confirmProgress(result) {
 export function needsScreenshot(result, subs) {
   if (!result || result.forfeit) return false;
   if (result.statsStatus === 'reviewed' || Object.keys(result.playerStats ?? {}).length) return false;
-  if ((result.threadShots ?? []).length || result.statsDraft?.shot) return false;
+  // GIFs copied before 2026-10-25 (a reaction GIF taken for the screenshot) don't count: look again.
+  const realShot = (p) => typeof p === 'string' && !/\.gif$/i.test(p);
+  if ((result.threadShots ?? []).some(realShot) || realShot(result.statsDraft?.shot)) return false;
   return !subs.some((s) => s.screenshotPaths?.length);
+}
+
+// Does a picture posted in a thread look like an end-of-match screenshot? Players also post GIFs,
+// memes and small pictures between the screenshot and the bot's next look, and taking those (newest
+// first) used to hide the real screenshot. A game screenshot is a still image (PNG / JPEG / WebP,
+// not a GIF), landscape and at least 960 px wide. Pictures with unknown size are kept, after the rest.
+// images: [{ contentType, width, height, ... }] newest first -> the screenshot-like ones, best first.
+export function screenshotLike(images) {
+  const still = images.filter((i) => /^image\/(png|jpeg|webp)$/.test(i.contentType ?? ''));
+  const sized = still.filter((i) => i.width && i.height);
+  const good = sized.filter((i) => i.width >= 960 && i.width / i.height >= 1.2 && i.width / i.height <= 2.6);
+  const unknown = still.filter((i) => !i.width || !i.height);
+  return [...good, ...unknown];
 }
 
 // Answered in Discord (who's who): this row's answer came from a player or staff, not the reading.

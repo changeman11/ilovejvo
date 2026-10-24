@@ -39,7 +39,9 @@ export function shotFor(b, fixture, result) {
   const votes = (b.submissions ?? [])
     .filter((v) => v.fixtureId === fixture.id && v.screenshotPaths?.length)
     .sort((x, y) => Number((result?.confirmedBy ?? []).includes(y.id)) - Number((result?.confirmedBy ?? []).includes(x.id)) || (y.updatedAt ?? 0) - (x.updatedAt ?? 0));
-  return votes[0]?.screenshotPaths[0] ?? result?.threadShots?.[0] ?? null;
+  // A still picture before a GIF (players sometimes attach a reaction GIF too).
+  const all = [...votes.flatMap((v) => v.screenshotPaths), ...(result?.threadShots ?? [])];
+  return all.find((p) => !/\.gif$/i.test(p)) ?? all[0] ?? null;
 }
 
 // Reads one screenshot (a path, a URL or a Blob) and matches the names to players.

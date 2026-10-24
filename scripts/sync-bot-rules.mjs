@@ -9,7 +9,7 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const SHARED_RULES = ['flow.js', 'votes.js', 'match.js', 'results.js', 'defaults.js', 'season.js', 'standings.js'];
+export const SHARED_RULES = ['flow.js', 'votes.js', 'match.js', 'results.js', 'defaults.js', 'season.js', 'standings.js', 'stat-style.js'];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const fromDir = join(root, 'public', 'js', 'rules');

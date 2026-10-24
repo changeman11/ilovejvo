@@ -281,7 +281,7 @@ export async function setupDiscord(client, config, log = console) {
           .sort((x, y) => y.createdTimestamp - x.createdTimestamp)
           .flatMap((msg) => [...msg.attachments.values()]
             .filter((a) => /^image\/(png|jpeg|webp|gif)$/.test(a.contentType ?? ''))
-            .map((a) => ({ url: a.url, name: a.name, contentType: a.contentType, authorId: msg.author.id, messageId: msg.id })));
+            .map((a) => ({ url: a.url, name: a.name, contentType: a.contentType, width: a.width ?? null, height: a.height ?? null, authorId: msg.author.id, messageId: msg.id })));
       },
       async reopen(threadId) {
         const thread = await channelFor(threadId);

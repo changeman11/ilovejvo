@@ -387,6 +387,7 @@ function scheduleSettingsHtml() {
       <p class="small" style="margin-top:0">${esc(rules)}</p>
       ${(() => { const n = page.b.plan.teamIds.length; const s = suggestSetup(n); return n >= 6 && s.groups !== groupCount(e) ? `<p class="small">💡 For ${n} teams we suggest ${s.groups === 1 ? 'no groups' : `${s.groups} groups`} (${esc(suggestionText(n))}). <a href="${urls.adminEvent(e.id, 'details')}" data-link>Change in Rule config</a></p>` : ''; })()}
       <p class="small">${auto ? '<span class="live-dot" aria-hidden="true"></span> Updates live as clubs join or leave. ' : ''}<b>${esc(lockLine)}</b> ${page.b.plan.teamIds.length} team${page.b.plan.teamIds.length === 1 ? '' : 's'} in.</p>
+      ${['semis', 'quarters'].includes(finals.type) && !finals.thirdPlace ? `<p class="small">🥉 No 3rd place match yet. <button class="btn btn-sm btn-primary" type="button" data-act="add-third">Add 3rd place match</button> (the two semi-final losers; it's saved as soon as both semis have a score, so you can enter its score and stats).</p>` : ''}
       <div class="actions">
         ${!e.fixturesLockedAt && auto ? '<button class="btn btn-sm" type="button" data-act="lock-now">Lock fixtures now</button>' : ''}
         <button class="btn btn-sm btn-danger" type="button" data-act="clear-fixtures">Clear fixtures</button>
@@ -630,6 +631,14 @@ export function mount(el) {
         if (!window.confirm(result ? 'Delete this fixture and its result?' : 'Delete this fixture?')) return;
         button.disabled = true;
         await deleteFixture({ eventId: page.id, uid, fixture, result });
+        refresh();
+      }
+
+      if (act === 'add-third') {
+        button.disabled = true;
+        const ev = page.b.event;
+        await saveEvent({ id: page.id, uid, event: payload({ finals: { ...(ev.finals ?? {}), thirdPlace: true } }), existing: page.existing });
+        await syncSchedules({ force: true }).catch(() => 0); // saves finals-3rd now if both semis are played
         refresh();
       }
 

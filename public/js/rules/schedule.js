@@ -15,7 +15,12 @@ export function roundRobin(teamIds, { double = false } = {}) {
   const roundsPerLeg = n - 1;
   const fixtures = [];
 
-  // Keep the first team fixed and rotate the rest.
+  // Keep the first team fixed and rotate the rest (who meets whom each round).
+  // Home and away are balanced as we go (changed 2026-10-25: a fixed pattern left some teams away
+  // for a whole group): the team with fewer home games so far hosts; on a tie, the one that was away
+  // last time; then alternate by round. Every team ends within one of an even split.
+  const homes = new Map();
+  const last = new Map(); // teamId -> 'home' | 'away'
   let rotation = list.slice(1);
   for (let r = 0; r < roundsPerLeg; r++) {
     const current = [list[0], ...rotation];
@@ -23,9 +28,17 @@ export function roundRobin(teamIds, { double = false } = {}) {
       const a = current[i];
       const b = current[n - 1 - i];
       if (a === BYE || b === BYE) continue;
-      // Alternate home/away so the fixed team doesn't always host.
-      const flip = i === 0 ? r % 2 === 1 : (r + i) % 2 === 1;
-      fixtures.push({ round: r + 1, homeTeamId: flip ? b : a, awayTeamId: flip ? a : b });
+      const ha = homes.get(a) ?? 0;
+      const hb = homes.get(b) ?? 0;
+      let host;
+      if (ha !== hb) host = ha < hb ? a : b;
+      else if (last.get(a) !== last.get(b)) host = last.get(a) === 'away' || last.get(b) === 'home' ? a : b;
+      else host = (r + i) % 2 === 0 ? a : b;
+      const guest = host === a ? b : a;
+      homes.set(host, (homes.get(host) ?? 0) + 1);
+      last.set(host, 'home');
+      last.set(guest, 'away');
+      fixtures.push({ round: r + 1, homeTeamId: host, awayTeamId: guest });
     }
     rotation = [rotation[rotation.length - 1], ...rotation.slice(0, -1)];
   }

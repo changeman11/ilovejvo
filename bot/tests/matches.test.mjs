@@ -447,3 +447,19 @@ test('reminders: pinged again while there is no score, then admins once', async 
   await w.matches.sync();
   assert.equal(reminders().length, 3, 'admins are pinged once');
 });
+
+test('thread screenshots: GIFs, memes and small pictures posted in between are skipped', async () => {
+  const { screenshotLike, needsScreenshot } = await import('../src/logic/matches.js');
+  const shot = { contentType: 'image/png', width: 1920, height: 1080, url: 'shot' };
+  const gif = { contentType: 'image/gif', width: 498, height: 280, url: 'gif' };
+  const meme = { contentType: 'image/jpeg', width: 640, height: 640, url: 'meme' };
+  const phone = { contentType: 'image/jpeg', width: 1080, height: 2400, url: 'phone' };
+  const unknown = { contentType: 'image/webp', url: 'unknown' };
+  // Newest first: the GIF and meme came after the screenshot.
+  assert.deepEqual(screenshotLike([gif, meme, phone, shot, unknown]).map((i) => i.url), ['shot', 'unknown']);
+  assert.deepEqual(screenshotLike([gif, meme]), []);
+  // A GIF copied earlier doesn't count as the match's screenshot: look again.
+  const result = { sets: [{ home: 10, away: 5 }], playerStats: {}, statsStatus: 'pending', threadShots: ['players/p/shot/abc.gif'] };
+  assert.equal(needsScreenshot(result, []), true);
+  assert.equal(needsScreenshot({ ...result, threadShots: ['players/p/shot/abc.png'] }, []), false);
+});

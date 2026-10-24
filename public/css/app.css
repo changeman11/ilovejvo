@@ -1554,3 +1554,46 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .fx .when.ready-now { color: #0f8f7d; font-weight: 800; font-size: 11px; text-transform: uppercase; }
 
 .br-third { margin-top: 18px; }
+
+/* ---------- Stats page: award cards and styled table (pages/stats.js, rules/stat-style.js) ---------- */
+.award-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.award-card {
+  position: relative; display: grid; gap: 10px; padding: 14px 14px 12px; overflow: hidden;
+  border: 3px solid var(--ink); border-radius: 18px; color: #fff; text-decoration: none;
+  background: linear-gradient(135deg, var(--stat) 0%, var(--stat2) 100%);
+  box-shadow: 0 5px 0 var(--ink); transition: transform 0.15s, box-shadow 0.15s;
+}
+.award-card::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 85% 10%, rgba(255, 255, 255, 0.35), transparent 45%); pointer-events: none; }
+.award-card:hover { transform: translateY(-3px) rotate(-0.6deg); box-shadow: 0 8px 0 var(--ink); }
+.award-card.on { outline: 4px solid var(--yellow); outline-offset: 2px; }
+.ac-top { display: flex; align-items: center; gap: 10px; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+.ac-emoji { display: grid; place-items: center; width: 42px; height: 42px; flex: none; font-size: 24px; border-radius: 12px; background: rgba(255, 255, 255, 0.25); border: 2px solid rgba(255, 255, 255, 0.6); }
+.ac-title { display: grid; font: 600 19px/1.1 var(--font-head); }
+.ac-title small { font: 700 11px var(--font-body); text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.9; }
+.ac-lead { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: rgba(0, 0, 0, 0.22); }
+.ac-lead .avatar { width: 38px; height: 38px; flex: none; border: 2px solid #fff; }
+.ac-name { flex: 1; min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-num { font: 26px/1 var(--font-num); color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3); }
+.ac-rest { display: grid; gap: 2px; font-size: 13px; font-weight: 700; }
+.ac-rest span { display: flex; gap: 6px; }
+.ac-rest b { margin-left: auto; font-family: var(--font-num); }
+@media (max-width: 600px) { .award-grid { grid-auto-flow: column; grid-auto-columns: 78%; grid-template-columns: none; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 10px; } .award-card { scroll-snap-align: start; } }
+
+.stats-table .st-head a { display: grid; justify-items: center; gap: 1px; text-decoration: none; line-height: 1.1; }
+.stats-table .st-head .st-emoji { font-size: 16px; }
+.stats-table .st-head span:last-child { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+.stats-table th.st-head { border-bottom: 3px solid var(--stat); }
+.stats-table th.st-head.sorted { background: color-mix(in srgb, var(--stat) 22%, transparent); }
+.stats-table td.sorted { position: relative; font-weight: 800; background: color-mix(in srgb, var(--stat) 12%, transparent); }
+.stats-table .st-val { position: relative; z-index: 1; }
+.stats-table .st-bar { position: absolute; left: 4px; bottom: 4px; height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--stat), var(--stat2)); }
+.stats-table .st-rank { display: inline-block; min-width: 26px; text-align: center; font-size: 17px; }
+.stats-table td.first .team { gap: 6px; }
+.stats-table td.first .avatar.sm { width: 26px; height: 26px; }
+.stats-table tr.podium td.first { font-weight: 800; }
+.stats-table tr.p1 td.first { background: linear-gradient(90deg, rgba(255, 197, 51, 0.25), transparent); }
+.award-card.ink { color: var(--ink); }
+.award-card.ink .ac-top { text-shadow: none; }
+.award-card.ink .ac-lead { background: rgba(255, 255, 255, 0.45); }
+.award-card.ink .ac-num { color: var(--ink); text-shadow: none; }
+.award-card.ink .ac-emoji { background: rgba(255, 255, 255, 0.5); border-color: var(--ink); }

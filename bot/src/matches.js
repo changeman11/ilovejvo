@@ -25,7 +25,7 @@
 import {
   threadDocId, formatOf, isApprovedTeam, readScore, profileOf, squadOf, isCaptain, openMatches,
   reminderDue, voteDoc, agreedResult, toConfirm, tallyVotes, matchState,
-  unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot,
+  unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot, screenshotLike,
   confirmLines, fixLine, parseStatLine, lineNumbers, canEditLine,
 } from './logic/matches.js';
 import * as views from './match-views.js';
@@ -223,7 +223,8 @@ export class MatchThreads {
     if (t.shotScanAt && now - t.shotScanAt < 5 * 60 * 1000) return;
     let images = [];
     try {
-      images = (await this.io.threadImages(t.threadId)).slice(0, 3);
+      // Only pictures that look like a game screenshot: GIFs and memes posted in between are skipped.
+      images = screenshotLike(await this.io.threadImages(t.threadId)).slice(0, 3);
     } catch (err) {
       this.log.warn('[matches] could not look for screenshots in a thread:', err.message);
     }
