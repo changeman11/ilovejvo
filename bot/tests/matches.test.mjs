@@ -118,9 +118,11 @@ function world({ now = T0 + MIN } = {}) {
     closed: [],
     async createThread(name) { this.threads.push(name); return `th${this.threads.length}`; },
     async post(message, threadId, files = []) { this.posts.push({ message, threadId, files }); return `m${this.posts.length}`; },
-    async edit(messageId, message, threadId) { this.edits.push({ messageId, message, threadId }); },
+    downloads: [],
+    async edit(messageId, message, threadId, files = []) { this.edits.push({ messageId, message, threadId, files }); },
     async close(threadId) { this.closed.push(threadId); },
-    async download() { return Buffer.from('png'); },
+    async reopen() {},
+    async download(url) { this.downloads.push(url); return Buffer.from('png'); },
   };
   const config = {
     siteUrl: 'https://i-love-jvo.web.app', adminRoleIds: ['777777777777777777'],
@@ -248,6 +250,22 @@ test('who’s who: unknown names from the stats reading are asked in the thread,
   assert.deepEqual(ask.message.components[0].components.map((b) => b.custom_id), ['mt:me:night__f1:1']);
   assert.ok(!ask.message.allowedMentions.users.includes(ids.a1), 'Ari was found, so not pinged');
   assert.ok(ask.message.allowedMentions.users.includes(ids.a2));
+  assert.deepEqual(ask.files.map((f) => f.name), ['match-screenshot.webp'], 'the screenshot is attached');
+  assert.equal(ask.message.embeds[0].image.url, 'attachment://match-screenshot.webp');
+  assert.match(w.io.downloads[0], /firebasestorage\.googleapis\.com\/v0\/b\/i-love-jvo\.firebasestorage\.app\/o\/players%2FdA1%2Fshot%2Fx\.webp\?alt=media/);
+
+  // After a restart, a question already sent is edited once, with the screenshot.
+  const again = new MatchThreads({ io: w.io, site: w.site, rest: w.rest, config: w.matches.config, clock: w.clock, log: { info() {}, warn() {}, error() {} } });
+  again.threads = w.matches.threads;
+  const askId = w.matches.threads.get('night__f1').askMsgId;
+  const askEdits = () => w.io.edits.filter((e) => e.messageId === askId);
+  await again.sync();
+  assert.equal(askEdits().length, 1);
+  const edit = askEdits()[0];
+  assert.deepEqual(edit.files.map((f) => f.name), ['match-screenshot.webp']);
+  assert.equal(edit.message.embeds[0].image.url, 'attachment://match-screenshot.webp');
+  await again.sync();
+  assert.equal(askEdits().length, 1, 'and not again when nothing changed');
 
   assert.match((await w.matches.button('mt:me:night__f1:1', user(ids.x))).ephemeral, /isn’t linked/);
   assert.match((await w.matches.button('mt:me:night__f1:1', user(ids.a1))).ephemeral, /already have a line/);

@@ -20,6 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (partner's PC) · who's who shows the screenshot · bot NOT uploaded
+- The "❓ Who's who?" message in match threads now has the match screenshot attached and shown big (the automatic reading gets names wrong, so players find their line by its stats). The bot downloads it from Firebase Storage (public) and keeps it in memory.
+- Questions already sent get it too: after the bot restarts, it edits each open question once, attaching the screenshot (`io.edit(..., files)` replaces the attachments).
+- Bot only: no site deploy needed. Tests 193 pass.
+- **To do:** upload the bot (`npm run upload` from PowerShell in bot/). No `.env` changes.
+
 ### 2026-10-24 · Claude (owner's PC) · bot UPLOADED with stat roles (site + rules were already deployed by the partner's Claude, cache v54, so who's who works)
 - Bot tests pass (70, 3 emulator tests skipped). Uploaded 07:56 UTC; server `.env` backed up, `STAT_ROLES=1` added (`MATCH_THREADS=1` kept).
 - Log: `[stat roles] 8 roles made, 28 given, 0 taken away`. Welcomes, site queue, 1v1, match threads (13 open, new threads starting), club roles all started normally; no errors, no crash restarts.

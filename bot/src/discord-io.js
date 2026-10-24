@@ -253,10 +253,12 @@ export async function setupDiscord(client, config, log = console) {
         const out = files.length ? { ...message, files: files.map((f) => ({ attachment: f.data, name: f.name })) } : message;
         return (await (await channelFor(threadId)).send(out)).id;
       },
-      async edit(messageId, message, threadId) {
+      // files: replace the message's attachments with these (none given = leave them as they are).
+      async edit(messageId, message, threadId, files = []) {
         const thread = await channelFor(threadId);
         if (thread.archived && !thread.locked) await thread.setArchived(false).catch(() => {});
-        await thread.messages.edit(messageId, message);
+        const out = files.length ? { ...message, attachments: [], files: files.map((f) => ({ attachment: f.data, name: f.name })) } : message;
+        await thread.messages.edit(messageId, out);
       },
       async close(threadId) {
         const thread = await channelFor(threadId).catch(() => null);

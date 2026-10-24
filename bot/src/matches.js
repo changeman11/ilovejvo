@@ -40,6 +40,7 @@ export class MatchThreads {
     this.threads = new Map(); // docId -> matchThreads doc
     this.cards = new Map(); // docId -> JSON of the card as last posted (not saved)
     this.asks = new Map(); // docId -> JSON of the "who's who" message as last posted
+    this.shots = new Map(); // screenshot path -> { name, data } (attached to "who's who")
     this.chain = Promise.resolve();
   }
 
@@ -209,6 +210,9 @@ export class MatchThreads {
     let t = this.threads.get(id);
     const unknown = unknownNames(m.result);
     const shot = m.result.statsDraft?.shot ?? '';
+    // The screenshot goes with the question while there are names to sort out.
+    const files = unknown.length ? await this.shotFiles(shot) : [];
+    const image = files[0]?.name ?? null;
     if (!t.askMsgId || t.askShot !== shot) {
       if (!unknown.length) return;
       if (t.status === 'closed') {
@@ -216,16 +220,42 @@ export class MatchThreads {
         t = await this.save(id, { status: 'done', doneAt: now, closedAt: null });
       }
       const pings = unplacedPlayers(m.result, m.homeSquad, m.awaySquad).map((p) => String(p.discordId));
-      const askMsgId = await this.io.post(views.whoIsWho(m, unknown, pings), t.threadId);
-      this.asks.set(id, JSON.stringify(views.whoIsWho(m, unknown, [])));
+      const askMsgId = await this.io.post(views.whoIsWho(m, unknown, pings, { image }), t.threadId, files);
+      this.asks.set(id, JSON.stringify(views.whoIsWho(m, unknown, [], { image })));
       await this.save(id, { askMsgId, askShot: shot });
       return;
     }
-    const message = views.whoIsWho(m, unknown, []);
+    // Already asked: keep it up to date (claimed names drop off). After a restart this edits every
+    // question once, so older ones get the screenshot too.
+    const message = views.whoIsWho(m, unknown, [], { image });
     const json = JSON.stringify(message);
     if (this.asks.get(id) === json) return;
-    await this.io.edit(t.askMsgId, message, t.threadId).catch((err) => this.log.warn('[matches] could not update who’s who:', err.message));
-    this.asks.set(id, json);
+    try {
+      await this.io.edit(t.askMsgId, message, t.threadId, files);
+      this.asks.set(id, json);
+    } catch (err) {
+      this.log.warn('[matches] could not update who’s who:', err.message);
+    }
+  }
+
+  // The match screenshot from the site, as a file to attach ([] if it can't be fetched). Kept in
+  // memory per screenshot, so editing the question doesn't download it again.
+  async shotFiles(path) {
+    if (!path) return [];
+    if (!this.shots.has(path)) {
+      const bucket = this.config.firebase?.storageBucket;
+      const host = this.config.firebase?.emulator?.storage ?? 'https://firebasestorage.googleapis.com';
+      try {
+        const data = await this.io.download(`${host}/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media`);
+        const ext = (/\.(png|jpe?g|webp|gif)$/i.exec(path)?.[1] ?? 'png').toLowerCase();
+        this.shots.set(path, { name: `match-screenshot.${ext}`, data });
+      } catch (err) {
+        this.log.warn('[matches] could not fetch the match screenshot:', err.message);
+        return [];
+      }
+      if (this.shots.size > 50) this.shots.delete(this.shots.keys().next().value);
+    }
+    return [this.shots.get(path)];
   }
 
   // "That's me" on row i of the reading: fills that stat line in with this player, for staff to check.

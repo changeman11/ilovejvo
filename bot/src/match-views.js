@@ -167,7 +167,9 @@ const statLine = (stats) => ['pts', 'spk', 'blk', 'ace', 'dig']
 
 // "Who's who?": in-game names from the end-of-match screen that staff couldn't match to anyone.
 // unknown: [{ i, name, stats }], pings: Discord IDs of players the reading didn't place.
-export function whoIsWho(m, unknown, pings) {
+// image: the attached screenshot's file name (shown big, so players can see the real names:
+// the reading can get them wrong).
+export function whoIsWho(m, unknown, pings, { image = null } = {}) {
   if (!unknown.length) {
     return { content: '✅ **Who’s who: all sorted.** Thanks! Staff will check the stats.', embeds: [], components: [], allowedMentions: noMentions };
   }
@@ -181,7 +183,8 @@ export function whoIsWho(m, unknown, pings) {
     embeds: [{
       title: '❓ Who’s who?',
       color: YELLOW,
-      description: `Staff couldn’t match these in-game (Steam) names from the end-of-match screen to anyone:\n\n${unknown.slice(0, 10).map((r) => `• **${esc(r.name)}**${statLine(r.stats) ? `: ${statLine(r.stats)}` : ''}`).join('\n')}\n\nIf one of them is you, press its button. Your stats go to you, and next time the bot knows that name.`,
+      description: `Staff couldn’t match these in-game (Steam) names from the end-of-match screen to anyone:\n\n${unknown.slice(0, 10).map((r) => `• **${esc(r.name)}**${statLine(r.stats) ? `: ${statLine(r.stats)}` : ''}`).join('\n')}\n\nThe names are read automatically and can come out wrong, so check the screenshot${image ? ' below' : ''}: find your line by its stats. If one of them is you, press its button. Your stats go to you, and next time the bot knows that name.`,
+      ...(image ? { image: { url: `attachment://${image}` } } : {}),
     }],
     components: rows,
     allowedMentions: { users: pings.slice(0, 100) },
