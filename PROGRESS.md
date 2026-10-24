@@ -20,9 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
-### 2026-10-25 · Claude (partner's PC) · pages keep their place · site DEPLOYED (cache v68)
+### 2026-10-25 · Claude (partner's PC) · pages keep their place · site DEPLOYED (cache v69)
 - Checked live on the admin event page: fixture Edit opens in place, back from a result returns to the same spot, live redraws keep the scroll.
-- NOT deployed yet (cache v69): back links no longer say "(1) …" (the bell's unread count was in the title).
+- Back links no longer say "(1) …" (the bell's unread count was in the title); checked live.
 - `app.js`: `refresh()` after a save now redraws in place (no loading placeholder), keeping the scroll and opened `<details>`; live redraws keep them too. Going back (back link, Esc, browser back, breadcrumbs) returns to where you were on that page (`scrollMemo`, `history.scrollRestoration = 'manual'`). Opening a new page still starts at the top.
 
 ### 2026-10-25 · Claude (partner's PC) · stats publishing rework + fraud flags (NOT deployed / uploaded yet)
