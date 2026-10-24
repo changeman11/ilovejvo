@@ -20,7 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
-### 2026-10-25 · Claude (partner's PC) · the bot reads stats screenshots (NOT deployed / uploaded yet)
+### 2026-10-25 · Claude (partner's PC) · saved stats corrected, announcement posted
+- `scripts/ocr-lab/fixes.mjs` compares every saved result with the bot's reading (a line counts only when its name and its numbers agree). Fixed on the admin result pages (audit-logged): 16 numbers (6/9 saved as 0, all checked by eye) and 9 missing lines (dangib, Gwoncc, jac0 ×2 each; Zay🤍, ﾒIsshinﾒ, ladis washerum). Re-run afterwards: 0 left to fix.
+- Not fixed (need a person): lines "Dolly" (WTD, 4 matches), "Oli" and "Ma" (Morioh), "Ingenious" (SFC) match no profile; Volkaineo's line in ORC v PRAWN has rec/set cut off; HFD v SOTB has a screenshot from another match attached.
+- Bot posted the findings in #announcements (message 1563539268163342409).
+
+### 2026-10-25 · Claude (partner's PC) · the bot reads stats screenshots · site DEPLOYED (cache v66) + bot UPLOADED
 - Bot: `stats-read.js` + `logic/reading.js` read each thread match's screenshot as soon as its score is in and save the draft; who's who and "check your stats" follow as before. Names are placed by team side, text and name pictures; unclear ones are left for who's who (never guessed). Pictures learned from confirmed/answered lines (`pickupMeta/namePrints`, already writable by the bot).
 - Bot needs `tesseract.js` (in bot/package.json; downloads its English data into `bot/data/` on first read). New `READ_STATS=0` turns it off.
 - Site: `botReadsStats` stops admin browsers reading in the background (cache v66). Needs a hosting deploy at the same time as the bot upload.
