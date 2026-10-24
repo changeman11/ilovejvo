@@ -4,6 +4,9 @@ emulator-data/
 .firebase/
 .env
 .env.*
+!.env.example
+# Cloudflare Worker local secrets
+.dev.vars
 *-service-account*.json
 serviceAccount*.json
 .runtimeconfig.json

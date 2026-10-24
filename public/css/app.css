@@ -1475,3 +1475,13 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .cc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .cc-row .num { font: 20px var(--font-num); }
 .cc-row .btn { margin-left: auto; }
+
+/* Event rules (pages/event-rules.js) */
+.event-rules > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; cursor: pointer; list-style: none; }
+.event-rules > summary::-webkit-details-marker { display: none; }
+.event-rules > summary h2 { margin: 0; }
+.event-rules > summary::after { content: '▾'; margin-left: auto; font-size: 18px; transition: transform 0.15s; }
+.event-rules:not([open]) > summary::after { transform: rotate(-90deg); }
+.er-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 22px; margin-top: 14px; }
+.er-grid h3 { margin: 0 0 6px; font: 600 16px var(--font-head); }
+.er-grid ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 14px; }

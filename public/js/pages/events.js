@@ -11,6 +11,7 @@ import { computeStandings } from '../rules/standings.js';
 import { formatFor } from '../rules/season.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag, staffTag } from '../ui.js';
 import { livePanelsHtml } from './live-parts.js';
+import { eventRulesHtml } from './event-rules.js';
 import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupTablesHtml, groupFixturesHtml, bracketHtml, stageOrder } from './parts.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
@@ -346,6 +347,7 @@ export const eventPage = {
             </div>` : ''}
           </section>
           ${signups}
+          ${eventRulesHtml(e)}
 
           ${groupStage}
           ${finalsSection}
