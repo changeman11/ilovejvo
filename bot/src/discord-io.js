@@ -298,7 +298,61 @@ export async function setupDiscord(client, config, log = console) {
     };
   }
 
-  return { guild, text, category, io, roleIo, rankedIo, matchIo };
+  // Community characters (characters.js): read #in-game-characters, react, and check staff.
+  const charIo = {
+    // The channel's id: CHARACTERS_CHANNEL_ID, else the text channel named CHARACTERS_CHANNEL.
+    channelId() {
+      if (config.charactersChannelId) return config.charactersChannelId;
+      return guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === config.charactersChannel)?.id ?? null;
+    },
+    // Every post, newest first: [{ id, authorId, authorName, postedAt, images: [{ url, contentType, width, height }], crossedBy: [userIds] }]
+    // crossedBy: who reacted ❌. Throws if the history couldn't be read in full.
+    async posts(channelId) {
+      const channel = await client.channels.fetch(channelId);
+      const out = [];
+      let before;
+      for (;;) {
+        const page = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
+        for (const msg of page.values()) {
+          const cross = msg.reactions.cache.find((r) => r.emoji.name === '❌');
+          const crossedBy = cross ? [...(await cross.users.fetch()).keys()] : [];
+          out.push({
+            id: msg.id,
+            authorId: msg.author?.id ?? null,
+            authorName: msg.member?.displayName ?? msg.author?.globalName ?? msg.author?.username ?? null,
+            postedAt: msg.createdTimestamp,
+            bot: Boolean(msg.author?.bot),
+            images: [...msg.attachments.values()].map((a) => ({ url: a.url, contentType: a.contentType ?? '', width: a.width ?? null, height: a.height ?? null })),
+            crossedBy,
+          });
+        }
+        if (page.size < 100) break;
+        before = page.last().id;
+      }
+      return out;
+    },
+    async react(channelId, messageId, emoji) {
+      const channel = await client.channels.fetch(channelId);
+      const msg = await channel.messages.fetch(messageId);
+      await msg.react(emoji);
+    },
+    // Staff for removing characters: Manage Server, or one of ADMIN_ROLE_IDS / STAFF_ROLE_IDS.
+    async isStaff(userId) {
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (!member) return false;
+      if (member.permissions.has(P.ManageGuild)) return true;
+      return member.roles.cache.some((r) => config.adminRoleIds.includes(r.id) || config.staffRoleIds.includes(r.id));
+    },
+    async download(url) {
+      const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      if (!res.ok) throw new Error(`download failed (${res.status})`);
+      const data = Buffer.from(await res.arrayBuffer());
+      if (data.length > 15 * 1024 * 1024) throw new Error('picture over 15 MB');
+      return data;
+    },
+  };
+
+  return { guild, text, category, io, roleIo, rankedIo, matchIo, charIo };
 }
 
 // Admins: anyone with Manage Server, or one of ADMIN_ROLE_IDS.

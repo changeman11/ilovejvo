@@ -20,10 +20,16 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · characters added by the bot automatically · site + rules + storage rules + bot DEPLOYED (cache v62)
+- Bot `CHARACTERS=1` (server `.env`): watches #in-game-characters every 5 min, cuts out new pictures, skips screenshots/cards/black backgrounds/repeats, uploads to the site, ✅ on the post; deleted post or staff ❌ = taken off. Started fine (`[characters] watching #in-game-characters every 5 min`).
+- All current pictures were already handled (127 messages, 47 pictures: 15 on the court, 32 set aside). The checks agree with the hand sorting on all 47; repeats fingerprint ≤6 vs new ≥16 (limit 10).
+- Cut-out checked on the server (sharp loads, real picture cuts). **Not yet seen live:** an actual new post going through upload → ✅ → on the court.
+- Tests: site 206 + bot 82 (cutout, characters) pass.
+
 ### 2026-10-25 · Claude (owner's PC) · characters from Discord + hop · site DEPLOYED (cache v61)
 - `scripts/fetch-characters.mjs` pulled 47 pictures from #in-game-characters: 15 new characters added (34 on the court now). Skipped 32: 19 repeats of characters already there, in-game screenshots, 2 player cards, a photo, and one on a black background (cut-out ate its outlines). Skipped names in `art-src/community/skipped.txt`.
 - Characters hop like in the game (squash/stretch, shadow shrinks in the air).
-- Not automatic: run fetch + cut again when new pictures are posted, check them, deploy.
+- (Automated later the same day: see the bot entry above.)
 
 ### 2026-10-25 · Claude (owner's PC) · 3rd place button, thread screenshots, home/away balance, Stats page · site + bot DEPLOYED (cache v60)
 - **DEMO EXHIBITION NIGHT 3rd place:** not added to live data from here (no admin sign-in). The owner presses **Add 3rd place match** on its admin Fixtures tab: it sets `finals.thirdPlace` and saves `finals-3rd` (semi-final losers) straight away; then enter score + stats as usual.

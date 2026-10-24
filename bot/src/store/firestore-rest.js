@@ -215,6 +215,15 @@ export class FirestoreRest {
     return path;
   }
 
+  // Deletes a file from Firebase Storage (storage.rules decides). A file already gone is fine.
+  async removeFile(bucket, path) {
+    const host = this.emulator?.storage ?? 'https://firebasestorage.googleapis.com';
+    const res = await this.fetchFn(`${host}/v0/b/${bucket}/o/${encodeURIComponent(path)}`, {
+      method: 'DELETE', headers: { authorization: `Firebase ${await this.token()}` },
+    });
+    if (!res.ok && res.status !== 404) throw new Error(`Storage delete failed (${res.status})`);
+  }
+
   // Emulator only: create the bot account and list it in /pickupBots (the "owner" key skips the
   // rules, which only works on the emulator), so local testing needs no console steps.
   async bootstrapEmulator() {

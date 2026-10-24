@@ -16,6 +16,7 @@ import { welcomeMember } from './welcome.js';
 import { MatchThreads } from './matches.js';
 import { SiteWatch } from './site-watch.js';
 import { StatRoles } from './stat-roles.js';
+import { Characters } from './characters.js';
 import { checkMembersIntent, checkMessageContent } from './login.js';
 
 const log = {
@@ -85,6 +86,7 @@ let rankedSite = null;
 let matches = null;
 let matchSite = null;
 let statRoles = null;
+let characters = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -125,6 +127,13 @@ client.once(Events.ClientReady, async () => {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
       statRoles = new StatRoles({ io: discord.roleIo, site, store, config, log });
       statRoles.start().catch((err) => log.error(`[stat roles] ${err.message}`));
+    }
+    // Community characters from #in-game-characters onto the site's Home court (needs STORE=firebase).
+    if (config.characters && store.rest) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      characters = new Characters({ io: discord.charIo, rest: store.rest, site, store, config, log });
+      log.info(`[characters] watching #${config.charactersChannel} every ${config.charactersMinutes} min`);
+      characters.start().catch((err) => log.error(`[characters] ${err.message}`));
     }
     log.info(`Logged in as ${client.user.tag}. Queue card in #${discord.text.name} (${discord.guild.name}).`);
     if (config.allowTestPlayers) log.info('Test players are ON (/pickup testfill). Turn ALLOW_TEST_PLAYERS off for real games.');
@@ -276,6 +285,7 @@ async function stop(signal) {
   log.info(`${signal}: shutting down`);
   clubRoles?.stop();
   statRoles?.stop();
+  characters?.stop();
   matches?.stop();
   matchSite?.stop();
   siteQueue?.stop();

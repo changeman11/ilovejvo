@@ -63,6 +63,13 @@ service firebase.storage {
       allow delete: if isAdmin() || ownsPlayer(playerId);
     }
 
+    // Community characters cut out by the bot (bot/src/characters.js): PNG, up to 3 MB.
+    match /characters/{file} {
+      allow get: if true;
+      allow create: if isPickupBot() && request.resource.size <= 3 * 1024 * 1024 && request.resource.contentType == 'image/png';
+      allow delete: if isPickupBot() || isAdmin();
+    }
+
     // Everything else is closed.
   }
 }

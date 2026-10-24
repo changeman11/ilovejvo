@@ -706,6 +706,16 @@ service cloud.firestore {
                             && threadDocId == request.resource.data.eventId + '__' + request.resource.data.fixtureId;
       allow delete: if isPickupBot() || isAdmin();
     }
+    // Community characters for the Home court, added by the bot from #in-game-characters
+    // (bot/src/characters.js). Anyone reads; only the bot adds them; the bot or an admin removes them.
+    match /characters/{key} {
+      allow read: if true;
+      allow create: if isPickupBot()
+        && key.matches('discord-[0-9]{15,22}-[0-9]{1,2}')
+        && request.resource.data.path == 'characters/' + key + '.png'
+        && request.resource.data.keys().hasOnly(['key', 'path', 'messageId', 'author', 'authorId', 'postedAt', 'print', 'addedAt']);
+      allow delete: if isPickupBot() || isAdmin();
+    }
     match /pickupBots/{botUid} {
       allow read, write: if false;
     }

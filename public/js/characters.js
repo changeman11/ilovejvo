@@ -1,8 +1,13 @@
 // Community characters taking turns on the Home page court (desktop: standing on the court
 // behind the menu; phones: in the banner). Pictures: public/images/characters (list.json),
-// cut out by scripts/cut-characters.mjs. Switch off with `cyclingCharacters` in config.js.
+// cut out by scripts/cut-characters.mjs), plus the ones the Discord bot adds from #in-game-characters
+// (Firestore `characters`, pictures in Storage; bot/src/characters.js). Switch off with
+// `cyclingCharacters` in config.js.
 
 import { cyclingCharacters } from './config.js';
+import { getDocs, collection } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { db } from './firebase.js';
+import { mediaUrl } from './media.js';
 
 const DIR = '/images/characters/';
 const EVERY_MS = 6000;
@@ -22,14 +27,19 @@ export const characterSpot = (cls) => (cyclingCharacters
 // Pictures that already show a ball (named "...ball...") don't get a second one.
 const hasOwnBall = (name) => /ball/i.test(name);
 
+// name -> picture address. Hand-made ones are files here; the bot's are in Storage.
+const srcs = new Map();
+const srcOf = (name) => srcs.get(name) ?? `${DIR}${name}`;
+
 let list = null;
 async function loadList() {
   if (!list) {
-    try {
-      list = await (await fetch(`${DIR}list.json`)).json();
-    } catch {
-      list = [];
-    }
+    const [files, added] = await Promise.all([
+      fetch(`${DIR}list.json`).then((r) => r.json()).catch(() => []),
+      getDocs(collection(db, 'characters')).then((s) => s.docs.map((d) => d.data())).catch(() => []),
+    ]);
+    for (const c of added) if (c.path) srcs.set(`${c.key}.png`, mediaUrl(c.path));
+    list = [...files, ...added.filter((c) => c.path).map((c) => `${c.key}.png`)];
   }
   return list;
 }
@@ -58,7 +68,7 @@ export const characterPicker = (cls) => (cyclingCharacters
 
 function drawMenu(menu, names, chosen) {
   const item = (name, label) => `<button type="button" role="option" class="char-opt${name === chosen ? ' on' : ''}" aria-selected="${name === chosen}" data-char="${name}" title="${label}">${name
-    ? `<img src="${DIR}${name}" alt="" loading="lazy" decoding="async">`
+    ? `<img src="${srcOf(name)}" alt="" loading="lazy" decoding="async">`
     : '<span class="char-shuffle" aria-hidden="true">🔀</span>'}<span class="sr-only">${label}</span></button>`;
   menu.innerHTML = `<p class="char-menu-title">Pick your character</p>
     <div class="char-grid">${item('', 'Shuffle all')}${names.map((n, k) => item(n, `Character ${k + 1}`)).join('')}</div>`;
@@ -105,7 +115,7 @@ export async function startCharacters(root) {
       front.classList.remove('on');
       spot.classList.toggle('own-ball', hasOwnBall(name));
     };
-    back.src = `${DIR}${name}`;
+    back.src = srcOf(name);
   };
   // A chosen character stays put; otherwise they take turns.
   function run() {
@@ -121,7 +131,7 @@ export async function startCharacters(root) {
       if (!spots[0].isConnected) return clearInterval(timer); // left the page
       if (document.hidden) return; // don't change while nobody's looking
       i = (i + 1) % names.length;
-      new Image().src = `${DIR}${names[(i + 1) % names.length]}`; // get the next one ready
+      new Image().src = srcOf(names[(i + 1) % names.length]); // get the next one ready
       spots.forEach((s) => show(s, names[i]));
     }, EVERY_MS);
   }

@@ -97,6 +97,12 @@ export function loadConfig(env = process.env) {
     statRoles: text('STAT_ROLES') === '1',
     statRolesMinutes: number('STAT_ROLES_MINUTES', 30, 5, 1440),
     statRolesTop: number('STAT_ROLES_TOP', 3, 1, 10),
+    // Community characters (characters.js, needs STORE=firebase): pictures posted in
+    // #in-game-characters are cut out and added to the site's Home court.
+    characters: text('CHARACTERS') === '1',
+    charactersChannel: text('CHARACTERS_CHANNEL', 'in-game-characters'),
+    charactersChannelId: discordId('CHARACTERS_CHANNEL_ID', '', false),
+    charactersMinutes: number('CHARACTERS_MINUTES', 5, 2, 1440),
     // Match threads (matches.js): a thread per site match in MATCH_CHANNEL_ID (made if empty) once
     // it opens; players vote there, and are pinged again every MATCH_REMIND_MINUTES (at most
     // MATCH_REMIND_MAX times, then admins are pinged) until the score is in.

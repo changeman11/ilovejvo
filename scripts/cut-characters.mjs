@@ -10,7 +10,7 @@
 
 import Jimp from 'jimp';
 import sharp from 'sharp'; // only to read .webp (Jimp can't)
-import { readdirSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readdirSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, basename, extname } from 'node:path';
 
 const SRC = 'art-src/community';
@@ -82,4 +82,7 @@ for (const f of files) {
   console.log(`${f.padEnd(26)} -> ${r.name}.png  (background ${r.bg}, character is ${r.keptShare}% of the picture)`);
 }
 writeFileSync(join(OUT, 'list.json'), JSON.stringify(done.map((r) => `${r.name}.png`), null, 1));
+// The pictures set aside by hand, so the bot (bot/src/characters.js) doesn't add them from Discord.
+const skippedTxt = join(SRC, 'skipped.txt');
+if (existsSync(skippedTxt)) writeFileSync(join(OUT, 'skipped.json'), JSON.stringify(readFileSync(skippedTxt, 'utf8').split(/\r?\n/).filter(Boolean), null, 1));
 console.log(`\n${done.length} characters -> ${OUT}/list.json`);
