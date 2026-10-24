@@ -22,3 +22,6 @@ bot/data/
 bot/deploy/upload.local.json
 # ...but the example settings file (no secrets in it) is part of the repo
 !bot/.env.example
+
+# Handover ZIPs (made from a commit with git archive)
+exports/
