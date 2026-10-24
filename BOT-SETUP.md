@@ -346,6 +346,27 @@ Discord only tells bots about new members if you allow it:
 
 Until that's on, the bot runs normally and just doesn't welcome anyone. It checks at start-up, so it never asks Discord for something that's switched off.
 
+## Part 9: 1v1 ranked (on since 2026-10-24)
+
+`RANKED=1` in `.env` turns it on.
+
+1. **Queue:** in **#1v1-queue**, players press **Queue**. Two at a time; the queue opens again as soon as a pair is made.
+2. **Ready up:**
+   - The two players get a locked voice channel **"1v1 - A VS B (Game X)"** and a locked ready-up chat.
+   - Each joins the voice channel and presses **Ready** within 5 minutes (`RANKED_READY_SECONDS`).
+   - If one doesn't, it's cancelled with no RP change, and the one who was ready goes back into the queue.
+3. **Result:**
+   - A thread opens in the ready-up chat. Both players press **Report result**, pick the winner and attach a **screenshot of the end-game scoreboard** (required).
+   - If they agree, RP updates. If they disagree, **Staff** (`STAFF_ROLE_IDS`) decide with buttons in **#1v1-results**.
+4. **RP:** everyone starts at 1000. The first 5 games are placements worth ±50; after that it's ±20. `/rp` and `/rpleaderboard` show it, and so does the site's pickup page.
+5. **Record and clean-up:**
+   - Every result (with the screenshots) and every cancellation is posted in **#1v1-results**, which only Staff can see.
+   - The thread, the chat and the voice channel are then deleted. **#1v1-queue** and **#1v1-results** are never deleted.
+
+The bot made both channels itself; to use your own, put their IDs in `RANKED_CHANNEL_ID` / `RANKED_RESULTS_CHANNEL_ID`.
+
+**On the site:** players signed in with Discord can also press **Queue 1v1** on the pickup page. They still ready up on Discord.
+
 ## Commands
 
 | Who | What |
@@ -358,6 +379,8 @@ Until that's on, the bot runs normally and just doesn't welcome anyone. It check
 | Admins | `/pickup result game:<number> winner:<Team 1, Team 2 or Cancel>`: set or **correct** a result. The old Elo change is undone first. |
 | Admins | `/pickup setmode choice:<mode or Random> next_only:<true/false>`: set the mode, or give it back to the community votes. |
 | Admins | `/pickup syncroles`: update club roles from the site now (with `CLUB_ROLES=1`). |
+| Everyone | `/rp` or `/rp player:@someone`, `/rpleaderboard` (1v1 RP) |
+| Staff | Settle disputed 1v1s with the buttons in **#1v1-results** |
 | Admins (testing) | `/pickup testfill count:<n>` and `/pickup testclear` (only with `ALLOW_TEST_PLAYERS=1`) |
 
 **Changing the rules:** in `.env`, then restart the bot.

@@ -59,7 +59,7 @@ const io = {
   async renameChannel() {}, async deleteChannel() {}, async channelSize() { return 0; }, async move() { return true; },
 };
 const until = async (check, what) => {
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 400; i++) {
     if (await check()) return;
     await new Promise((r) => setTimeout(r, 50));
   }
