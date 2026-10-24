@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (owner's PC) · bot UPLOADED: who's who screenshots
+- Bot tests pass (70, 3 emulator tests skipped). Uploaded 08:02 UTC, no `.env` changes.
+- Log: started normally (welcomes, site queue, 1v1, `[matches] match threads in <#…> (21 open)`, club roles). No "could not update who's who" / "could not fetch the match screenshot" warnings, no errors, no crash restarts.
+- Checked in Discord (read-only, via the API): all 12 open "❓ Who's who?" questions were edited after the restart and now show the screenshot as a big embed image (all 12 load). The one already sorted has it as an attachment.
+
 ### 2026-10-24 · Claude (partner's PC) · who's who shows the screenshot · bot NOT uploaded
 - The "❓ Who's who?" message in match threads now has the match screenshot attached and shown big (the automatic reading gets names wrong, so players find their line by its stats). The bot downloads it from Firebase Storage (public) and keeps it in memory.
 - Questions already sent get it too: after the bot restarts, it edits each open question once, attaching the screenshot (`io.edit(..., files)` replaces the attachments).
