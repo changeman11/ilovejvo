@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (owner's PC) · partner PC key added to the bot server
+- Added the public key `jvo-bot partner PC` (ed25519) to `~/.ssh/authorized_keys` on the bot server (owner authorised; old list backed up as `authorized_keys.backup-<time>`). Server: `ubuntu@54.252.252.126`. The original `jvo-bot` key still works. The partner PC can now `npm run upload` (save its own server + key in `bot/deploy/upload.local.json`).
+
 ### 2026-10-24 · Claude (partner's PC) · who's who drop-downs · bot NOT uploaded
 - "❓ Who's who?" now has a drop-down per unknown name ("Who is AD? (17 PTS)", up to 5 per message, more appear as they're answered), listing both squads' players not placed yet (👑 captains) plus "🤖 Not a real player / a bot". Anyone on either team can answer for anyone, staff too (`answerRow`, `custom_id mt:who:<doc>:<row>`). Rows get `playerId` or `notPlayer: true`, plus `answeredBy`; one answer per line.
 - Questions already sent are edited to the drop-downs when the bot restarts; their old "That's me" buttons still work until then.
