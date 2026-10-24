@@ -6,6 +6,7 @@ import { formatFor } from '../rules/season.js';
 import { resultOf, statHeads, statCells } from './parts.js';
 import { votesSummary, reportBlock, mountReport } from './report.js';
 import { mediaUrl } from '../media.js';
+import { currentAdmin } from '../auth.js';
 
 export const title = 'Match';
 
@@ -80,8 +81,12 @@ export async function render({ eventId, fixtureId }) {
   // The match's thread on Discord (made by the bot when the match opens), where players can vote too.
   const thread = await loadMatchThread(eventId, fixtureId);
   const threadUrl = safeUrl(thread?.url);
-  const threadLink = threadUrl
-    ? `<p style="margin-top:10px"><a class="btn btn-sm" href="${esc(threadUrl)}" target="_blank" rel="noopener">💬 Match thread on Discord</a></p>` : '';
+  // Admins: fix the score or anyone's stats (e.g. a wrong number got saved).
+  const { admin } = await currentAdmin().catch(() => ({ admin: null }));
+  const adminLink = admin
+    ? `<a class="btn btn-sm btn-primary" href="${urls.adminResult(eventId, fixtureId)}" data-link>✏️ ${result ? 'Edit result & stats' : 'Enter result'}</a>` : '';
+  const threadLink = threadUrl || adminLink
+    ? `<p style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${adminLink}${threadUrl ? `<a class="btn btn-sm" href="${esc(threadUrl)}" target="_blank" rel="noopener">💬 Match thread on Discord</a>` : ''}</p>` : '';
 
   return {
     title: `${home?.shortName ?? 'TBC'} v ${away?.shortName ?? 'TBC'}`,

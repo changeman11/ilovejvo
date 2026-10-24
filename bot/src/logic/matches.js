@@ -132,4 +132,37 @@ export function toConfirm({ fixture, teamId, subs }) {
     .sort((x, y) => (y.updatedAt ?? 0) - (x.updatedAt ?? 0))[0] ?? null;
 }
 
+// ---------- Unknown in-game names (the site's automatic stats reading, result.statsDraft) ----------
+// Rows of the reading that no player was matched to: [{ i, name, stats }]. Only while staff
+// haven't checked the stats yet (statsStatus 'pending'). Short names with nothing but zeros are
+// left out: they're empty slots or bots on the end screen, not someone to ask about.
+export function unknownNames(result) {
+  if (result?.statsStatus !== 'pending' || !Array.isArray(result.statsDraft?.rows)) return [];
+  const scored = (stats) => Object.values(stats ?? {}).some((c) => Number(c?.value) > 0);
+  return result.statsDraft.rows
+    .map((r, i) => ({ i, name: String(r.name ?? '').trim(), stats: r.stats ?? {}, playerId: r.playerId }))
+    .filter((r) => !r.playerId && r.name && (r.name.length >= 3 || scored(r.stats)))
+    .map(({ playerId, ...r }) => r);
+}
+
+// Who to ask: players on either team that the reading didn't find (with a Discord ID).
+export function unplacedPlayers(result, homeSquad, awaySquad) {
+  const placed = new Set((result?.statsDraft?.rows ?? []).map((r) => r.playerId).filter(Boolean));
+  return [...homeSquad, ...awaySquad].filter((p) => !placed.has(p.id) && /^\d{15,22}$/.test(String(p.discordId ?? '')));
+}
+
+// A player says "that's me" for row i. -> { rows } (the new reading rows) or { error }
+export function claimRow({ result, i, profile, teamIds }) {
+  const rows = result?.statsDraft?.rows;
+  if (result?.statsStatus !== 'pending' || !Array.isArray(rows)) return { error: 'Staff have already checked this match’s stats.' };
+  if (!profile) return { error: 'Your Discord isn’t linked to an I<3JVO profile yet, so the bot can’t tell who you are.' };
+  if (!teamIds.includes(profile.teamId)) return { error: 'Only players from the two teams in this match can claim a line.' };
+  const row = rows[i];
+  if (!row) return { error: 'That line isn’t on the reading any more.' };
+  if (row.playerId === profile.id) return { error: 'That line is already yours.' };
+  if (row.playerId) return { error: 'Someone has already claimed that line. Tell staff if it’s wrong.' };
+  if (rows.some((r) => r.playerId === profile.id)) return { error: 'You already have a line on this screenshot. If it’s the wrong one, tell staff.' };
+  return { rows: rows.map((r, j) => (j === i ? { ...r, playerId: profile.id, claimedBy: String(profile.discordId ?? '') } : r)) };
+}
+
 export { tallyVotes, matchState, checkResult };

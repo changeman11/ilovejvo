@@ -161,6 +161,33 @@ export function finalNote(m) {
   };
 }
 
+const statLine = (stats) => ['pts', 'spk', 'blk', 'ace', 'dig']
+  .filter((k) => stats?.[k]?.value != null)
+  .map((k) => `${stats[k].value} ${k.toUpperCase()}`).join(' · ');
+
+// "Who's who?": in-game names from the end-of-match screen that staff couldn't match to anyone.
+// unknown: [{ i, name, stats }], pings: Discord IDs of players the reading didn't place.
+export function whoIsWho(m, unknown, pings) {
+  if (!unknown.length) {
+    return { content: '✅ **Who’s who: all sorted.** Thanks! Staff will check the stats.', embeds: [], components: [], allowedMentions: noMentions };
+  }
+  const buttons = unknown.slice(0, 10).map((r) => ({
+    type: BUTTON, style: STYLE.primary, label: short(`That’s me: ${r.name}`, 80), custom_id: `mt:me:${m.id}:${r.i}`, emoji: { name: '🙋' },
+  }));
+  const rows = [];
+  for (let k = 0; k < buttons.length; k += 5) rows.push({ type: ROW, components: buttons.slice(k, k + 5) });
+  return {
+    content: pings.length ? `❓ ${pings.map((id) => `<@${id}>`).join(' ')} which of these is you?` : '',
+    embeds: [{
+      title: '❓ Who’s who?',
+      color: YELLOW,
+      description: `Staff couldn’t match these in-game (Steam) names from the end-of-match screen to anyone:\n\n${unknown.slice(0, 10).map((r) => `• **${esc(r.name)}**${statLine(r.stats) ? `: ${statLine(r.stats)}` : ''}`).join('\n')}\n\nIf one of them is you, press its button. Your stats go to you, and next time the bot knows that name.`,
+    }],
+    components: rows,
+    allowedMentions: { users: pings.slice(0, 100) },
+  };
+}
+
 export function voteSaved({ agreed, disputed, otherName }) {
   if (agreed) return '✅ Saved, and it matches the other team’s vote: **the score is live** on the site.';
   if (disputed) return `🗳️ Saved, but it doesn’t match **${esc(otherName)}**’s vote. Double-check the scores, or an admin will decide.`;

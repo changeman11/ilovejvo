@@ -86,7 +86,7 @@ export function commandList(config) {
             { type: BOOLEAN, name: 'next_only', description: 'Only for the next game (default: until set back to Random)', required: false },
           ],
         },
-        ...(config.clubRoles ? [{ type: SUB, name: 'syncroles', description: 'Update club roles from the I<3JVO site now' }] : []),
+        ...(config.clubRoles || config.statRoles ? [{ type: SUB, name: 'syncroles', description: 'Update club and stat roles from the I<3JVO site now' }] : []),
         ...testing,
       ],
     },

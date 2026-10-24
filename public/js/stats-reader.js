@@ -17,6 +17,7 @@ import { mediaUrl } from './media.js';
 import { matchNames } from './rules/endscreen.js';
 
 const CLAIM_MS = 3 * 60 * 1000;
+const RETRY_MS = 15 * 60 * 1000; // a failed read is tried again after this
 let busy = false;
 let again = false;
 const tried = new Set(); // "<event>/<fixture>/<shot>" read (or failed) in this browser already
@@ -45,7 +46,9 @@ export async function readMatchShot(b, fixture, source, { result = null, onProgr
   const { readEndScreen } = await import('./ocr.js');
   let blob = source;
   if (!(source instanceof Blob)) {
-    const res = await fetch(source.startsWith('http') ? source : mediaUrl(source)).catch(() => null);
+    // cache: 'reload' = always a fresh copy: a copy the browser kept from before Storage allowed
+    // downloads (storage-cors.json) would still be refused.
+    const res = await fetch(source.startsWith('http') ? source : mediaUrl(source), { cache: 'reload' }).catch(() => null);
     if (!res?.ok) throw new Error('Couldn’t download that screenshot here. Open it (click the picture), save it, then use “Read a screenshot from this computer…”.');
     blob = await res.blob();
   }
@@ -67,9 +70,10 @@ function waiting(bundles, now) {
       const shot = shotFor(b, f, result);
       if (!shot) continue;
       const d = result.statsDraft;
-      if (d?.shot === shot && (d.rows || d.error)) continue; // already read
+      if (d?.shot === shot && d.rows) continue; // already read
+      if (d?.shot === shot && d.error && now - (d.readAt ?? 0) < RETRY_MS) continue; // failed: try again later
       if (d?.shot === shot && d.reading && now - (d.at ?? 0) < CLAIM_MS) continue; // another admin is on it
-      if (tried.has(`${b.event.id}/${f.id}/${shot}`)) continue;
+      if (tried.has(`${b.event.id}/${f.id}/${shot}/${d?.readAt ?? ''}`)) continue;
       out.push({ b, f, result, shot });
     }
   }
@@ -91,7 +95,7 @@ export async function readWaitingStats() {
       if (!admin) return;
       const bundles = await loadAllBundles({ includeDrafts: true }).catch(() => []);
       for (const { b, f, result, shot } of waiting(bundles, Date.now())) {
-        tried.add(`${b.event.id}/${f.id}/${shot}`);
+        tried.add(`${b.event.id}/${f.id}/${shot}/${result.statsDraft?.readAt ?? ''}`);
         try {
           await save(user.uid, b, f, result, { shot, reading: true, at: Date.now(), by: user.uid });
         } catch (err) {
@@ -121,5 +125,6 @@ export async function readWaitingStats() {
 // Started once by app.js: looks again whenever the data changes.
 export function startStatsReader() {
   onDataChange(() => { readWaitingStats(); });
+  setInterval(() => { if (!document.hidden) readWaitingStats(); }, 5 * 60 * 1000); // retries failed reads
   readWaitingStats();
 }

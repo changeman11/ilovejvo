@@ -121,11 +121,14 @@ function playersCard(teamId) {
   const { b, state: s } = page;
   const team = b.teamsById[teamId];
   const defs = statDefs();
+  // Each line's player can be changed (a stat line given to the wrong person): pick who it belongs to.
+  const everyone = Object.values(b.playersById).sort((x, y) => x.displayName.localeCompare(y.displayName));
   const rows = s.players[teamId].map((row) => {
     const name = b.playersById[row.pid]?.displayName ?? row.pid;
+    const pick = `<select data-reassign aria-label="Whose line is this">${everyone.map((p) => `<option value="${esc(p.id)}"${p.id === row.pid ? ' selected' : ''}>${esc(p.displayName)}${p.teamId && p.teamId !== teamId ? ` · ${esc(b.teamsById[p.teamId]?.shortName ?? '')}` : ''}</option>`).join('')}${b.playersById[row.pid] ? '' : `<option value="${esc(row.pid)}" selected>${esc(name)}</option>`}</select>`;
     return `
       <tr data-pid="${esc(row.pid)}" data-team="${esc(teamId)}" class="${row.played ? '' : 'off'}">
-        <td class="first"><label class="played-toggle"><input type="checkbox" data-played ${row.played ? 'checked' : ''}> ${esc(name)}</label></td>
+        <td class="first"><span class="played-toggle"><input type="checkbox" data-played ${row.played ? 'checked' : ''} aria-label="Played"> ${pick}</span></td>
         ${defs.map((st) => `<td><input type="number" inputmode="numeric" min="0" data-stat="${esc(st.key)}" value="${esc(row.line[st.key])}" aria-label="${esc(name)} ${esc(st.name)}"></td>`).join('')}
       </tr>`;
   }).join('');
@@ -262,7 +265,8 @@ const friendly = (msg) => (/^Couldn’t (find|download|open)/.test(msg ?? '') ? 
 function savedReading(existing) {
   const d = existing?.statsDraft;
   if (!d?.rows?.length) return null;
-  return { url: mediaUrl(d.shot), rows: structuredClone(d.rows), message: readMessage(d.rows, true) };
+  // auto: replaced by the latest saved copy on each redraw (players claiming names on Discord fill it in).
+  return { url: mediaUrl(d.shot), rows: structuredClone(d.rows), message: readMessage(d.rows, true), auto: true };
 }
 // What the background reader is up to, for the status line when there's no reading yet.
 function savedStatus(existing) {
@@ -285,7 +289,7 @@ async function readShot(root, source) {
       // Older screenshots may still be on the Cloudflare Worker.
       // "Failed to fetch" = the browser wasn't allowed to download it (Storage's CORS setting,
       // see storage-cors.json): the picture still shows, so the admin can save it and pick the file.
-      let res = await fetch(source).catch(() => null);
+      let res = await fetch(source, { cache: 'reload' }).catch(() => null);
       if (!res?.ok && source.includes('/o/')) {
         url = oldMediaUrl(decodeURIComponent(source.split('/o/')[1].split('?')[0]));
         res = await fetch(url).catch(() => null);
@@ -536,7 +540,8 @@ export async function render({ eventId, fixtureId }) {
   page.state = kept.state ?? initialState(fixture, existing, b);
   // readingDone: the admin used or discarded a reading, so don't bring the saved one back.
   page.readingDone = kept.readingDone ?? false;
-  page.reading = kept.reading ?? (existing?.statsStatus === 'pending' && !page.readingDone ? savedReading(existing) : null);
+  const saved = existing?.statsStatus === 'pending' && !page.readingDone ? savedReading(existing) : null;
+  page.reading = kept.reading && !kept.reading.auto ? kept.reading : (saved ?? kept.reading ?? null);
   page.aliases = kept.aliases ?? [];
 
   const home = b.teamsById[fixture.homeTeamId]?.shortName ?? 'TBC';
@@ -578,6 +583,24 @@ export function mount(el) {
       return;
     }
     if (e.target.closest('.read-table')) return; // the reading table isn't part of the result until "Use"
+    // A stat line moved to another player. If they already have a line (in either team), the two swap.
+    const reassign = e.target.closest('[data-reassign]');
+    if (reassign) {
+      const tr = reassign.closest('tr');
+      const from = tr.dataset.pid;
+      const to = reassign.value;
+      readForm(root);
+      const row = s.players[tr.dataset.team].find((r) => r.pid === from);
+      const other = Object.values(s.players).flat().find((r) => r.pid === to);
+      if (row && to && to !== from) {
+        if (other) other.pid = from;
+        row.pid = to;
+        if (s.mvp === from) s.mvp = to;
+        else if (s.mvp === to) s.mvp = from;
+      }
+      redraw(root);
+      return;
+    }
     const add = e.target.closest('[data-add-player]');
     if (add && add.value) {
       readForm(root);

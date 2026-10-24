@@ -93,6 +93,10 @@ export function loadConfig(env = process.env) {
     clubRolesMinutes: number('CLUB_ROLES_MINUTES', 5, 1, 1440),
     // With club roles on: one more role for every club's captain (manager). CAPTAIN_ROLE=0 = none.
     captainRoleName: text('CAPTAIN_ROLE') === '0' ? '' : text('CAPTAIN_ROLE', 'Captain').slice(0, 100),
+    // Stat roles (stat-roles.js): "Top 3 · Points" etc. for the current top STAT_ROLES_TOP of each stat.
+    statRoles: text('STAT_ROLES') === '1',
+    statRolesMinutes: number('STAT_ROLES_MINUTES', 30, 5, 1440),
+    statRolesTop: number('STAT_ROLES_TOP', 3, 1, 10),
     // Match threads (matches.js): a thread per site match in MATCH_CHANNEL_ID (made if empty) once
     // it opens; players vote there, and are pinged again every MATCH_REMIND_MINUTES (at most
     // MATCH_REMIND_MAX times, then admins are pinged) until the score is in.

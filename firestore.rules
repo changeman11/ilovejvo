@@ -199,6 +199,11 @@ service cloud.firestore {
         allow create, update: if isAdmin() && stampedByMe() && validResult();
         // Players publish a result only when both teams have voted the same set scores (see agreedResult).
         allow create: if agreedResult(eventId, fixtureId);
+        // The Discord bot fills in who's who on the automatic stats reading (statsDraft) when a
+        // player says "that's me" in the match thread. Only that, and only before staff check the stats.
+        allow update: if isPickupBot() && stampedByMe()
+          && resource.data.get('statsStatus', '') == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statsDraft', 'updatedBy', 'updatedAt']);
         allow delete: if isAdmin();
       }
 

@@ -225,6 +225,49 @@ test('only the two teams’ players can vote; captains only can confirm; bad sco
   assert.equal(w.rest.commits.filter((c) => c.some((x) => x.path.includes('/submissions/'))).length, 0, 'nothing saved');
 });
 
+test('who’s who: unknown names from the stats reading are asked in the thread, and players claim them', async () => {
+  const w = world();
+  await w.matches.start();
+  // The score is in, and the site's automatic reading couldn't place "AD" (17 pts).
+  w.bundle.results.f1 = {
+    id: 'f1', sets: [{ home: 10, away: 5 }, { home: 10, away: 5 }], statsStatus: 'pending', playerStats: {},
+    statsDraft: {
+      shot: 'players/dA1/shot/x.webp', readAt: 1,
+      rows: [
+        { name: 'Ari', playerId: 'dA1', stats: { pts: { value: 5, sure: true } } },
+        { name: 'AD', playerId: null, stats: { pts: { value: 17, sure: true } } },
+        { name: 'So', playerId: null, stats: { pts: { value: 0, sure: true } } }, // an empty slot: not asked
+      ],
+    },
+  };
+  await w.matches.sync();
+  const ask = w.io.posts.find((p) => p.message.embeds?.[0]?.title === '❓ Who’s who?');
+  assert.ok(ask, 'asked in the thread');
+  assert.match(ask.message.embeds[0].description, /\*\*AD\*\*: 17 PTS/);
+  assert.doesNotMatch(ask.message.embeds[0].description, /So\b/);
+  assert.deepEqual(ask.message.components[0].components.map((b) => b.custom_id), ['mt:me:night__f1:1']);
+  assert.ok(!ask.message.allowedMentions.users.includes(ids.a1), 'Ari was found, so not pinged');
+  assert.ok(ask.message.allowedMentions.users.includes(ids.a2));
+
+  assert.match((await w.matches.button('mt:me:night__f1:1', user(ids.x))).ephemeral, /isn’t linked/);
+  assert.match((await w.matches.button('mt:me:night__f1:1', user(ids.a1))).ephemeral, /already have a line/);
+  const reply = await w.matches.button('mt:me:night__f1:1', user(ids.b1));
+  assert.match(reply.ephemeral, /now down as yours/);
+  const write = w.rest.commits.at(-1)[0];
+  assert.equal(write.path, 'events/night/results/f1');
+  assert.deepEqual(write.mask, ['statsDraft', 'updatedBy']);
+  assert.equal(write.data.statsDraft.rows[1].playerId, 'dB1');
+  assert.equal(write.data.statsDraft.rows[1].claimedBy, ids.b1);
+
+  // The site sees it; the question updates to "all sorted", and the thread can close.
+  w.bundle.results.f1 = { ...w.bundle.results.f1, statsDraft: write.data.statsDraft };
+  await w.matches.sync();
+  assert.match(w.io.edits.at(-1).message.content, /all sorted/);
+  w.clock.t += 16 * MIN;
+  await w.matches.sync();
+  assert.deepEqual(w.io.closed, ['th1']);
+});
+
 test('reminders: pinged again while there is no score, then admins once', async () => {
   const w = world();
   await w.matches.start();

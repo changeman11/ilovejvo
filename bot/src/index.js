@@ -15,6 +15,7 @@ import { Ranked } from './ranked.js';
 import { welcomeMember } from './welcome.js';
 import { MatchThreads } from './matches.js';
 import { SiteWatch } from './site-watch.js';
+import { StatRoles } from './stat-roles.js';
 import { checkMembersIntent } from './login.js';
 
 const log = {
@@ -83,6 +84,7 @@ let ranked = null;
 let rankedSite = null;
 let matches = null;
 let matchSite = null;
+let statRoles = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -115,6 +117,11 @@ client.once(Events.ClientReady, async () => {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
       clubRoles = new ClubRoles({ io: discord.roleIo, site, store, config, log });
       clubRoles.start().catch((err) => log.error(`[club roles] ${err.message}`));
+    }
+    if (config.statRoles) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      statRoles = new StatRoles({ io: discord.roleIo, site, store, config, log });
+      statRoles.start().catch((err) => log.error(`[stat roles] ${err.message}`));
     }
     log.info(`Logged in as ${client.user.tag}. Queue card in #${discord.text.name} (${discord.guild.name}).`);
     if (config.allowTestPlayers) log.info('Test players are ON (/pickup testfill). Turn ALLOW_TEST_PLAYERS off for real games.');
@@ -215,9 +222,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === 'pickup' && interaction.options.getSubcommand(false) === 'syncroles') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       if (!user.isAdmin) return interaction.editReply('Only admins can use /pickup.');
-      if (!clubRoles) return interaction.editReply('Club roles are off (CLUB_ROLES=1 in .env turns them on).');
-      const result = await clubRoles.fullSync().catch((err) => ({ error: err.message }));
-      return interaction.editReply(result?.error ? `Club roles failed: ${result.error}` : `Club roles updated: ${describe(result)}.`);
+      if (!clubRoles && !statRoles) return interaction.editReply('Club and stat roles are off (CLUB_ROLES=1 / STAT_ROLES=1 in .env turn them on).');
+      const result = clubRoles ? await clubRoles.fullSync().catch((err) => ({ error: err.message })) : null;
+      const stats = statRoles ? await statRoles.sync().catch((err) => ({ error: err.message })) : null;
+      const lines = [];
+      if (clubRoles) lines.push(result?.error ? `Club roles failed: ${result.error}` : `Club roles updated: ${describe(result)}.`);
+      if (statRoles) lines.push(stats?.error ? `Stat roles failed: ${stats.error}` : `Stat roles updated: ${stats.made} made, ${stats.added} given, ${stats.removed} taken away.`);
+      return interaction.editReply(lines.join('\n'));
     }
     if (interaction.isChatInputCommand()) {
       const publicReply = ['elo', 'leaderboard'].includes(interaction.commandName);
@@ -249,6 +260,7 @@ process.on('unhandledRejection', (err) => log.error('[bot] unhandled:', err));
 async function stop(signal) {
   log.info(`${signal}: shutting down`);
   clubRoles?.stop();
+  statRoles?.stop();
   matches?.stop();
   matchSite?.stop();
   siteQueue?.stop();

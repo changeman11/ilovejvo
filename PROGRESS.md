@@ -20,7 +20,15 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
-### 2026-10-24 · Claude (partner's PC) · stats read on upload · NOT deployed yet
+### 2026-10-24 · Claude (partner's PC) · edit stats, who's who, stat roles · NOT deployed / bot NOT uploaded
+- **Edit stats:** "✏️ Edit result & stats" on every match page for admins; each stat line on the admin result page has a player picker to move it to the right person (swaps if they already have one).
+- **Who's who** (bot, match threads): when the site's automatic reading has in-game names it couldn't match (short all-zero names skipped), the bot posts "❓ Who's who?" in the match thread, pings the players the reading didn't place, and "That's me" buttons fill `statsDraft.rows[i].playerId` (+ `claimedBy`). Threads stay open (or reopen) until names are sorted. Admin result page picks up claims live. **firestore.rules:** bot may update only `statsDraft` on a pending result.
+- **Stat roles** (`STAT_ROLES=1`, `bot/src/stat-roles.js`, `logic/stat-roles.js`): "🏆 Top 3 · <stat>" per stat, held by the current top 3 (ties included) across published events; re-checked every `STAT_ROLES_MINUTES` (30) and on `/pickup syncroles`. Meta `statRoles`, `statRoleHolders`.
+- **Stats reader fixes:** always downloads a fresh copy (an old cached copy from before the CORS fix was refused); failed reads retry after 15 min.
+- Cache `jvo-shell-v54`. Tests 193 pass.
+- **To do:** deploy hosting + firestore rules; upload the bot and add `STAT_ROLES=1` (Manage Roles already needed for club roles).
+
+### 2026-10-24 · Claude (partner's PC) · stats read on upload · DEPLOYED (cache v53), checked live: read 4 matches by itself
 - **Automatic stats reading** (`public/js/stats-reader.js`): any open admin browser reads a match's screenshot as soon as its score is in (`statsStatus: 'pending'`), from the site or Discord, and saves it on the result as `statsDraft` `{ shot, readAt, by, rows | error }` (`reading: true` while one browser has it, others wait 3 min). New optional field on `results`; no rules change (admin update). Saving the result replaces the doc, so the draft goes.
 - Admin result page opens with the stats table already filled ("⚡ Read automatically…"); bell says "⚡ Stats read, ready to check".
 - Fix: the result page kept losing a reading/entry when a live update redrew it; it now keeps state for the same match.

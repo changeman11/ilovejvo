@@ -35,7 +35,7 @@ export async function setupDiscord(client, config, log = console) {
   check(category ?? guild, ['ViewChannel', 'ManageChannels', 'Connect', 'MoveMembers'], category ? `the ${category.name} category` : 'the server');
   // Locked channels can only grant permissions the bot has server-wide.
   check(guild, ['ViewChannel', 'Connect'], 'its server role');
-  if (config.clubRoles) check(guild, ['ManageRoles'], 'its server role (needed for club roles)');
+  if (config.clubRoles || config.statRoles) check(guild, ['ManageRoles'], 'its server role (needed for club and stat roles)');
 
   // Locked = everyone can see it, but only these players, admins and the bot can join.
   // roles: who else can get in (admins for pickup games, staff for 1v1s).
@@ -263,6 +263,11 @@ export async function setupDiscord(client, config, log = console) {
         if (!thread) return;
         await thread.setLocked(true, 'Match finished');
         await thread.setArchived(true, 'Match finished');
+      },
+      async reopen(threadId) {
+        const thread = await channelFor(threadId);
+        await thread.setArchived(false, 'Asking who’s who for the stats');
+        await thread.setLocked(false, 'Asking who’s who for the stats');
       },
       async download(url) {
         const res = await fetch(url, { signal: AbortSignal.timeout(15000) });

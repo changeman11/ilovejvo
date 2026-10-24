@@ -25,6 +25,7 @@
 import {
   threadDocId, formatOf, isApprovedTeam, readScore, profileOf, squadOf, isCaptain, openMatches,
   reminderDue, voteDoc, agreedResult, toConfirm, tallyVotes, matchState,
+  unknownNames, unplacedPlayers, claimRow,
 } from './logic/matches.js';
 import * as views from './match-views.js';
 
@@ -38,6 +39,7 @@ export class MatchThreads {
     Object.assign(this, { io, site, rest, config, log, clock });
     this.threads = new Map(); // docId -> matchThreads doc
     this.cards = new Map(); // docId -> JSON of the card as last posted (not saved)
+    this.asks = new Map(); // docId -> JSON of the "who's who" message as last posted
     this.chain = Promise.resolve();
   }
 
@@ -120,10 +122,14 @@ export class MatchThreads {
         await this.open(id).catch((err) => this.log.error(`[matches] couldn't start the thread for ${id}:`, err.message));
       }
     }
-    // 2. Keep the others up to date.
+    // 2. Keep the others up to date. (A closed thread only reopens to ask who's who.)
     for (const [id, t] of [...this.threads]) {
-      if (t.status === 'closed') continue;
       try {
+        if (t.status === 'closed') {
+          const m = this.view(id);
+          if (m?.result && unknownNames(m.result).length && t.askShot !== m.result.statsDraft?.shot) await this.askNames(id, m, now);
+          continue;
+        }
         await this.update(id, t, now);
       } catch (err) {
         this.log.warn(`[matches] ${id}:`, err.message);
@@ -161,8 +167,11 @@ export class MatchThreads {
     }
     await this.drawCard(id, t, m);
     if (m.result) {
-      if (t.status === 'open') await this.finish(id, t, m, now);
-      else if (now - (t.doneAt ?? 0) >= this.config.matchCloseMinutes * 60000) await this.close(id, t, now);
+      if (t.status === 'open') t = await this.finish(id, t, m, now);
+      await this.askNames(id, m, now);
+      t = this.threads.get(id);
+      // Stays open while staff are still waiting to hear who's who.
+      if (now - (t.doneAt ?? 0) >= this.config.matchCloseMinutes * 60000 && !unknownNames(m.result).length) await this.close(id, t, now);
       return;
     }
     if (t.status === 'done') t = await this.save(id, { status: 'open', doneAt: null }); // the score was removed
@@ -190,7 +199,63 @@ export class MatchThreads {
   // m: the match with its score, or null when it was taken off the schedule.
   async finish(id, t, m, now) {
     await this.io.post(views.finalNote(m ?? { result: null }), t.threadId).catch(() => {});
-    await this.save(id, { status: 'done', doneAt: now });
+    return this.save(id, { status: 'done', doneAt: now });
+  }
+
+  // ---------- Who's who: in-game names the site's stats reading couldn't match ----------
+  // Asks once per screenshot (pinging the players the reading didn't place), then keeps that
+  // message up to date as names are claimed.
+  async askNames(id, m, now) {
+    let t = this.threads.get(id);
+    const unknown = unknownNames(m.result);
+    const shot = m.result.statsDraft?.shot ?? '';
+    if (!t.askMsgId || t.askShot !== shot) {
+      if (!unknown.length) return;
+      if (t.status === 'closed') {
+        await this.io.reopen(t.threadId);
+        t = await this.save(id, { status: 'done', doneAt: now, closedAt: null });
+      }
+      const pings = unplacedPlayers(m.result, m.homeSquad, m.awaySquad).map((p) => String(p.discordId));
+      const askMsgId = await this.io.post(views.whoIsWho(m, unknown, pings), t.threadId);
+      this.asks.set(id, JSON.stringify(views.whoIsWho(m, unknown, [])));
+      await this.save(id, { askMsgId, askShot: shot });
+      return;
+    }
+    const message = views.whoIsWho(m, unknown, []);
+    const json = JSON.stringify(message);
+    if (this.asks.get(id) === json) return;
+    await this.io.edit(t.askMsgId, message, t.threadId).catch((err) => this.log.warn('[matches] could not update who’s who:', err.message));
+    this.asks.set(id, json);
+  }
+
+  // "That's me" on row i of the reading: fills that stat line in with this player, for staff to check.
+  async claimName(id, i, user) {
+    const m = this.view(id);
+    if (!m?.result) return { ephemeral: 'This match’s stats aren’t waiting on anyone.' };
+    const profile = profileOf(user.id, [...this.site.players.values()]);
+    const claim = claimRow({ result: m.result, i, profile, teamIds: [m.f.homeTeamId, m.f.awayTeamId] });
+    if (claim.error) return { ephemeral: claim.error };
+    await this.rest.token();
+    const botUid = this.rest.uid;
+    const now = this.clock.now();
+    const path = `events/${m.b.event.id}/results/${m.f.id}`;
+    const statsDraft = { ...m.result.statsDraft, rows: claim.rows };
+    try {
+      await this.rest.commit([
+        { path, data: { statsDraft, updatedBy: botUid }, mask: ['statsDraft', 'updatedBy'], serverTime: ['updatedAt'] },
+        { path: `auditLog/${now.toString(36)}${Math.random().toString(36).slice(2, 12)}`, data: { by: botUid, action: 'update', path, before: { statsDraft: m.result.statsDraft }, after: { statsDraft } }, serverTime: ['at'] },
+      ]);
+    } catch (err) {
+      this.log.warn('[matches] name claim refused:', err.message);
+      return { ephemeral: 'That couldn’t be saved: staff may have just checked the stats. Ask them to fix it on the site.' };
+    }
+    const row = claim.rows[i];
+    const team = this.site.teams.get(profile.teamId);
+    const t = this.threads.get(id);
+    if (t?.threadId) {
+      await this.io.post({ content: `🙋 **${views.safeName(row.name)}** is <@${user.id}> (${views.safeName(profile.displayName)}, ${views.safeName(team?.name ?? '')}). Staff will check it.`, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
+    }
+    return { ephemeral: `✅ Thanks! **${views.safeName(row.name)}**’s stats are now down as yours, for staff to check.` };
   }
 
   async close(id, t, now) {
@@ -223,6 +288,10 @@ export class MatchThreads {
   // 3 seconds); "Confirm" saves.
   button(customId, user) {
     const [, action, ...rest] = String(customId).split(':');
+    if (action === 'me') {
+      const i = Number(rest.pop());
+      return this.run(() => this.claimName(rest.join(':'), i, user)).catch((err) => ({ ephemeral: `Something went wrong: ${err.message}` }));
+    }
     const id = rest.join(':');
     if (action === 'vote') {
       const c = this.check(id, user);
