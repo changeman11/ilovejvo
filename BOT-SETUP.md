@@ -329,6 +329,23 @@ The bot gives every I<3JVO club a Discord role:
 
 **Cost:** a check only reads what changed. A full check of all clubs and players runs every 6 hours. Together that's a few hundred Firestore reads a day, well inside the free allowance.
 
+## Part 8: Welcome new members (you, ~1 min)
+
+When someone joins the Discord, the bot posts in **#welcome**:
+
+- It @mentions them and tells them to **connect to the I<3JVO site** with Discord (`/me`).
+- Its buttons lead to **Make your profile**, **Pickup games** and **FAQ & rules**.
+
+It's set by `WELCOME_CHANNEL_ID` in `.env`; leave that empty to turn welcomes off.
+
+Discord only tells bots about new members if you allow it:
+
+1. https://discord.com/developers/applications → **I<3JVO** → **Bot**.
+2. Under **Privileged Gateway Intents**, turn on **Server Members Intent** → **Save Changes**.
+3. Restart the bot (or ask Claude to). The log then says `[welcome] new members are welcomed in …`.
+
+Until that's on, the bot runs normally and just doesn't welcome anyone. It checks at start-up, so it never asks Discord for something that's switched off.
+
 ## Commands
 
 | Who | What |

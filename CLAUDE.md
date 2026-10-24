@@ -105,6 +105,15 @@
     - **Admin mode:** admins can fix the mode, for the next game or until reset, with `/pickup setmode` or the admin box on `/pickup`. It's stored in `pickupControl/mode` `{ size, once }` (rules: admin + stamp, or the bot) and also in store meta `fixedMode`. The bot watches it live.
     - **Fixed mode:** the game starts as soon as there are exactly enough for it.
   - **Elo:** start 1000, K = 32, team rating = average, the same change for the whole team.
+  - **Welcomes (added 2026-10-24):** new members get a post in `WELCOME_CHANNEL_ID` (#welcome) with an @mention and link buttons to the site's `/me`, `/pickup` and `/help` (`bot/src/welcome.js`, tested).
+    - **Intent:** it needs the privileged Server Members intent. `login.js` reads the app's flags before logging in and only asks for the intent when it's switched on; otherwise it logs a warning.
+  - **1v1 ranked (added 2026-10-24, `RANKED=1`):** `bot/src/ranked.js` with `ranked-views.js` and `logic/ranked.js`, tested.
+    - **Queue:** `#1v1-queue` has a Queue / Leave card, two at a time, resetting for the next pair.
+    - **Ready up:** a locked voice channel `1v1 - A VS B (Game X)` plus a ready-up chat; both players must be in the voice channel and press Ready within `RANKED_READY_SECONDS` (300).
+    - **Result:** a thread where both players report through a form (winner + required scoreboard file upload). If they disagree, Staff (`STAFF_ROLE_IDS`) decide in the staff-only `#1v1-results`, which gets every result with its screenshots.
+    - **RP:** 1000 to start, 5 placements at ±50, then ±20, stored in `rankedRatings`, `rankedGames` and `pickupMeta/ranked`.
+    - **Clean-up:** the temporary channels are deleted afterwards.
+    - **On the site:** `/pickup` has a 1v1 section (via `rankedSignups` and `pickupMeta/live1v1`), the RP leaderboard, and RP on profiles.
   - **On the site (added 2026-10-24, needs `STORE=firebase`):**
     - **Pages:** `/pickup` (`pages/pickup.js`) has the live queue with Sign up / Withdraw for Discord sign-ins, ready checks, drafts and games on, recent games and the Elo leaderboard. It's in the menu cards, top nav and phone Home.
     - **Elo elsewhere:** shown on player profiles (side "Pickup" block) and the Me page (`pickupBlock()`, `loadPickupRank()` in data.js).

@@ -87,6 +87,8 @@ export function loadConfig(env = process.env) {
     clubRolesHoist: text('CLUB_ROLES_GROUPED', '1') !== '0',
     clubRolesMinutes: number('CLUB_ROLES_MINUTES', 5, 1, 1440),
     // 1v1 ranked queue (ranked.js). Channels are made if these are empty.
+    // Welcome new members here (needs the Server Members intent). Empty = no welcomes.
+    welcomeChannelId: discordId('WELCOME_CHANNEL_ID', '', false),
     ranked: text('RANKED') === '1',
     rankedChannelId: discordId('RANKED_CHANNEL_ID', '', false),
     rankedResultsChannelId: discordId('RANKED_RESULTS_CHANNEL_ID', '', false),

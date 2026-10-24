@@ -12,6 +12,8 @@ import { ClubRoles, describe } from './club-roles.js';
 import { SiteReader } from './store/firestore-rest.js';
 import { SiteQueue, RankedSiteQueue } from './site-queue.js';
 import { Ranked } from './ranked.js';
+import { welcomeMember } from './welcome.js';
+import { checkMembersIntent } from './login.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -54,7 +56,15 @@ if (config.ranked) {
 }
 
 // Only non-privileged intents: no switches to turn on in the Developer Portal.
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
+// Welcomes need the privileged Server Members intent: only asked for when it's switched on in the
+// Developer Portal (otherwise Discord refuses the whole login).
+let welcomeOn = false;
+if (config.welcomeChannelId) {
+  welcomeOn = await checkMembersIntent(config.token);
+  if (!welcomeOn) log.warn('⚠️  WELCOME_CHANNEL_ID is set, but "Server Members Intent" is off in the Developer Portal (Bot page), so new members are not welcomed. See BOT-SETUP.md, Part 8.');
+}
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, ...(welcomeOn ? [GatewayIntentBits.GuildMembers] : [])] });
+let discordIo = null;
 let pickup = null;
 let clubRoles = null;
 let siteQueue = null;
@@ -64,6 +74,8 @@ let rankedSite = null;
 client.once(Events.ClientReady, async () => {
   try {
     const discord = await setupDiscord(client, config, log);
+    discordIo = discord.io;
+    if (welcomeOn) log.info(`[welcome] new members are welcomed in <#${config.welcomeChannelId}>`);
     await discord.guild.commands.set(commandList(config));
     // The website queue (sign up / withdraw on the site, live pickup page) needs STORE=firebase.
     if (config.siteQueue) siteQueue = new SiteQueue({ rest: store.rest, firebase: config.firebase, log });
@@ -102,6 +114,11 @@ client.on(Events.VoiceStateUpdate, (before, after) => {
   if (before.channelId) pickup.left(before.channelId, after.id);
   if (before.channelId) ranked?.voiceLeft(before.channelId, after.id);
   if (after.channelId) pickup.joined(after.channelId, after.id);
+});
+
+client.on(Events.GuildMemberAdd, (member) => {
+  if (!discordIo || member.guild.id !== config.guildId) return;
+  welcomeMember({ id: member.id, name: member.displayName, bot: member.user.bot }, { io: discordIo, config, log });
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
