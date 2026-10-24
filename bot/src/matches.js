@@ -25,7 +25,7 @@
 import {
   threadDocId, formatOf, isApprovedTeam, readScore, profileOf, squadOf, isCaptain, openMatches,
   reminderDue, voteDoc, agreedResult, toConfirm, tallyVotes, matchState,
-  unknownNames, unplacedPlayers, answerRow, NOT_A_PLAYER,
+  unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER,
 } from './logic/matches.js';
 import * as views from './match-views.js';
 
@@ -205,18 +205,21 @@ export class MatchThreads {
 
   // ---------- Who's who: in-game names the site's stats reading couldn't match ----------
   // Asks once per screenshot (pinging the players the reading didn't place), then keeps that
-  // message up to date as names are claimed.
+  // message up to date as names are answered. Answered names keep their drop-down (showing the
+  // answer) until staff check the stats, so a mistake can be changed.
   async askNames(id, m, now) {
     let t = this.threads.get(id);
     const unknown = unknownNames(m.result);
+    const rows = askRows(m.result);
     const shot = m.result.statsDraft?.shot ?? '';
-    // The screenshot goes with the question while there are names to sort out.
-    const files = unknown.length ? await this.shotFiles(shot) : [];
+    // The screenshot goes with the question while there are names on it.
+    const files = rows.length ? await this.shotFiles(shot) : [];
     const image = files[0]?.name ?? null;
-    // The menus offer both squads' players the reading hasn't placed yet, captains marked.
-    const placed = new Set((m.result.statsDraft?.rows ?? []).map((r) => r.playerId).filter(Boolean));
+    // The menus offer everyone on both squads (captains marked); anyone already down for a line
+    // says which, and picking them moves them.
+    const has = new Map((m.result.statsDraft?.rows ?? []).filter((r) => r.playerId).map((r) => [r.playerId, String(r.name ?? '')]));
     const choices = [...m.homeSquad.map((p) => ({ ...p, teamName: m.home?.name })), ...m.awaySquad.map((p) => ({ ...p, teamName: m.away?.name }))]
-      .filter((p) => !placed.has(p.id));
+      .map((p) => ({ ...p, has: has.get(p.id) ?? null }));
     if (!t.askMsgId || t.askShot !== shot) {
       if (!unknown.length) return;
       if (t.status === 'closed') {
@@ -224,14 +227,14 @@ export class MatchThreads {
         t = await this.save(id, { status: 'done', doneAt: now, closedAt: null });
       }
       const pings = unplacedPlayers(m.result, m.homeSquad, m.awaySquad).map((p) => String(p.discordId));
-      const askMsgId = await this.io.post(views.whoIsWho(m, unknown, pings, { image, choices }), t.threadId, files);
-      this.asks.set(id, JSON.stringify(views.whoIsWho(m, unknown, [], { image, choices })));
+      const askMsgId = await this.io.post(views.whoIsWho(m, rows, pings, { image, choices }), t.threadId, files);
+      this.asks.set(id, JSON.stringify(views.whoIsWho(m, rows, [], { image, choices })));
       await this.save(id, { askMsgId, askShot: shot });
       return;
     }
-    // Already asked: keep it up to date (claimed names drop off). After a restart this edits every
-    // question once, so older ones get the screenshot too.
-    const message = views.whoIsWho(m, unknown, [], { image, choices });
+    // Already asked: keep it up to date. After a restart this edits every question once, so older
+    // ones get the latest look too.
+    const message = views.whoIsWho(m, rows, [], { image, choices });
     const json = JSON.stringify(message);
     if (this.asks.get(id) === json) return;
     try {
@@ -301,8 +304,9 @@ export class MatchThreads {
       const team = this.site.teams.get(p.teamId);
       const who = /^\d{15,22}$/.test(String(p.discordId ?? '')) ? `<@${p.discordId}>` : `**${views.safeName(p.displayName)}**`;
       const self = pick === profile?.id;
-      said = `🙋 **${name}** is ${who} (${views.safeName(p.displayName)}, ${views.safeName(team?.name ?? '')})${self ? '' : `, says <@${user.id}>`}. Staff will check it.`;
-      reply = self ? `✅ Thanks! **${name}**’s stats are now down as yours, for staff to check.` : `✅ Thanks! **${name}**’s stats are now down as **${views.safeName(p.displayName)}**’s, for staff to check.`;
+      const moved = claim.movedFrom ? ` (moved from **${views.safeName(claim.movedFrom)}**, which is back to “who is?”)` : '';
+      said = `🙋 **${name}** is ${who} (${views.safeName(p.displayName)}, ${views.safeName(team?.name ?? '')})${self ? '' : `, says <@${user.id}>`}${moved}. Staff will check it.`;
+      reply = (self ? `✅ Thanks! **${name}**’s stats are now down as yours, for staff to check.` : `✅ Thanks! **${name}**’s stats are now down as **${views.safeName(p.displayName)}**’s, for staff to check.`) + moved;
     }
     if (t?.threadId) await this.io.post({ content: said, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
     return { ephemeral: reply };

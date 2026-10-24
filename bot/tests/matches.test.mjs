@@ -254,7 +254,9 @@ test('who’s who: unknown names are asked in the thread with a drop-down each, 
   assert.equal(menu.type, 3);
   assert.equal(menu.custom_id, 'mt:who:night__f1:1');
   assert.match(menu.placeholder, /Who is AD\? \(17 PTS\)/);
-  assert.deepEqual(menu.options.map((o) => o.value), ['dA2', 'dB1', 'dB2', '__none__']);
+  // Everyone on both squads stays an option; Ari is marked as already down for a line.
+  assert.deepEqual(menu.options.map((o) => o.value), ['dA1', 'dA2', 'dB1', 'dB2', '__none__']);
+  assert.match(menu.options[0].description, /has: Ari/);
   assert.equal(menu.options.find((o) => o.value === 'dB1').emoji.name, '👑', 'captains marked');
   assert.ok(!ask.message.allowedMentions.users.includes(ids.a1), 'Ari was found, so not pinged');
   assert.ok(ask.message.allowedMentions.users.includes(ids.a2));
@@ -276,9 +278,14 @@ test('who’s who: unknown names are asked in the thread with a drop-down each, 
   await again.sync();
   assert.equal(askEdits().length, 1, 'and not again when nothing changed');
 
-  // Not on either team: can't answer. Staff can. A player can't be given two lines.
+  // Not on either team: can't answer. Staff can.
   assert.match((await w.matches.select('mt:who:night__f1:1', 'dB2', user(ids.x))).ephemeral, /isn’t linked/);
-  assert.match((await w.matches.select('mt:who:night__f1:1', 'dA1', user(ids.a2))).ephemeral, /already has a line/);
+  // Picking someone who already has a line moves them (the other line goes back to "who is?").
+  const base = w.bundle.results.f1;
+  assert.match((await w.matches.select('mt:who:night__f1:1', 'dA1', user(ids.a2))).ephemeral, /moved from \*\*Ari\*\*/);
+  assert.equal(w.bundle.results.f1.statsDraft.rows[0].playerId, null);
+  assert.equal(w.bundle.results.f1.statsDraft.rows[1].playerId, 'dA1');
+  w.bundle.results.f1 = base;
   assert.match((await w.matches.select('mt:who:night__f1:1', 'dX', user(ids.a2))).ephemeral, /one of the two teams/);
   // Ben (Tide) answers for his team-mate Bo.
   const reply = await w.matches.select('mt:who:night__f1:1', 'dB2', user(ids.b1));
@@ -295,17 +302,25 @@ test('who’s who: unknown names are asked in the thread with a drop-down each, 
   const unanswered = () => { w.bundle.results.f1 = { ...old, statsDraft: { ...old.statsDraft, rows: old.statsDraft.rows.map((r, j) => (j === 1 ? { ...r, playerId: null } : r)) } }; };
   unanswered();
   assert.match((await w.matches.button('mt:me:night__f1:1', user(ids.b1))).ephemeral, /now down as yours/);
-  assert.match((await w.matches.select('mt:who:night__f1:1', 'dB1', user(ids.b2))).ephemeral, /already answered/, 'one answer per line');
+  // A wrong answer can be changed: Bo says it's him, not Ben.
+  assert.match((await w.matches.select('mt:who:night__f1:1', 'dB2', user(ids.b2))).ephemeral, /now down as yours/);
+  assert.equal(w.bundle.results.f1.statsDraft.rows[1].playerId, 'dB2');
+  assert.match((await w.matches.select('mt:who:night__f1:1', 'dB2', user(ids.b2))).ephemeral, /already down as Bo/);
+  // A line the reading matched by itself is left to staff.
+  assert.match((await w.matches.select('mt:who:night__f1:0', 'dA2', user(ids.a2))).ephemeral, /matched that line by itself/);
   // Staff (not on either team) mark a bot.
   unanswered();
   const staffPick = await w.matches.select('mt:who:night__f1:1', '__none__', { id: ids.x, isStaff: true });
   assert.match(staffPick.ephemeral, /not a real player/);
   w.bundle.results.f1 = old;
 
-  // The site sees it; the question updates to "all sorted", and the thread can close.
+  // The site sees it; every name has an answer, but its drop-down stays (showing the answer) in case it's wrong.
   w.bundle.results.f1 = { ...w.bundle.results.f1, statsDraft: write.data.statsDraft };
   await w.matches.sync();
-  assert.match(w.io.edits.at(-1).message.content, /all sorted/);
+  const done = askEdits().at(-1).message;
+  assert.equal(done.embeds[0].title, '✅ Who’s who');
+  assert.match(done.embeds[0].description, /AD\*\*: 17 PTS → ✅ Bo/);
+  assert.equal(done.components[0].components[0].options.find((o) => o.default).value, 'dB2');
   w.clock.t += 16 * MIN;
   await w.matches.sync();
   assert.deepEqual(w.io.closed, ['th1']);

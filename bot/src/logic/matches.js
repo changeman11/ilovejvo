@@ -148,9 +148,27 @@ export function unknownNames(result) {
 // Value of the "not a real player / a bot" choice in the who's who menus.
 export const NOT_A_PLAYER = '__none__';
 
-// Someone answers "who is row i?" (for themselves or a team-mate, or staff for anyone).
+// Answered in Discord (who's who): this row's answer came from a player or staff, not the reading.
+const answered = (r) => Boolean(r.answeredBy || r.claimedBy);
+
+// The rows the who's who message shows a drop-down for: names still unknown first, then the ones
+// answered in Discord (so a wrong answer can be changed). Rows the reading matched by itself are
+// left to staff on the site. -> [{ i, name, stats, playerId, notPlayer }]
+export function askRows(result) {
+  if (result?.statsStatus !== 'pending' || !Array.isArray(result.statsDraft?.rows)) return [];
+  const unknown = unknownNames(result);
+  const done = result.statsDraft.rows
+    .map((r, i) => ({ i, name: String(r.name ?? '').trim(), stats: r.stats ?? {}, playerId: r.playerId ?? null, notPlayer: Boolean(r.notPlayer), answered: answered(r) }))
+    .filter((r) => r.answered && (r.playerId || r.notPlayer))
+    .map(({ answered: _, ...r }) => r);
+  return [...unknown.map((r) => ({ ...r, playerId: null, notPlayer: false })), ...done];
+}
+
+// Someone answers "who is row i?" (for themselves or a team-mate, or staff for anyone). An answer
+// given in Discord can be changed the same way. Picking a player who already has another line
+// moves them here, and that other line goes back to "who is?".
 //   playerId: the player picked, or NOT_A_PLAYER. answerer: the asker's site profile (or null).
-//   -> { rows } (the new reading rows) or { error }
+//   -> { rows (the new reading rows), movedFrom (the other line's name, or null) } or { error }
 export function answerRow({ result, i, playerId, answerer, isStaff = false, teamIds, players }) {
   const rows = result?.statsDraft?.rows;
   if (result?.statsStatus !== 'pending' || !Array.isArray(rows)) return { error: 'Staff have already checked this match’s stats.' };
@@ -159,15 +177,21 @@ export function answerRow({ result, i, playerId, answerer, isStaff = false, team
   }
   const row = rows[i];
   if (!row) return { error: 'That line isn’t on the reading any more.' };
-  if (row.playerId || row.notPlayer) return { error: 'Someone has already answered that one. Tell staff if it’s wrong.' };
+  if ((row.playerId || row.notPlayer) && !answered(row)) return { error: 'The reading matched that line by itself. If it’s wrong, tell staff: they can fix it on the site.' };
   const by = String(answerer?.discordId ?? '');
+  const clear = (r) => { const { playerId: _p, notPlayer: _n, answeredBy: _a, claimedBy: _c, ...rest } = r; return { ...rest, playerId: null }; };
   if (playerId === NOT_A_PLAYER) {
-    return { rows: rows.map((r, j) => (j === i ? { ...r, notPlayer: true, answeredBy: by } : r)) };
+    if (row.notPlayer) return { error: 'That one is already marked as not a real player.' };
+    return { rows: rows.map((r, j) => (j === i ? { ...clear(r), notPlayer: true, answeredBy: by } : r)), movedFrom: null };
   }
   const player = players.find((p) => p.id === playerId);
   if (!player || !teamIds.includes(player.teamId)) return { error: 'Pick a player from one of the two teams.' };
-  if (rows.some((r) => r.playerId === playerId)) return { error: `${player.displayName ?? 'That player'} already has a line on this screenshot. Tell staff if it’s the wrong one.` };
-  return { rows: rows.map((r, j) => (j === i ? { ...r, playerId, answeredBy: by } : r)) };
+  if (row.playerId === playerId) return { error: `That line is already down as ${player.displayName ?? 'them'}.` };
+  const other = rows.findIndex((r, j) => j !== i && r.playerId === playerId);
+  return {
+    rows: rows.map((r, j) => (j === i ? { ...clear(r), playerId, answeredBy: by } : j === other ? clear(r) : r)),
+    movedFrom: other >= 0 ? String(rows[other].name ?? '') : null,
+  };
 }
 
 // Who to ask: players on either team that the reading didn't find (with a Discord ID).

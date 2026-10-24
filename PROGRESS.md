@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (partner's PC) · who's who: answers can be changed · bot UPLOADED
+- Every drop-down lists everyone on both squads (anyone already down for a line says "has: <name>"); picking them moves them and the other line goes back to "who is?". Names answered in Discord keep their drop-down showing the answer (default), so a mistake can be fixed until staff check the stats. Lines the reading matched by itself are left to staff (`answerRow`, `askRows`).
+- When every name has an answer the message turns green ("✅ Who's who") but keeps the drop-downs.
+
 ### 2026-10-24 · Claude (partner's PC) · bot UPLOADED: who's who drop-downs
 - Uploaded from the partner's PC at 08:18 UTC (key `~/.ssh/jvo-bot-partner`, `npm run upload -- -Server ubuntu@54.252.252.126 -Key <key>`), no `.env` changes. Bot tests 70 pass.
 - Log: welcomes, site queue, 1v1, `[matches] match threads in <#…> (26 open)`, club roles all started; no warnings or errors.

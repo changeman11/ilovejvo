@@ -167,26 +167,21 @@ const statLine = (stats) => ['pts', 'spk', 'blk', 'ace', 'dig']
   .map((k) => `${stats[k].value} ${k.toUpperCase()}`).join(' · ');
 
 // "Who's who?": in-game names from the end-of-match screen that staff couldn't match to anyone.
-// unknown: [{ i, name, stats }], pings: Discord IDs of players the reading didn't place.
-// choices: the players a name could be (both squads, not placed yet): [{ id, displayName, teamName, captain }]
+// rows: askRows(result): names still unknown first, then the ones answered in Discord
+//   [{ i, name, stats, playerId, notPlayer }]. pings: Discord IDs of players the reading didn't place.
+// choices: everyone a name could be (both squads): [{ id, displayName, teamName, captain, has }]
+//   has = the in-game name of the line they're down for already (picking them moves them).
 // image: the attached screenshot's file name (shown big, so players can see the real names:
 // the reading can get them wrong).
 // One drop-down per name (Discord allows 5 per message; more appear as these are answered).
 export const WHO_MENUS = 5;
-export function whoIsWho(m, unknown, pings, { image = null, choices = [] } = {}) {
-  if (!unknown.length) {
+export function whoIsWho(m, rows, pings, { image = null, choices = [] } = {}) {
+  if (!rows.length) {
     return { content: '✅ **Who’s who: all sorted.** Thanks! Staff will check the stats.', embeds: [], components: [], allowedMentions: noMentions };
   }
-  const shown = unknown.slice(0, WHO_MENUS);
-  const options = [
-    ...choices.slice(0, 24).map((p) => ({
-      label: short(p.displayName ?? p.id, 100),
-      value: p.id,
-      description: short(p.teamName ?? '', 100) || undefined,
-      ...(p.captain ? { emoji: { name: '👑' } } : {}),
-    })),
-    { label: 'Not a real player / a bot', value: NOT_A_PLAYER, emoji: { name: '🤖' } },
-  ];
+  const open = rows.filter((r) => !r.playerId && !r.notPlayer);
+  const shown = rows.slice(0, WHO_MENUS);
+  const nameOf = (id) => choices.find((p) => p.id === id)?.displayName ?? id;
   const menus = shown.map((r) => ({
     type: ROW,
     components: [{
@@ -195,16 +190,32 @@ export function whoIsWho(m, unknown, pings, { image = null, choices = [] } = {})
       placeholder: short(`Who is ${r.name}?${statLine(r.stats) ? ` (${statLine(r.stats)})` : ''}`, 150),
       min_values: 1,
       max_values: 1,
-      options,
+      options: [
+        ...choices.slice(0, 24).map((p) => ({
+          label: short(`${r.playerId === p.id ? `${r.name} = ` : ''}${p.displayName ?? p.id}`, 100),
+          value: p.id,
+          description: short([p.teamName, p.has && r.playerId !== p.id ? `has: ${p.has}` : ''].filter(Boolean).join(' · '), 100) || undefined,
+          ...(p.captain ? { emoji: { name: '👑' } } : {}),
+          ...(r.playerId === p.id ? { default: true } : {}),
+        })),
+        { label: short(`${r.notPlayer ? `${r.name} = ` : ''}Not a real player / a bot`, 100), value: NOT_A_PLAYER, emoji: { name: '🤖' }, ...(r.notPlayer ? { default: true } : {}) },
+      ],
     }],
   }));
-  const more = unknown.length > shown.length ? `\n*${unknown.length - shown.length} more appear once these are answered.*` : '';
+  const line = (r) => {
+    const answer = r.notPlayer ? ' → 🤖 not a player' : r.playerId ? ` → ✅ ${esc(nameOf(r.playerId))}` : '';
+    return `• **${esc(r.name)}**${statLine(r.stats) ? `: ${statLine(r.stats)}` : ''}${answer}`;
+  };
+  const more = rows.length > shown.length ? `\n*${rows.length - shown.length} more appear once these are answered.*` : '';
+  const head = open.length
+    ? 'Staff couldn’t match these in-game (Steam) names from the end-of-match screen to anyone:'
+    : '✅ **Every name has an answer.** Thanks! Staff will check them. Wrong one? Change it below.';
   return {
     content: pings.length ? `❓ ${pings.map((id) => `<@${id}>`).join(' ')} who’s who on the end screen?` : '',
     embeds: [{
-      title: '❓ Who’s who?',
-      color: YELLOW,
-      description: `Staff couldn’t match these in-game (Steam) names from the end-of-match screen to anyone:\n\n${unknown.slice(0, 10).map((r) => `• **${esc(r.name)}**${statLine(r.stats) ? `: ${statLine(r.stats)}` : ''}`).join('\n')}${more}\n\nThe names are read automatically and can come out wrong, so check the screenshot${image ? ' below' : ''} and go by the stats. **Pick who each one is** in the menus: for yourself or a team-mate. Staff check it before the stats count.`,
+      title: open.length ? '❓ Who’s who?' : '✅ Who’s who',
+      color: open.length ? YELLOW : TEAL,
+      description: `${head}\n\n${rows.slice(0, 10).map(line).join('\n')}${more}\n\nThe names are read automatically and can come out wrong, so check the screenshot${image ? ' below' : ''} and go by the stats. **Pick who each one is** in the menus, for yourself or a team-mate. Picked the wrong person? Pick again: it moves. Staff check it before the stats count.`,
       ...(image ? { image: { url: `attachment://${image}` } } : {}),
     }],
     components: menus,
