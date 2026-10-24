@@ -34,7 +34,7 @@ export async function render() {
     <div class="row">
       <span class="row-main"><b>${esc(b.teamsById[f.homeTeamId]?.name ?? 'TBC')} v ${esc(b.teamsById[f.awayTeamId]?.name ?? 'TBC')}</b>
         <span class="muted small">${esc(b.event.title)} · ${shots ? `${shots} screenshot${shots === 1 ? '' : 's'} to read` : 'no screenshot yet'}</span></span>
-      <span class="row-side"><a class="btn btn-sm btn-primary" href="${urls.adminResult(b.event.id, f.id)}" data-link>Check stats</a></span>
+      <span class="row-side"><a class="btn btn-sm btn-primary" href="/admin/stats" data-link>Stats list</a> <a class="btn btn-sm" href="${urls.adminResult(b.event.id, f.id)}" data-link>Edit</a></span>
     </div>`).join('');
   const disputeRows = disputes.map(({ b, f, tally }) => {
     const name = (id) => esc(b.teamsById[id]?.name ?? 'TBC');

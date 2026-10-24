@@ -317,6 +317,29 @@ a.fx:hover { background: var(--surface-2); }
 .when.tbd { display: inline-block; padding: 3px 10px; border: 1.5px dashed var(--ink); border-radius: 999px; font-size: 12px; }
 .fx .meta { grid-column: 1 / -1; display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-top: -2px; }
 .fx .meta b { color: var(--ink); font-weight: 700; }
+/* Admin stats list (pages/admin/stats.js) */
+.sl-bar { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 14px; padding: 10px 14px; background: var(--surface); border: var(--outline); border-radius: var(--radius-sm); box-shadow: var(--pop); }
+.sl-card.all-ok { border-color: #16b3a3; }
+.sl-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.sl-tick { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.sl-tick input { width: 22px; height: 22px; margin-top: 2px; flex: none; }
+.sl-tick span { display: grid; gap: 2px; }
+.sl-side { display: flex; align-items: center; gap: 8px; }
+.sl-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 13px; }
+.sl-chip.ok { background: #d9f5ef; color: #0b6b5f; }
+.sl-chip.warn { background: #fff3c4; color: #7a5a00; }
+.sl-chip.grey { background: var(--line); color: var(--muted); }
+.sl-problems { list-style: none; margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: #fff3c4; color: #5c4400; font-size: 14px; display: grid; gap: 2px; }
+.sl-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 12px; align-items: start; }
+.sl-shot { order: 2; max-width: 520px; }
+.sl-shot img { width: 100%; border-radius: 8px; border: 2px solid var(--line); display: block; }
+@media (min-width: 1500px) { .sl-body { grid-template-columns: minmax(0, 1fr) 300px; } .sl-shot { order: 2; } }
+.sl-teams { display: grid; gap: 12px; min-width: 0; }
+.sl-team .team { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.sl-table td, .sl-table th { padding: 4px 6px; font-size: 14px; }
+.sl-table tr.unsure td { background: #fffbe6; }
+.sl-table tr.off td { color: var(--muted); }
+
 /* Where a played match's stats are up to (parts.js statsBadge) */
 .stats-badge { display: inline-flex; align-items: center; gap: 3px; padding: 0 7px; border-radius: 999px; font-weight: 700; line-height: 18px; white-space: nowrap; }
 .stats-badge.confirmed { background: #d9f5ef; color: #0b6b5f; }

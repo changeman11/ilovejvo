@@ -139,7 +139,7 @@ async function gatherAdmin() {
       if (res?.statsStatus === 'pending') {
         // ⚡ = already read from the screenshot (stats-reader.js): just check and save.
         const ready = res.statsDraft?.rows?.length;
-        out.push({ id: `a-stats-${b.event.id}-${f.id}${ready ? '-read' : ''}`, at: res.updatedAt ?? 0, icon: ready ? '⚡' : '📸', text: `${ready ? 'Stats read, ready to check' : 'Stats to check'}: ${match}`, href: urls.adminResult(b.event.id, f.id) });
+        out.push({ id: `a-stats-${b.event.id}-${f.id}${ready ? '-read' : ''}`, at: res.updatedAt ?? 0, icon: ready ? '⚡' : '📸', text: `${ready ? 'Stats read, ready to submit' : 'Stats to check'}: ${match}`, href: '/admin/stats' });
       } else if (!res && flowOf(b.event)) {
         // Match flow: admins are pinged once a match has been stuck for a while (rules/flow.js).
         const st = matchState(b, f, now);

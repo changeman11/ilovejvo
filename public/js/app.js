@@ -16,6 +16,7 @@ import * as adminHome from './pages/admin/home.js';
 import * as eventEdit from './pages/admin/event-edit.js';
 import * as people from './pages/admin/people.js';
 import * as resultEntry from './pages/admin/result.js';
+import * as statsList from './pages/admin/stats.js';
 import { NotFoundError, onDataChange, stopAdminLive, loadPublicEvents } from './data.js';
 import { onAdminChange, onUserChange, currentAdmin, startDiscordSignIn } from './auth.js';
 import { renderShell, setSection } from './shell.js';
@@ -57,6 +58,7 @@ const routes = [
   { path: '/auth/discord', page: authCallback, section: '/me' },
   { path: '/admin', page: adminHome, section: '/admin', up: toMenu },
   { path: '/admin/requests', page: requests, section: '/admin', up: toAdmin },
+  { path: '/admin/stats', page: statsList, section: '/admin', up: toAdmin },
   { path: '/admin/people', page: people, section: '/admin', up: toAdmin },
   { path: '/admin/help', page: helpEdit, section: '/admin', up: toAdmin, tabbed: true },
   { path: '/admin/event/:eventId', page: eventEdit, section: '/admin', up: toAdmin, tabbed: true },

@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (partner's PC) · stats: players confirm, staff tick to submit
+- **Discord** (match threads): once a screenshot is read, the bot posts "📊 Check your stats": each team's squad with their read numbers (✅ confirmed, ✏️ fixed, ⏳ to check, ⚠️ not on the screenshot). Buttons: ✅ My line is right, ✏️ Fix a line (form: whose line + the 8 numbers; players their own, 👑 captains anyone in their club, staff anyone), 👑 Confirm my team. Saved on `statsDraft.rows[i]` as `confirmedBy` / `editedBy` (existing bot rule). Threads stay open until staff submit; then the message says "Stats submitted".
+- **Site**: new `/admin/stats` ("Stats" in the admin bar; the bell's stats to-dos go there): every match waiting for stats, per team a plain table of the squad with numbers and ✅/✏️/⏳, problems in words (no screenshot, names nobody claimed, unsure numbers), the screenshot. Tick → "Submit selected" saves playerStats + suggested MVP, marks reviewed, remembers on-screen names. "✏️ Edit" = the full result page. Logic in `rules/stats-draft.js` (tested).
+- Cache `jvo-shell-v57`. Tests 197 pass.
+
 ### 2026-10-24 · Claude (partner's PC) · screenshots from match threads
 - The bot looks in the match thread of every match that has a score but no screenshot (no vote has one, stats not done): pictures players posted there (newest first, up to 3) are copied to Storage under the poster's profile and saved on the result as `threadShots` (bot rule: may set `statsDraft`/`threadShots` on a pending result, or one with no stats). Re-checks every 5 min until one turns up, then says so in the thread.
 - The site uses them: automatic stats reading (`shotFor`), the 📸 badge, the match page and the admin result page ("from the Discord thread").

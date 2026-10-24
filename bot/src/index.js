@@ -164,7 +164,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     // Match threads: "Report score" (answers with the form), "Confirm their score", and the form.
     if (matches && interaction.isButton() && interaction.customId.startsWith('mt:')) {
-      if (interaction.customId.startsWith('mt:vote:')) {
+      if (interaction.customId.startsWith('mt:vote:') || interaction.customId.startsWith('mt:fix:')) {
         const reply = await matches.button(interaction.customId, user);
         if (reply?.modal) return interaction.showModal({ toJSON: () => reply.modal });
         return interaction.reply({ content: reply?.ephemeral ?? 'Something went wrong.', flags: MessageFlags.Ephemeral });
@@ -176,6 +176,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (matches && interaction.isStringSelectMenu() && interaction.customId.startsWith('mt:who:')) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const reply = await matches.select(interaction.customId, interaction.values[0], user);
+      return interaction.editReply(reply?.ephemeral ?? 'Saved.');
+    }
+    if (matches && interaction.isModalSubmit() && interaction.customId.startsWith('mtf:')) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const who = interaction.fields.getStringSelectValues('who')?.[0];
+      const nums = interaction.fields.getTextInputValue('nums');
+      const reply = await matches.fixModal(interaction.customId, user, { who, nums });
       return interaction.editReply(reply?.ephemeral ?? 'Saved.');
     }
     if (matches && interaction.isModalSubmit() && interaction.customId.startsWith('mtm:')) {

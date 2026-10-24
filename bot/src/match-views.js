@@ -1,6 +1,6 @@
 // What the match thread messages look like (plain Discord JSON, like views.js).
 import { esc } from './views.js';
-import { setsText, NOT_A_PLAYER } from './logic/matches.js';
+import { setsText, NOT_A_PLAYER, STAT_KEYS, STAT_LABELS, lineNumbers } from './logic/matches.js';
 
 const BLUE = 0x1438d8;
 const TEAL = 0x16b3a3;
@@ -220,6 +220,89 @@ export function whoIsWho(m, rows, pings, { image = null, choices = [] } = {}) {
     }],
     components: menus,
     allowedMentions: { users: pings.slice(0, 100) },
+  };
+}
+
+// ---------- "📊 Check your stats": players confirm or fix their own line ----------
+// A neat table per team (squad order, captain first): ✅ confirmed, ✏️ fixed by a player, ⏳ to
+// check, ⚠️ not on the screenshot. pings: Discord IDs of players still to confirm (first post only).
+const pad = (s, n) => String(s).padStart(n);
+function teamTable(squad, rows) {
+  const byPlayer = new Map(rows.filter((r) => r.playerId && !r.notPlayer).map((r) => [r.playerId, r]));
+  const head = `       ${STAT_LABELS.map((l) => pad(l, 3)).join(' ')}`;
+  const lines = squad.slice(0, 8).map((p) => {
+    const r = byPlayer.get(p.id);
+    const mark = !r ? '⚠️' : r.editedBy ? '✏️' : r.confirmedBy ? '✅' : '⏳';
+    const name = `${p.captain ? '👑' : ''}${String(p.displayName ?? p.id)}`.slice(0, 22);
+    if (!r) return `${mark} **${esc(name)}**: not on the screenshot`;
+    return `${mark} **${esc(name)}**\n\`${STAT_KEYS.map((k) => pad(r.stats?.[k]?.value ?? '?', 3)).join(' ')}\``;
+  });
+  return { head: `\`${head.trimStart()}\``, body: lines.join('\n') || '*No players listed*' };
+}
+
+export function statsCheck(m, rows, pings = []) {
+  const home = teamTable(m.homeSquad, rows);
+  const away = teamTable(m.awaySquad, rows);
+  const onShot = rows.filter((r) => r.playerId && !r.notPlayer);
+  const confirmed = onShot.filter((r) => r.confirmedBy).length;
+  const allDone = onShot.length > 0 && confirmed === onShot.length;
+  return {
+    content: pings.length ? `📊 ${pings.map((id) => `<@${id}>`).join(' ')} check your stats from the end screen and press **✅ My line is right** (or fix it).` : '',
+    embeds: [{
+      title: allDone ? '📊 Stats: all confirmed ✅' : `📊 Check your stats (${confirmed}/${onShot.length} confirmed)`,
+      color: allDone ? TEAL : BLUE,
+      description: `Read from the end-of-match screenshot. **Check your own line**: right → **✅ My line is right**, wrong → **✏️ Fix a line**. 👑 Captains can confirm or fix anyone in their club. Staff submit them once you’re done.\n${home.head}`,
+      fields: [
+        { name: `🔵 ${short(m.home?.name ?? 'Home', 60)}`, value: home.body.slice(0, 1024), inline: false },
+        { name: `🔴 ${short(m.away?.name ?? 'Away', 60)}`, value: away.body.slice(0, 1024), inline: false },
+      ],
+      footer: { text: '✅ confirmed · ✏️ fixed by a player · ⏳ to check · ⚠️ not on the screenshot' },
+    }],
+    components: allDone ? [{ type: ROW, components: [{ type: BUTTON, style: STYLE.secondary, label: 'Fix a line', custom_id: `mt:fix:${m.id}`, emoji: { name: '✏️' } }] }] : [{
+      type: ROW,
+      components: [
+        { type: BUTTON, style: STYLE.success, label: 'My line is right', custom_id: `mt:ok:${m.id}`, emoji: { name: '✅' } },
+        { type: BUTTON, style: STYLE.secondary, label: 'Fix a line', custom_id: `mt:fix:${m.id}`, emoji: { name: '✏️' } },
+        { type: BUTTON, style: STYLE.primary, label: 'Confirm my team', custom_id: `mt:team:${m.id}`, emoji: { name: '👑' } },
+      ],
+    }],
+    allowedMentions: { users: pings.slice(0, 100) },
+  };
+}
+
+// The "Fix a line" form: whose line (players: just their own; captains: their club) and the numbers.
+// choices: [{ id, displayName }], current: Map playerId -> "12 5 1 ..." (prefilled when there's one choice).
+export function fixModal(m, choices, current) {
+  const only = choices.length === 1 ? choices[0] : null;
+  return {
+    title: `Fix stats: ${short(m.home?.shortName || m.home?.name, 14)} v ${short(m.away?.shortName || m.away?.name, 14)}`.slice(0, 45),
+    custom_id: `mtf:${m.id}`,
+    components: [
+      {
+        type: 18,
+        label: 'Whose line?',
+        component: {
+          type: SELECT,
+          custom_id: 'who',
+          required: true,
+          options: choices.slice(0, 25).map((p) => ({ label: short(p.displayName ?? p.id, 100), value: p.id, description: short(`now: ${current.get(p.id) ?? '?'}`, 100), ...(only ? { default: true } : {}) })),
+        },
+      },
+      {
+        type: 18,
+        label: `The ${STAT_KEYS.length} numbers, in order`,
+        description: STAT_LABELS.join(' · ').slice(0, 100),
+        component: {
+          type: 4,
+          custom_id: 'nums',
+          style: 1,
+          required: true,
+          max_length: 60,
+          placeholder: '12 5 1 3 2 1 0 4',
+          ...(only && current.get(only.id) ? { value: current.get(only.id) } : {}),
+        },
+      },
+    ],
   };
 }
 

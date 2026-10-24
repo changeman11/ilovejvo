@@ -26,8 +26,12 @@ import {
   threadDocId, formatOf, isApprovedTeam, readScore, profileOf, squadOf, isCaptain, openMatches,
   reminderDue, voteDoc, agreedResult, toConfirm, tallyVotes, matchState,
   unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot,
+  confirmLines, fixLine, parseStatLine, lineNumbers, canEditLine,
 } from './logic/matches.js';
 import * as views from './match-views.js';
+
+// A reading players can confirm: stats not submitted yet, and at least one line down as a player.
+const hasReading = (result) => result?.statsStatus === 'pending' && (result.statsDraft?.rows ?? []).some((r) => r.playerId && !r.notPlayer);
 
 const systemClock = { now: () => Date.now(), setInterval: (fn, ms) => setInterval(fn, ms), clearInterval: (t) => clearInterval(t) };
 const TICK = 30 * 1000;
@@ -41,6 +45,7 @@ export class MatchThreads {
     this.cards = new Map(); // docId -> JSON of the card as last posted (not saved)
     this.asks = new Map(); // docId -> JSON of the "who's who" message as last posted
     this.shots = new Map(); // screenshot path -> { name, data } (attached to "who's who")
+    this.checks = new Map(); // docId -> JSON of the "check your stats" message as last posted
     this.chain = Promise.resolve();
   }
 
@@ -130,6 +135,7 @@ export class MatchThreads {
           const m = this.view(id);
           if (m?.result) await this.findShots(id, m, now);
           if (m?.result && unknownNames(m.result).length && t.askShot !== m.result.statsDraft?.shot) await this.askNames(id, m, now);
+          if (m?.result && hasReading(m.result) && this.threads.get(id).checkShot !== m.result.statsDraft?.shot) await this.postCheck(id, m, now);
           continue;
         }
         await this.update(id, t, now);
@@ -172,9 +178,10 @@ export class MatchThreads {
       if (t.status === 'open') t = await this.finish(id, t, m, now);
       await this.findShots(id, m, now);
       await this.askNames(id, m, now);
+      await this.postCheck(id, m, now);
       t = this.threads.get(id);
-      // Stays open while staff are still waiting to hear who's who.
-      if (now - (t.doneAt ?? 0) >= this.config.matchCloseMinutes * 60000 && !unknownNames(m.result).length) await this.close(id, t, now);
+      // Stays open while players can still sort out who's who or confirm their stats.
+      if (now - (t.doneAt ?? 0) >= this.config.matchCloseMinutes * 60000 && !unknownNames(m.result).length && !hasReading(m.result)) await this.close(id, t, now);
       return;
     }
     if (t.status === 'done') t = await this.save(id, { status: 'open', doneAt: null }); // the score was removed
@@ -263,6 +270,117 @@ export class MatchThreads {
     const who = [...new Set(posted.map((p) => p.authorId))].map((a) => `<@${a}>`).join(', ');
     await this.io.post({ content: `📸 Found ${paths.length === 1 ? 'a screenshot' : `${paths.length} screenshots`} from ${who} here and added ${paths.length === 1 ? 'it' : 'them'} to the site. Staff will read the stats from ${paths.length === 1 ? 'it' : 'them'}.`, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
     this.log.info?.(`[matches] copied ${paths.length} thread screenshot(s) for ${id}`);
+  }
+
+  // ---------- 📊 Check your stats: players confirm or fix their own line ----------
+  // Posted once per screenshot reading (pinging everyone on the reading), then kept up to date.
+  // Staff submit the confirmed stats from the site's stats list.
+  async postCheck(id, m, now) {
+    let t = this.threads.get(id);
+    if (!hasReading(m.result)) {
+      if (!t.checkMsgId || m.result.statsStatus === 'pending') return;
+      // Submitted by staff (or the reading went): show the final state, without buttons.
+      const json = 'done';
+      if (this.checks.get(id) === json) return;
+      await this.io.edit(t.checkMsgId, { content: '📊 **Stats submitted by staff.** They’re on the match page. Thanks!', embeds: [], components: [], allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
+      this.checks.set(id, json);
+      return;
+    }
+    const rows = m.result.statsDraft.rows;
+    const shot = m.result.statsDraft.shot ?? '';
+    if (!t.checkMsgId || t.checkShot !== shot) {
+      if (t.status === 'closed') {
+        await this.io.reopen(t.threadId);
+        t = await this.save(id, { status: 'done', doneAt: now, closedAt: null });
+      }
+      const placed = new Set(rows.filter((r) => r.playerId && !r.notPlayer && !r.confirmedBy).map((r) => r.playerId));
+      const pings = [...m.homeSquad, ...m.awaySquad].filter((p) => placed.has(p.id) && /^\d{15,22}$/.test(String(p.discordId ?? ''))).map((p) => String(p.discordId));
+      const checkMsgId = await this.io.post(views.statsCheck(m, rows, pings), t.threadId);
+      this.checks.set(id, JSON.stringify(views.statsCheck(m, rows)));
+      await this.save(id, { checkMsgId, checkShot: shot });
+      return;
+    }
+    const message = views.statsCheck(m, rows);
+    const json = JSON.stringify(message);
+    if (this.checks.get(id) === json) return;
+    try {
+      await this.io.edit(t.checkMsgId, message, t.threadId);
+      this.checks.set(id, json);
+    } catch (err) {
+      this.log.warn('[matches] could not update the stats check:', err.message);
+    }
+  }
+
+  // Saves new reading rows (statsDraft) on the result, with an audit entry.
+  async saveDraft(m, rows) {
+    await this.rest.token();
+    const botUid = this.rest.uid;
+    const now = this.clock.now();
+    const path = `events/${m.b.event.id}/results/${m.f.id}`;
+    const statsDraft = { ...m.result.statsDraft, rows };
+    await this.rest.commit([
+      { path, data: { statsDraft, updatedBy: botUid }, mask: ['statsDraft', 'updatedBy'], serverTime: ['updatedAt'] },
+      { path: `auditLog/${now.toString(36)}${Math.random().toString(36).slice(2, 12)}`, data: { by: botUid, action: 'update', path, before: { statsDraft: m.result.statsDraft }, after: { statsDraft } }, serverTime: ['at'] },
+    ]);
+  }
+
+  // Who's pressing, for the stats check. -> { m, editor, players } or { error }
+  editorFor(id, user) {
+    const m = this.view(id);
+    if (!m?.result || !hasReading(m.result)) return { error: 'This match’s stats aren’t waiting to be checked.' };
+    const players = [...this.site.players.values()];
+    const editor = profileOf(user.id, players);
+    if (!user.isStaff && (!editor || ![m.f.homeTeamId, m.f.awayTeamId].includes(editor.teamId))) {
+      return { error: editor ? 'Only players from the two teams in this match (or staff) can check these stats.' : 'Your Discord isn’t linked to an I<3JVO profile yet, so the bot can’t tell who you are.' };
+    }
+    return { m, editor, players };
+  }
+
+  // ✅ My line is right / 👑 Confirm my team.
+  async confirmStats(id, user, whole) {
+    const c = this.editorFor(id, user);
+    if (c.error) return { ephemeral: c.error };
+    const out = confirmLines({ result: c.m.result, editor: c.editor, isStaff: Boolean(user.isStaff) && whole, whole, teams: this.site.teams, players: c.players, teamIds: [c.m.f.homeTeamId, c.m.f.awayTeamId] });
+    if (out.error) return { ephemeral: out.error };
+    try {
+      await this.saveDraft(c.m, out.rows);
+    } catch (err) {
+      this.log.warn('[matches] stats confirm refused:', err.message);
+      return { ephemeral: 'That couldn’t be saved: staff may have just submitted the stats.' };
+    }
+    return { ephemeral: whole ? `✅ Confirmed ${out.count} line${out.count === 1 ? '' : 's'} for your team. Staff will submit them.` : '✅ Thanks! Your line is confirmed. Staff will submit it.' };
+  }
+
+  // ✏️ Fix a line: the form (whose line: yourself, or captains anyone in their club; staff anyone).
+  fixForm(id, user) {
+    const c = this.editorFor(id, user);
+    if (c.error) return { ephemeral: c.error };
+    const rows = c.m.result.statsDraft.rows.filter((r) => r.playerId && !r.notPlayer);
+    const current = new Map(rows.map((r) => [r.playerId, lineNumbers(r)]));
+    const choices = [...c.m.homeSquad, ...c.m.awaySquad]
+      .filter((p) => current.has(p.id) && canEditLine({ playerId: p.id, editor: c.editor, isStaff: Boolean(user.isStaff), teams: this.site.teams, players: c.players }));
+    if (!choices.length) return { ephemeral: 'Your line isn’t on the reading (or isn’t matched to you yet). Check “Who’s who” above, or ask your captain.' };
+    return { modal: views.fixModal(c.m, choices, current) };
+  }
+
+  // The fix form came back: values { who: playerId, nums: '12 5 1 ...' }.
+  async fixStats(id, user, values) {
+    const c = this.editorFor(id, user);
+    if (c.error) return { ephemeral: c.error };
+    const parsed = parseStatLine(values.nums);
+    if (parsed.error) return { ephemeral: `${parsed.error}\nPress **✏️ Fix a line** to try again.` };
+    const out = fixLine({ result: c.m.result, playerId: values.who, stats: parsed.stats, editor: c.editor, isStaff: Boolean(user.isStaff), teams: this.site.teams, players: c.players });
+    if (out.error) return { ephemeral: out.error };
+    try {
+      await this.saveDraft(c.m, out.rows);
+    } catch (err) {
+      this.log.warn('[matches] stats fix refused:', err.message);
+      return { ephemeral: 'That couldn’t be saved: staff may have just submitted the stats.' };
+    }
+    const p = c.players.find((x) => x.id === values.who);
+    const t = this.threads.get(id);
+    if (t?.threadId) await this.io.post({ content: `✏️ <@${user.id}> fixed **${views.safeName(p?.displayName ?? values.who)}**’s line. Staff will see it was changed.`, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
+    return { ephemeral: '✏️ Saved. Staff will see the line was fixed by hand.' };
   }
 
   // ---------- Who's who: in-game names the site's stats reading couldn't match ----------
@@ -374,6 +492,12 @@ export class MatchThreads {
     return { ephemeral: reply };
   }
 
+  // The "Fix a line" form came back (mtf:<docId>).
+  fixModal(customId, user, values) {
+    const id = String(customId).split(':').slice(1).join(':');
+    return this.run(() => this.fixStats(id, user, values)).catch((err) => ({ ephemeral: `Something went wrong: ${err.message}` }));
+  }
+
   // A pick in a "Who is <name>?" menu: mt:who:<docId>:<row>.
   select(customId, value, user) {
     const [, , ...rest] = String(customId).split(':');
@@ -416,6 +540,10 @@ export class MatchThreads {
       return this.run(() => this.answerName(rest.join(':'), i, null, user)).catch((err) => ({ ephemeral: `Something went wrong: ${err.message}` }));
     }
     const id = rest.join(':');
+    if (action === 'fix') return Promise.resolve(this.fixForm(id, user)); // a form: straight away
+    if (action === 'ok' || action === 'team') {
+      return this.run(() => this.confirmStats(id, user, action === 'team')).catch((err) => ({ ephemeral: `Something went wrong: ${err.message}` }));
+    }
     if (action === 'vote') {
       const c = this.check(id, user);
       if (c.error) return Promise.resolve({ ephemeral: c.error });

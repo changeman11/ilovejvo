@@ -5,7 +5,7 @@ import { matchState } from '../site-rules/flow.js';
 import { tallyVotes, sameSets, resultFromVotes } from '../site-rules/votes.js';
 import { checkResult } from '../site-rules/match.js';
 import { formatFor } from '../site-rules/season.js';
-import { DEFAULT_FORMAT } from '../site-rules/defaults.js';
+import { DEFAULT_FORMAT, DEFAULT_STATS } from '../site-rules/defaults.js';
 
 export const threadDocId = (eventId, fixtureId) => `${eventId}__${fixtureId}`;
 
@@ -148,6 +148,76 @@ export function unknownNames(result) {
 // Value of the "not a real player / a bot" choice in the who's who menus.
 export const NOT_A_PLAYER = '__none__';
 
+// ---------- Players confirm their own stats (result.statsDraft) ----------
+// Each read line that's down as a player can be confirmed (✅) or fixed (✏️) by that player, or by
+// their club's captain for anyone in the club; staff can do any. Staff then submit them from a list.
+export const STAT_KEYS = DEFAULT_STATS.map((s) => s.key);
+export const STAT_LABELS = DEFAULT_STATS.map((s) => s.label);
+
+// "12 5 1 3 2 1 0 4" (or with commas) -> { pts: 12, spk: 5, ... } in STAT_KEYS order, or { error }.
+export function parseStatLine(text) {
+  const nums = String(text ?? '').trim().split(/[\s,;/|]+/).filter(Boolean);
+  if (nums.length !== STAT_KEYS.length || nums.some((n) => !/^\d{1,3}$/.test(n))) {
+    return { error: `Type all ${STAT_KEYS.length} numbers in order (${STAT_LABELS.join(' ')}), e.g. 12 5 1 3 2 1 0 4.` };
+  }
+  return { stats: Object.fromEntries(STAT_KEYS.map((k, i) => [k, Number(nums[i])])) };
+}
+
+export const lineNumbers = (row) => STAT_KEYS.map((k) => (row?.stats?.[k]?.value ?? '?')).join(' ');
+
+// Who may confirm or fix the line of `playerId`: that player, their club's captain, or staff.
+export function canEditLine({ playerId, editor, isStaff = false, teams, players }) {
+  if (isStaff) return true;
+  if (!editor) return false;
+  if (editor.id === playerId) return true;
+  const player = players.find((p) => p.id === playerId);
+  const team = teams.get(player?.teamId);
+  return Boolean(team && player.teamId === editor.teamId && isCaptain(team, editor));
+}
+
+// ✅ Confirm: the editor's own line, or (captain) every line in their club, or (staff) every line.
+//   -> { rows, count } or { error }
+export function confirmLines({ result, editor, isStaff = false, whole = false, teams, players, teamIds }) {
+  const rows = result?.statsDraft?.rows;
+  if (result?.statsStatus !== 'pending' || !Array.isArray(rows)) return { error: 'Staff have already submitted this match’s stats.' };
+  const by = String(editor?.discordId ?? 'staff');
+  const mine = (r) => r.playerId && !r.notPlayer && (whole
+    ? isStaff || canEditLine({ playerId: r.playerId, editor, isStaff, teams, players })
+    : r.playerId === editor?.id);
+  if (whole && !isStaff) {
+    const team = teams.get(editor?.teamId);
+    if (!team || !isCaptain(team, editor) || !teamIds.includes(team.id)) return { error: '👑 Only a team’s captain can confirm the whole team.' };
+  }
+  const targets = rows.map((r, i) => (mine(r) ? i : -1)).filter((i) => i >= 0);
+  if (!targets.length) {
+    return { error: whole ? 'None of your team’s lines are on the reading yet.' : 'Your line isn’t on the reading (or isn’t matched to you yet). Check “Who’s who” above, or ask your captain.' };
+  }
+  return { rows: rows.map((r, i) => (targets.includes(i) ? { ...r, confirmedBy: by } : r)), count: targets.length };
+}
+
+// ✏️ Fix: new numbers for one player's line (marked edited and confirmed by the editor).
+export function fixLine({ result, playerId, stats, editor, isStaff = false, teams, players }) {
+  const rows = result?.statsDraft?.rows;
+  if (result?.statsStatus !== 'pending' || !Array.isArray(rows)) return { error: 'Staff have already submitted this match’s stats.' };
+  if (!canEditLine({ playerId, editor, isStaff, teams, players })) return { error: 'You can fix your own line, or (👑 captains) anyone in your club.' };
+  const i = rows.findIndex((r) => r.playerId === playerId);
+  if (i < 0) return { error: 'That player isn’t on the reading. Sort out “Who’s who” first.' };
+  const by = String(editor?.discordId ?? 'staff');
+  const next = { ...rows[i], stats: Object.fromEntries(STAT_KEYS.map((k) => [k, { value: stats[k], sure: true }])), editedBy: by, confirmedBy: by };
+  return { rows: rows.map((r, j) => (j === i ? next : r)) };
+}
+
+// How far along a match's stats are: { lines, confirmed, edited, unknown }.
+export function confirmProgress(result) {
+  const rows = (result?.statsDraft?.rows ?? []).filter((r) => r.playerId && !r.notPlayer);
+  return {
+    lines: rows.length,
+    confirmed: rows.filter((r) => r.confirmedBy).length,
+    edited: rows.filter((r) => r.editedBy).length,
+    unknown: unknownNames(result).length,
+  };
+}
+
 // ---------- Screenshots posted in the thread ----------
 // A match whose score is in but which has no end-of-match screenshot anywhere (no vote has one,
 // none were copied from the thread yet) and whose stats aren't done: the bot looks in its thread.
@@ -189,7 +259,10 @@ export function answerRow({ result, i, playerId, answerer, isStaff = false, team
   if (!row) return { error: 'That line isn’t on the reading any more.' };
   if ((row.playerId || row.notPlayer) && !answered(row)) return { error: 'The reading matched that line by itself. If it’s wrong, tell staff: they can fix it on the site.' };
   const by = String(answerer?.discordId ?? '');
-  const clear = (r) => { const { playerId: _p, notPlayer: _n, answeredBy: _a, claimedBy: _c, ...rest } = r; return { ...rest, playerId: null }; };
+  const clear = (r) => {
+    const { playerId: _p, notPlayer: _n, answeredBy: _a, claimedBy: _c, confirmedBy: _k, editedBy: _e, ...rest } = r;
+    return { ...rest, playerId: null };
+  };
   if (playerId === NOT_A_PLAYER) {
     if (row.notPlayer) return { error: 'That one is already marked as not a real player.' };
     return { rows: rows.map((r, j) => (j === i ? { ...clear(r), notPlayer: true, answeredBy: by } : r)), movedFrom: null };

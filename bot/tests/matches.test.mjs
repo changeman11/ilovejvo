@@ -321,9 +321,71 @@ test('who’s who: unknown names are asked in the thread with a drop-down each, 
   assert.equal(done.embeds[0].title, '✅ Who’s who');
   assert.match(done.embeds[0].description, /AD\*\*: 17 PTS → ✅ Bo/);
   assert.equal(done.components[0].components[0].options.find((o) => o.default).value, 'dB2');
+  // The thread stays open while players can confirm their stats; it closes once staff submit them.
   w.clock.t += 16 * MIN;
   await w.matches.sync();
+  assert.deepEqual(w.io.closed, []);
+  w.bundle.results.f1 = { ...w.bundle.results.f1, statsStatus: 'reviewed', playerStats: { dA1: { teamId: 'reef', pts: 5 } } };
+  await w.matches.sync();
   assert.deepEqual(w.io.closed, ['th1']);
+});
+
+test('check your stats: players confirm their own line, captains their team, and fix numbers', async () => {
+  const w = world();
+  await w.matches.start();
+  const line = (pts) => Object.fromEntries(['pts', 'spk', 'blk', 'rec', 'set', 'ast', 'ace', 'dig'].map((k, i) => [k, { value: i === 0 ? pts : 1, sure: true }]));
+  w.bundle.results.f1 = {
+    id: 'f1', sets: [{ home: 10, away: 5 }, { home: 10, away: 5 }], statsStatus: 'pending', playerStats: {},
+    statsDraft: { shot: 'players/dA1/shot/x.webp', rows: [
+      { name: 'Ari', playerId: 'dA1', stats: line(12) },
+      { name: 'Ana', playerId: 'dA2', stats: line(8) },
+      { name: 'Ben', playerId: 'dB1', stats: line(10) },
+      { name: 'Bo', playerId: 'dB2', stats: line(3) },
+    ] },
+  };
+  await w.matches.sync();
+  const check = w.io.posts.find((p) => /Check your stats/.test(p.message.embeds?.[0]?.title ?? ''));
+  assert.ok(check, 'posted');
+  assert.equal(check.message.embeds[0].title, '📊 Check your stats (0/4 confirmed)');
+  assert.match(check.message.embeds[0].fields[0].value, /⏳ \*\*👑Ari\*\*\n` 12 {3}1/);
+  assert.deepEqual(check.message.components[0].components.map((b) => b.custom_id), ['mt:ok:night__f1', 'mt:fix:night__f1', 'mt:team:night__f1']);
+  assert.equal(check.message.allowedMentions.users.length, 4, 'everyone on the reading is pinged');
+
+  // Ana confirms her own line; she can't confirm the team (not captain); Ben (captain) confirms Tide.
+  assert.match((await w.matches.button('mt:ok:night__f1', user(ids.a2))).ephemeral, /Your line is confirmed/);
+  assert.equal(w.bundle.results.f1.statsDraft.rows[1].confirmedBy, ids.a2);
+  assert.match((await w.matches.button('mt:team:night__f1', user(ids.a2))).ephemeral, /Only a team’s captain/);
+  assert.match((await w.matches.button('mt:team:night__f1', user(ids.b1))).ephemeral, /Confirmed 2 lines/);
+  assert.equal(w.bundle.results.f1.statsDraft.rows[3].confirmedBy, ids.b1);
+  assert.match((await w.matches.button('mt:ok:night__f1', user(ids.x))).ephemeral, /isn’t linked/);
+
+  // Fix: Ana only gets her own line (prefilled); Ari (captain) gets both Reef lines.
+  const anaForm = (await w.matches.button('mt:fix:night__f1', user(ids.a2))).modal;
+  assert.deepEqual(anaForm.components[0].component.options.map((o) => o.value), ['dA2']);
+  assert.equal(anaForm.components[1].component.value, '8 1 1 1 1 1 1 1');
+  const ariForm = (await w.matches.button('mt:fix:night__f1', user(ids.a1))).modal;
+  assert.deepEqual(ariForm.components[0].component.options.map((o) => o.value).sort(), ['dA1', 'dA2']);
+  assert.match((await w.matches.fixModal('mtf:night__f1', user(ids.a1), { who: 'dA2', nums: '9 2' })).ephemeral, /Type all 8 numbers/);
+  assert.match((await w.matches.fixModal('mtf:night__f1', user(ids.a2), { who: 'dB1', nums: '1 1 1 1 1 1 1 1' })).ephemeral, /your own line/);
+  assert.match((await w.matches.fixModal('mtf:night__f1', user(ids.a1), { who: 'dA2', nums: '9 2 0 4 1 1 0 3' })).ephemeral, /Saved/);
+  const fixed = w.bundle.results.f1.statsDraft.rows[1];
+  assert.equal(fixed.stats.pts.value, 9);
+  assert.equal(fixed.stats.dig.value, 3);
+  assert.equal(fixed.editedBy, ids.a1);
+
+  // Ari confirms his own: all 4 done; the card says so.
+  await w.matches.button('mt:ok:night__f1', user(ids.a1));
+  await w.matches.sync();
+  const latest = w.io.edits.filter((e) => e.messageId === w.matches.threads.get('night__f1').checkMsgId).at(-1).message;
+  assert.equal(latest.embeds[0].title, '📊 Stats: all confirmed ✅');
+  assert.match(latest.embeds[0].fields[0].value, /✏️ \*\*Ana\*\*/);
+
+  // Staff submit on the site: the message says so, buttons gone.
+  w.bundle.results.f1 = { ...w.bundle.results.f1, statsStatus: 'reviewed', playerStats: { dA1: { teamId: 'reef', pts: 12 } } };
+  await w.matches.sync();
+  const after = w.io.edits.filter((e) => e.messageId === w.matches.threads.get('night__f1').checkMsgId).at(-1).message;
+  assert.match(after.content, /Stats submitted by staff/);
+  assert.deepEqual(after.components, []);
 });
 
 test('missing screenshots: pictures posted in the match thread are copied to the site', async () => {
