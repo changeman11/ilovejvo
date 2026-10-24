@@ -210,7 +210,10 @@ const teamOfPlayer = (pid) => {
 };
 
 function screenshotsPanel() {
-  const shots = fixtureVotes().flatMap((v) => (v.screenshotPaths ?? []).map((p) => ({ url: mediaUrl(p), who: page.b.playersById[v.playerId]?.displayName ?? v.playerId })));
+  const shots = [
+    ...fixtureVotes().flatMap((v) => (v.screenshotPaths ?? []).map((p) => ({ url: mediaUrl(p), who: page.b.playersById[v.playerId]?.displayName ?? v.playerId }))),
+    ...(page.existing?.threadShots ?? []).map((p) => ({ url: mediaUrl(p), who: 'the Discord thread' })),
+  ];
   const r = page.reading;
   const players = candidatePlayers().sort((x, y) => x.displayName.localeCompare(y.displayName));
   const defs = statDefs();

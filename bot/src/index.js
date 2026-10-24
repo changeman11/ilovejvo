@@ -16,7 +16,7 @@ import { welcomeMember } from './welcome.js';
 import { MatchThreads } from './matches.js';
 import { SiteWatch } from './site-watch.js';
 import { StatRoles } from './stat-roles.js';
-import { checkMembersIntent } from './login.js';
+import { checkMembersIntent, checkMessageContent } from './login.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -112,6 +112,9 @@ client.once(Events.ClientReady, async () => {
       matches = new MatchThreads({ io: discord.matchIo, site: matchSite, rest: store.rest, config, log });
       matchSite.start();
       await matches.start();
+      if (!(await checkMessageContent(config.token))) {
+        log.warn('⚠️  "Message Content Intent" is off in the Developer Portal (Bot page), so the bot can’t see screenshots posted in match threads.');
+      }
     }
     if (config.clubRoles) {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });

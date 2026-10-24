@@ -52,7 +52,8 @@ export async function render({ eventId, fixtureId }) {
   } else if (played) {
     const vod = safeUrl(result.vodUrl);
     // Admin-entered screenshot links, plus screenshots players attached to their votes.
-    const voteShots = (b.submissions ?? []).filter((v) => v.fixtureId === f.id).flatMap((v) => v.screenshotPaths ?? []).map(mediaUrl);
+    // (and any the bot copied from the match's Discord thread)
+    const voteShots = [...(b.submissions ?? []).filter((v) => v.fixtureId === f.id).flatMap((v) => v.screenshotPaths ?? []), ...(result.threadShots ?? [])].map(mediaUrl);
     const shots = [...(result.screenshots ?? []).map(safeUrl), ...voteShots].filter(Boolean);
     const statsWaiting = result.statsStatus === 'pending' && !Object.keys(result.playerStats ?? {}).length;
     body = `

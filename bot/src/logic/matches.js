@@ -148,6 +148,16 @@ export function unknownNames(result) {
 // Value of the "not a real player / a bot" choice in the who's who menus.
 export const NOT_A_PLAYER = '__none__';
 
+// ---------- Screenshots posted in the thread ----------
+// A match whose score is in but which has no end-of-match screenshot anywhere (no vote has one,
+// none were copied from the thread yet) and whose stats aren't done: the bot looks in its thread.
+export function needsScreenshot(result, subs) {
+  if (!result || result.forfeit) return false;
+  if (result.statsStatus === 'reviewed' || Object.keys(result.playerStats ?? {}).length) return false;
+  if ((result.threadShots ?? []).length || result.statsDraft?.shot) return false;
+  return !subs.some((s) => s.screenshotPaths?.length);
+}
+
 // Answered in Discord (who's who): this row's answer came from a player or staff, not the reading.
 const answered = (r) => Boolean(r.answeredBy || r.claimedBy);
 

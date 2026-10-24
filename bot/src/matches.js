@@ -25,7 +25,7 @@
 import {
   threadDocId, formatOf, isApprovedTeam, readScore, profileOf, squadOf, isCaptain, openMatches,
   reminderDue, voteDoc, agreedResult, toConfirm, tallyVotes, matchState,
-  unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER,
+  unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot,
 } from './logic/matches.js';
 import * as views from './match-views.js';
 
@@ -128,6 +128,7 @@ export class MatchThreads {
       try {
         if (t.status === 'closed') {
           const m = this.view(id);
+          if (m?.result) await this.findShots(id, m, now);
           if (m?.result && unknownNames(m.result).length && t.askShot !== m.result.statsDraft?.shot) await this.askNames(id, m, now);
           continue;
         }
@@ -169,6 +170,7 @@ export class MatchThreads {
     await this.drawCard(id, t, m);
     if (m.result) {
       if (t.status === 'open') t = await this.finish(id, t, m, now);
+      await this.findShots(id, m, now);
       await this.askNames(id, m, now);
       t = this.threads.get(id);
       // Stays open while staff are still waiting to hear who's who.
@@ -201,6 +203,66 @@ export class MatchThreads {
   async finish(id, t, m, now) {
     await this.io.post(views.finalNote(m ?? { result: null }), t.threadId).catch(() => {});
     return this.save(id, { status: 'done', doneAt: now });
+  }
+
+  // ---------- Screenshots posted in the thread ----------
+  // A match with a score but no end-of-match screenshot: look for pictures players posted in its
+  // thread (newest first, up to 3), copy them to the site (result.threadShots) so staff and the
+  // automatic stats reader can use them, and say so in the thread. Looks again every 5 minutes
+  // until one turns up. Needs the bot's Message Content switch (otherwise Discord hides pictures).
+  async findShots(id, m, now) {
+    const t = this.threads.get(id);
+    if (!needsScreenshot(m.result, m.subs)) return;
+    if (t.shotScanAt && now - t.shotScanAt < 5 * 60 * 1000) return;
+    let images = [];
+    try {
+      images = (await this.io.threadImages(t.threadId)).slice(0, 3);
+    } catch (err) {
+      this.log.warn('[matches] could not look for screenshots in a thread:', err.message);
+    }
+    if (!images.length) {
+      await this.save(id, { shotScanAt: now });
+      return;
+    }
+    const players = [...this.site.players.values()];
+    const paths = [];
+    const posted = [];
+    for (const [k, img] of images.entries()) {
+      try {
+        const data = await this.io.download(img.url);
+        // Filed under whoever posted it (or a player in the match, if they have no profile).
+        const owner = profileOf(img.authorId, players)?.id ?? m.homeSquad[0]?.id ?? m.awaySquad[0]?.id;
+        if (!owner) break;
+        const ext = EXT[img.contentType];
+        const path = `players/${owner}/shot/${now.toString(36)}t${k}${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        await this.rest.upload(this.config.firebase.storageBucket, path, data, img.contentType);
+        paths.push(path);
+        posted.push(img);
+      } catch (err) {
+        this.log.warn('[matches] could not copy a thread screenshot:', err.message);
+      }
+    }
+    if (!paths.length) {
+      await this.save(id, { shotScanAt: now });
+      return;
+    }
+    await this.rest.token();
+    const botUid = this.rest.uid;
+    const path = `events/${m.b.event.id}/results/${m.f.id}`;
+    try {
+      await this.rest.commit([
+        { path, data: { threadShots: paths, updatedBy: botUid }, mask: ['threadShots', 'updatedBy'], serverTime: ['updatedAt'] },
+        { path: `auditLog/${now.toString(36)}${Math.random().toString(36).slice(2, 12)}`, data: { by: botUid, action: 'update', path, before: null, after: { threadShots: paths } }, serverTime: ['at'] },
+      ]);
+    } catch (err) {
+      this.log.warn('[matches] could not add thread screenshots to the site:', err.message);
+      await this.save(id, { shotScanAt: now });
+      return;
+    }
+    await this.save(id, { shotScanAt: now, threadShotsAt: now });
+    const who = [...new Set(posted.map((p) => p.authorId))].map((a) => `<@${a}>`).join(', ');
+    await this.io.post({ content: `📸 Found ${paths.length === 1 ? 'a screenshot' : `${paths.length} screenshots`} from ${who} here and added ${paths.length === 1 ? 'it' : 'them'} to the site. Staff will read the stats from ${paths.length === 1 ? 'it' : 'them'}.`, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
+    this.log.info?.(`[matches] copied ${paths.length} thread screenshot(s) for ${id}`);
   }
 
   // ---------- Who's who: in-game names the site's stats reading couldn't match ----------

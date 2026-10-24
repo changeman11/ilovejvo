@@ -53,7 +53,7 @@ export function statsState(b, f, result) {
   if (!result || result.forfeit) return null;
   if (result.statsStatus === 'reviewed' || Object.keys(result.playerStats ?? {}).length) return 'confirmed';
   const shot = (b.submissions ?? []).some((s) => s.fixtureId === f.id && s.screenshotPaths?.length)
-    || (result.screenshots ?? []).length || result.statsDraft?.shot;
+    || (result.screenshots ?? []).length || (result.threadShots ?? []).length || result.statsDraft?.shot;
   return shot ? 'submitted' : 'missing';
 }
 const STATS_BADGE = {

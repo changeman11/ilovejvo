@@ -266,6 +266,18 @@ export async function setupDiscord(client, config, log = console) {
         await thread.setLocked(true, 'Match finished');
         await thread.setArchived(true, 'Match finished');
       },
+      // Pictures players posted in a thread (not the bot's own), newest first:
+      // [{ url, name, contentType, authorId, messageId }]. Empty without the Message Content switch.
+      async threadImages(threadId) {
+        const thread = await channelFor(threadId);
+        const messages = await thread.messages.fetch({ limit: 100 });
+        return [...messages.values()]
+          .filter((msg) => !msg.author?.bot)
+          .sort((x, y) => y.createdTimestamp - x.createdTimestamp)
+          .flatMap((msg) => [...msg.attachments.values()]
+            .filter((a) => /^image\/(png|jpeg|webp|gif)$/.test(a.contentType ?? ''))
+            .map((a) => ({ url: a.url, name: a.name, contentType: a.contentType, authorId: msg.author.id, messageId: msg.id })));
+      },
       async reopen(threadId) {
         const thread = await channelFor(threadId);
         await thread.setArchived(false, 'Asking who’s who for the stats');

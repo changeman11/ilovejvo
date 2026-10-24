@@ -200,10 +200,14 @@ service cloud.firestore {
         // Players publish a result only when both teams have voted the same set scores (see agreedResult).
         allow create: if agreedResult(eventId, fixtureId);
         // The Discord bot fills in who's who on the automatic stats reading (statsDraft) when a
-        // player says "that's me" in the match thread. Only that, and only before staff check the stats.
+        // player answers in the match thread, and adds screenshots players posted in the thread
+        // (threadShots, paths in Storage). Only those, and only before staff check the stats.
         allow update: if isPickupBot() && stampedByMe()
-          && resource.data.get('statsStatus', '') == 'pending'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statsDraft', 'updatedBy', 'updatedAt']);
+          && (resource.data.get('statsStatus', '') == 'pending'
+              || (resource.data.get('statsStatus', null) == null && resource.data.playerStats.size() == 0))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statsDraft', 'threadShots', 'updatedBy', 'updatedAt'])
+          && (!('threadShots' in request.resource.data)
+              || (request.resource.data.threadShots is list && request.resource.data.threadShots.size() <= 3));
         allow delete: if isAdmin();
       }
 

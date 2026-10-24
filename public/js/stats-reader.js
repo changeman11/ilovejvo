@@ -33,12 +33,13 @@ export function candidatesFor(b, fixture, result = null) {
   return [...ids].map((id) => b.playersById[id]).filter(Boolean);
 }
 
-// The screenshot to read for a match: from the votes that confirmed the score first, newest first.
+// The screenshot to read for a match: from the votes that confirmed the score first, newest first;
+// failing that, one the bot copied from the match's Discord thread (result.threadShots).
 export function shotFor(b, fixture, result) {
   const votes = (b.submissions ?? [])
     .filter((v) => v.fixtureId === fixture.id && v.screenshotPaths?.length)
     .sort((x, y) => Number((result?.confirmedBy ?? []).includes(y.id)) - Number((result?.confirmedBy ?? []).includes(x.id)) || (y.updatedAt ?? 0) - (x.updatedAt ?? 0));
-  return votes[0]?.screenshotPaths[0] ?? null;
+  return votes[0]?.screenshotPaths[0] ?? result?.threadShots?.[0] ?? null;
 }
 
 // Reads one screenshot (a path, a URL or a Blob) and matches the names to players.

@@ -326,6 +326,39 @@ test('who’s who: unknown names are asked in the thread with a drop-down each, 
   assert.deepEqual(w.io.closed, ['th1']);
 });
 
+test('missing screenshots: pictures posted in the match thread are copied to the site', async () => {
+  const w = world();
+  await w.matches.start();
+  let images = [];
+  let scans = 0;
+  w.io.threadImages = async () => { scans++; return images; };
+  // Score in (agreed votes, no screenshots), stats not done.
+  w.bundle.results.f1 = { id: 'f1', sets: [{ home: 10, away: 5 }, { home: 10, away: 5 }], statsStatus: 'pending', playerStats: {} };
+  await w.matches.sync();
+  assert.equal(scans, 1, 'looked in the thread');
+  assert.equal(w.rest.uploads.length, 0, 'nothing posted yet');
+  await w.matches.sync();
+  assert.equal(scans, 1, 'not again within 5 minutes');
+
+  // Bo posts the end screen in the thread.
+  images = [{ url: 'https://cdn.discordapp.com/x.png', name: 'end.png', contentType: 'image/png', authorId: ids.b2, messageId: 'm9' }];
+  w.clock.t += 6 * MIN;
+  await w.matches.sync();
+  assert.equal(scans, 2);
+  assert.match(w.rest.uploads[0].path, /^players\/dB2\/shot\/.+\.png$/, 'filed under whoever posted it');
+  const write = w.rest.commits.map((c) => c[0]).find((x) => x.data.threadShots);
+  assert.equal(write.path, 'events/night/results/f1');
+  assert.deepEqual(write.mask, ['threadShots', 'updatedBy']);
+  assert.deepEqual(write.data.threadShots, [w.rest.uploads[0].path]);
+  assert.ok(w.io.posts.some((p) => /Found a screenshot from <@200000000000000002> here and added it to the site/.test(p.message.content ?? '')));
+
+  // Once the site has it, the bot stops looking.
+  w.bundle.results.f1 = { ...w.bundle.results.f1, threadShots: write.data.threadShots };
+  w.clock.t += 6 * MIN;
+  await w.matches.sync();
+  assert.equal(scans, 2);
+});
+
 test('reminders: pinged again while there is no score, then admins once', async () => {
   const w = world();
   await w.matches.start();

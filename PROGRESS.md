@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (partner's PC) · screenshots from match threads
+- The bot looks in the match thread of every match that has a score but no screenshot (no vote has one, stats not done): pictures players posted there (newest first, up to 3) are copied to Storage under the poster's profile and saved on the result as `threadShots` (bot rule: may set `statsDraft`/`threadShots` on a pending result, or one with no stats). Re-checks every 5 min until one turns up, then says so in the thread.
+- The site uses them: automatic stats reading (`shotFor`), the 📸 badge, the match page and the admin result page ("from the Discord thread").
+- **Needs the bot's Message Content Intent** (Developer Portal → Bot); the bot warns at start if it's off. Cache `jvo-shell-v56`. Tests 194 pass.
+
 ### 2026-10-24 · Claude (partner's PC) · stats badges on results
 - Every played match row (Fixtures → Results, event pages, Home) shows where its stats are up to: ✅ Stats confirmed (staff checked / stats saved), 📸 Stats submitted (screenshot in, waiting for staff), ⏳ No stats yet. Forfeits show none. `statsState()` / `statsBadge()` in `pages/parts.js`. Cache `jvo-shell-v55`.
 
