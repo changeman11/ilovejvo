@@ -25,7 +25,7 @@
 import {
   threadDocId, formatOf, isApprovedTeam, readScore, profileOf, squadOf, isCaptain, openMatches,
   reminderDue, voteDoc, agreedResult, toConfirm, tallyVotes, matchState,
-  unknownNames, unplacedPlayers, claimRow,
+  unknownNames, unplacedPlayers, answerRow, NOT_A_PLAYER,
 } from './logic/matches.js';
 import * as views from './match-views.js';
 
@@ -213,6 +213,10 @@ export class MatchThreads {
     // The screenshot goes with the question while there are names to sort out.
     const files = unknown.length ? await this.shotFiles(shot) : [];
     const image = files[0]?.name ?? null;
+    // The menus offer both squads' players the reading hasn't placed yet, captains marked.
+    const placed = new Set((m.result.statsDraft?.rows ?? []).map((r) => r.playerId).filter(Boolean));
+    const choices = [...m.homeSquad.map((p) => ({ ...p, teamName: m.home?.name })), ...m.awaySquad.map((p) => ({ ...p, teamName: m.away?.name }))]
+      .filter((p) => !placed.has(p.id));
     if (!t.askMsgId || t.askShot !== shot) {
       if (!unknown.length) return;
       if (t.status === 'closed') {
@@ -220,14 +224,14 @@ export class MatchThreads {
         t = await this.save(id, { status: 'done', doneAt: now, closedAt: null });
       }
       const pings = unplacedPlayers(m.result, m.homeSquad, m.awaySquad).map((p) => String(p.discordId));
-      const askMsgId = await this.io.post(views.whoIsWho(m, unknown, pings, { image }), t.threadId, files);
-      this.asks.set(id, JSON.stringify(views.whoIsWho(m, unknown, [], { image })));
+      const askMsgId = await this.io.post(views.whoIsWho(m, unknown, pings, { image, choices }), t.threadId, files);
+      this.asks.set(id, JSON.stringify(views.whoIsWho(m, unknown, [], { image, choices })));
       await this.save(id, { askMsgId, askShot: shot });
       return;
     }
     // Already asked: keep it up to date (claimed names drop off). After a restart this edits every
     // question once, so older ones get the screenshot too.
-    const message = views.whoIsWho(m, unknown, [], { image });
+    const message = views.whoIsWho(m, unknown, [], { image, choices });
     const json = JSON.stringify(message);
     if (this.asks.get(id) === json) return;
     try {
@@ -258,12 +262,17 @@ export class MatchThreads {
     return [this.shots.get(path)];
   }
 
-  // "That's me" on row i of the reading: fills that stat line in with this player, for staff to check.
-  async claimName(id, i, user) {
+  // "Who is <name>?": row i of the reading is `playerId` (or NOT_A_PLAYER). Anyone on either team
+  // can answer, for themselves or a team-mate; staff for anyone. Staff check it before it counts.
+  // playerId null = "that's me" (the old buttons on questions sent before the menus).
+  async answerName(id, i, playerId, user) {
     const m = this.view(id);
     if (!m?.result) return { ephemeral: 'This match’s stats aren’t waiting on anyone.' };
-    const profile = profileOf(user.id, [...this.site.players.values()]);
-    const claim = claimRow({ result: m.result, i, profile, teamIds: [m.f.homeTeamId, m.f.awayTeamId] });
+    const players = [...this.site.players.values()];
+    const profile = profileOf(user.id, players);
+    const pick = playerId ?? profile?.id ?? null;
+    if (!pick) return { ephemeral: 'Your Discord isn’t linked to an I<3JVO profile yet, so the bot can’t tell who you are.' };
+    const claim = answerRow({ result: m.result, i, playerId: pick, answerer: profile, isStaff: Boolean(user.isStaff), teamIds: [m.f.homeTeamId, m.f.awayTeamId], players });
     if (claim.error) return { ephemeral: claim.error };
     await this.rest.token();
     const botUid = this.rest.uid;
@@ -280,12 +289,30 @@ export class MatchThreads {
       return { ephemeral: 'That couldn’t be saved: staff may have just checked the stats. Ask them to fix it on the site.' };
     }
     const row = claim.rows[i];
-    const team = this.site.teams.get(profile.teamId);
     const t = this.threads.get(id);
-    if (t?.threadId) {
-      await this.io.post({ content: `🙋 **${views.safeName(row.name)}** is <@${user.id}> (${views.safeName(profile.displayName)}, ${views.safeName(team?.name ?? '')}). Staff will check it.`, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
+    const name = views.safeName(row.name);
+    let said;
+    let reply;
+    if (pick === NOT_A_PLAYER) {
+      said = `🤖 <@${user.id}> says **${name}** isn’t a real player (a bot or an empty slot). Staff will check it.`;
+      reply = `✅ Thanks! **${name}** is marked as not a real player, for staff to check.`;
+    } else {
+      const p = players.find((x) => x.id === pick);
+      const team = this.site.teams.get(p.teamId);
+      const who = /^\d{15,22}$/.test(String(p.discordId ?? '')) ? `<@${p.discordId}>` : `**${views.safeName(p.displayName)}**`;
+      const self = pick === profile?.id;
+      said = `🙋 **${name}** is ${who} (${views.safeName(p.displayName)}, ${views.safeName(team?.name ?? '')})${self ? '' : `, says <@${user.id}>`}. Staff will check it.`;
+      reply = self ? `✅ Thanks! **${name}**’s stats are now down as yours, for staff to check.` : `✅ Thanks! **${name}**’s stats are now down as **${views.safeName(p.displayName)}**’s, for staff to check.`;
     }
-    return { ephemeral: `✅ Thanks! **${views.safeName(row.name)}**’s stats are now down as yours, for staff to check.` };
+    if (t?.threadId) await this.io.post({ content: said, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
+    return { ephemeral: reply };
+  }
+
+  // A pick in a "Who is <name>?" menu: mt:who:<docId>:<row>.
+  select(customId, value, user) {
+    const [, , ...rest] = String(customId).split(':');
+    const i = Number(rest.pop());
+    return this.run(() => this.answerName(rest.join(':'), i, String(value), user)).catch((err) => ({ ephemeral: `Something went wrong: ${err.message}` }));
   }
 
   async close(id, t, now) {
@@ -318,9 +345,9 @@ export class MatchThreads {
   // 3 seconds); "Confirm" saves.
   button(customId, user) {
     const [, action, ...rest] = String(customId).split(':');
-    if (action === 'me') {
+    if (action === 'me') { // the old "That's me" buttons, until the bot edits those questions
       const i = Number(rest.pop());
-      return this.run(() => this.claimName(rest.join(':'), i, user)).catch((err) => ({ ephemeral: `Something went wrong: ${err.message}` }));
+      return this.run(() => this.answerName(rest.join(':'), i, null, user)).catch((err) => ({ ephemeral: `Something went wrong: ${err.message}` }));
     }
     const id = rest.join(':');
     if (action === 'vote') {

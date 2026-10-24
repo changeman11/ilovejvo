@@ -20,6 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (partner's PC) · who's who drop-downs · bot NOT uploaded
+- "❓ Who's who?" now has a drop-down per unknown name ("Who is AD? (17 PTS)", up to 5 per message, more appear as they're answered), listing both squads' players not placed yet (👑 captains) plus "🤖 Not a real player / a bot". Anyone on either team can answer for anyone, staff too (`answerRow`, `custom_id mt:who:<doc>:<row>`). Rows get `playerId` or `notPlayer: true`, plus `answeredBy`; one answer per line.
+- Questions already sent are edited to the drop-downs when the bot restarts; their old "That's me" buttons still work until then.
+- Bot only (rules unchanged: still only `statsDraft`). Tests 193 pass.
+- The owner's account is out of usage: from now on the bot is uploaded from this PC (needs the server key and IP here).
+
 ### 2026-10-24 · Claude (owner's PC) · bot UPLOADED: who's who screenshots
 - Bot tests pass (70, 3 emulator tests skipped). Uploaded 08:02 UTC, no `.env` changes.
 - Log: started normally (welcomes, site queue, 1v1, `[matches] match threads in <#…> (21 open)`, club roles). No "could not update who's who" / "could not fetch the match screenshot" warnings, no errors, no crash restarts.

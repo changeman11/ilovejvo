@@ -170,6 +170,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const reply = await matches.button(interaction.customId, user);
       return interaction.editReply(reply?.ephemeral ?? 'Done.');
     }
+    if (matches && interaction.isStringSelectMenu() && interaction.customId.startsWith('mt:who:')) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const reply = await matches.select(interaction.customId, interaction.values[0], user);
+      return interaction.editReply(reply?.ephemeral ?? 'Saved.');
+    }
     if (matches && interaction.isModalSubmit() && interaction.customId.startsWith('mtm:')) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const sets = interaction.fields.getTextInputValue('sets');

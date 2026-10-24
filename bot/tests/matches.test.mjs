@@ -105,7 +105,8 @@ function world({ now = T0 + MIN } = {}) {
         if (kind === 'submissions') {
           bundle.submissions = [...bundle.submissions.filter((s) => s.id !== docId), { id: docId, ...w.data, updatedAt: clock.t }];
         }
-        if (kind === 'results') bundle.results[docId] = { id: docId, ...w.data };
+        // With a mask only those fields change (like Firestore).
+        if (kind === 'results') bundle.results[docId] = w.mask ? { ...bundle.results[docId], ...w.data } : { id: docId, ...w.data };
       }
     },
   };
@@ -227,7 +228,7 @@ test('only the two teams’ players can vote; captains only can confirm; bad sco
   assert.equal(w.rest.commits.filter((c) => c.some((x) => x.path.includes('/submissions/'))).length, 0, 'nothing saved');
 });
 
-test('who’s who: unknown names from the stats reading are asked in the thread, and players claim them', async () => {
+test('who’s who: unknown names are asked in the thread with a drop-down each, and anyone on either team can answer', async () => {
   const w = world();
   await w.matches.start();
   // The score is in, and the site's automatic reading couldn't place "AD" (17 pts).
@@ -247,7 +248,14 @@ test('who’s who: unknown names from the stats reading are asked in the thread,
   assert.ok(ask, 'asked in the thread');
   assert.match(ask.message.embeds[0].description, /\*\*AD\*\*: 17 PTS/);
   assert.doesNotMatch(ask.message.embeds[0].description, /So\b/);
-  assert.deepEqual(ask.message.components[0].components.map((b) => b.custom_id), ['mt:me:night__f1:1']);
+  // One drop-down per unknown name: both squads' players not placed yet (Ari is), plus "not a player".
+  const menu = ask.message.components[0].components[0];
+  assert.equal(ask.message.components.length, 1);
+  assert.equal(menu.type, 3);
+  assert.equal(menu.custom_id, 'mt:who:night__f1:1');
+  assert.match(menu.placeholder, /Who is AD\? \(17 PTS\)/);
+  assert.deepEqual(menu.options.map((o) => o.value), ['dA2', 'dB1', 'dB2', '__none__']);
+  assert.equal(menu.options.find((o) => o.value === 'dB1').emoji.name, '👑', 'captains marked');
   assert.ok(!ask.message.allowedMentions.users.includes(ids.a1), 'Ari was found, so not pinged');
   assert.ok(ask.message.allowedMentions.users.includes(ids.a2));
   assert.deepEqual(ask.files.map((f) => f.name), ['match-screenshot.webp'], 'the screenshot is attached');
@@ -264,18 +272,35 @@ test('who’s who: unknown names from the stats reading are asked in the thread,
   const edit = askEdits()[0];
   assert.deepEqual(edit.files.map((f) => f.name), ['match-screenshot.webp']);
   assert.equal(edit.message.embeds[0].image.url, 'attachment://match-screenshot.webp');
+  assert.equal(edit.message.components[0].components[0].type, 3, 'old questions get the drop-downs too');
   await again.sync();
   assert.equal(askEdits().length, 1, 'and not again when nothing changed');
 
-  assert.match((await w.matches.button('mt:me:night__f1:1', user(ids.x))).ephemeral, /isn’t linked/);
-  assert.match((await w.matches.button('mt:me:night__f1:1', user(ids.a1))).ephemeral, /already have a line/);
-  const reply = await w.matches.button('mt:me:night__f1:1', user(ids.b1));
-  assert.match(reply.ephemeral, /now down as yours/);
+  // Not on either team: can't answer. Staff can. A player can't be given two lines.
+  assert.match((await w.matches.select('mt:who:night__f1:1', 'dB2', user(ids.x))).ephemeral, /isn’t linked/);
+  assert.match((await w.matches.select('mt:who:night__f1:1', 'dA1', user(ids.a2))).ephemeral, /already has a line/);
+  assert.match((await w.matches.select('mt:who:night__f1:1', 'dX', user(ids.a2))).ephemeral, /one of the two teams/);
+  // Ben (Tide) answers for his team-mate Bo.
+  const reply = await w.matches.select('mt:who:night__f1:1', 'dB2', user(ids.b1));
+  assert.match(reply.ephemeral, /now down as \*\*Bo\*\*’s/);
   const write = w.rest.commits.at(-1)[0];
   assert.equal(write.path, 'events/night/results/f1');
   assert.deepEqual(write.mask, ['statsDraft', 'updatedBy']);
-  assert.equal(write.data.statsDraft.rows[1].playerId, 'dB1');
-  assert.equal(write.data.statsDraft.rows[1].claimedBy, ids.b1);
+  assert.equal(write.data.statsDraft.rows[1].playerId, 'dB2');
+  assert.equal(write.data.statsDraft.rows[1].answeredBy, ids.b1);
+  assert.ok(w.io.posts.some((p) => /\*\*AD\*\* is <@200000000000000002> \(Bo, Tasman Tide\), says <@200000000000000001>/.test(p.message.content ?? '')));
+
+  // The old "That's me" buttons still work until the question is edited.
+  const old = { ...w.bundle.results.f1, statsDraft: { ...w.bundle.results.f1.statsDraft } };
+  const unanswered = () => { w.bundle.results.f1 = { ...old, statsDraft: { ...old.statsDraft, rows: old.statsDraft.rows.map((r, j) => (j === 1 ? { ...r, playerId: null } : r)) } }; };
+  unanswered();
+  assert.match((await w.matches.button('mt:me:night__f1:1', user(ids.b1))).ephemeral, /now down as yours/);
+  assert.match((await w.matches.select('mt:who:night__f1:1', 'dB1', user(ids.b2))).ephemeral, /already answered/, 'one answer per line');
+  // Staff (not on either team) mark a bot.
+  unanswered();
+  const staffPick = await w.matches.select('mt:who:night__f1:1', '__none__', { id: ids.x, isStaff: true });
+  assert.match(staffPick.ephemeral, /not a real player/);
+  w.bundle.results.f1 = old;
 
   // The site sees it; the question updates to "all sorted", and the thread can close.
   w.bundle.results.f1 = { ...w.bundle.results.f1, statsDraft: write.data.statsDraft };

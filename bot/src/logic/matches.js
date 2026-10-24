@@ -140,9 +140,34 @@ export function unknownNames(result) {
   if (result?.statsStatus !== 'pending' || !Array.isArray(result.statsDraft?.rows)) return [];
   const scored = (stats) => Object.values(stats ?? {}).some((c) => Number(c?.value) > 0);
   return result.statsDraft.rows
-    .map((r, i) => ({ i, name: String(r.name ?? '').trim(), stats: r.stats ?? {}, playerId: r.playerId }))
-    .filter((r) => !r.playerId && r.name && (r.name.length >= 3 || scored(r.stats)))
-    .map(({ playerId, ...r }) => r);
+    .map((r, i) => ({ i, name: String(r.name ?? '').trim(), stats: r.stats ?? {}, playerId: r.playerId, notPlayer: r.notPlayer }))
+    .filter((r) => !r.playerId && !r.notPlayer && r.name && (r.name.length >= 3 || scored(r.stats)))
+    .map(({ playerId, notPlayer, ...r }) => r);
+}
+
+// Value of the "not a real player / a bot" choice in the who's who menus.
+export const NOT_A_PLAYER = '__none__';
+
+// Someone answers "who is row i?" (for themselves or a team-mate, or staff for anyone).
+//   playerId: the player picked, or NOT_A_PLAYER. answerer: the asker's site profile (or null).
+//   -> { rows } (the new reading rows) or { error }
+export function answerRow({ result, i, playerId, answerer, isStaff = false, teamIds, players }) {
+  const rows = result?.statsDraft?.rows;
+  if (result?.statsStatus !== 'pending' || !Array.isArray(rows)) return { error: 'Staff have already checked this match’s stats.' };
+  if (!isStaff && !teamIds.includes(answerer?.teamId)) {
+    return { error: answerer ? 'Only players from the two teams in this match (or staff) can answer.' : 'Your Discord isn’t linked to an I<3JVO profile yet, so the bot can’t tell who you are.' };
+  }
+  const row = rows[i];
+  if (!row) return { error: 'That line isn’t on the reading any more.' };
+  if (row.playerId || row.notPlayer) return { error: 'Someone has already answered that one. Tell staff if it’s wrong.' };
+  const by = String(answerer?.discordId ?? '');
+  if (playerId === NOT_A_PLAYER) {
+    return { rows: rows.map((r, j) => (j === i ? { ...r, notPlayer: true, answeredBy: by } : r)) };
+  }
+  const player = players.find((p) => p.id === playerId);
+  if (!player || !teamIds.includes(player.teamId)) return { error: 'Pick a player from one of the two teams.' };
+  if (rows.some((r) => r.playerId === playerId)) return { error: `${player.displayName ?? 'That player'} already has a line on this screenshot. Tell staff if it’s the wrong one.` };
+  return { rows: rows.map((r, j) => (j === i ? { ...r, playerId, answeredBy: by } : r)) };
 }
 
 // Who to ask: players on either team that the reading didn't find (with a Discord ID).

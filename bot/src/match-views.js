@@ -1,6 +1,6 @@
 // What the match thread messages look like (plain Discord JSON, like views.js).
 import { esc } from './views.js';
-import { setsText } from './logic/matches.js';
+import { setsText, NOT_A_PLAYER } from './logic/matches.js';
 
 const BLUE = 0x1438d8;
 const TEAL = 0x16b3a3;
@@ -9,6 +9,7 @@ const YELLOW = 0xffe200;
 const GREY = 0x8a90a8;
 const ROW = 1;
 const BUTTON = 2;
+const SELECT = 3;
 const STYLE = { primary: 1, secondary: 2, success: 3, danger: 4, link: 5 };
 const noMentions = { parse: [] };
 const short = (s, n = 30) => (String(s ?? '?').length > n ? `${String(s).slice(0, n - 1)}…` : String(s ?? '?'));
@@ -167,26 +168,46 @@ const statLine = (stats) => ['pts', 'spk', 'blk', 'ace', 'dig']
 
 // "Who's who?": in-game names from the end-of-match screen that staff couldn't match to anyone.
 // unknown: [{ i, name, stats }], pings: Discord IDs of players the reading didn't place.
+// choices: the players a name could be (both squads, not placed yet): [{ id, displayName, teamName, captain }]
 // image: the attached screenshot's file name (shown big, so players can see the real names:
 // the reading can get them wrong).
-export function whoIsWho(m, unknown, pings, { image = null } = {}) {
+// One drop-down per name (Discord allows 5 per message; more appear as these are answered).
+export const WHO_MENUS = 5;
+export function whoIsWho(m, unknown, pings, { image = null, choices = [] } = {}) {
   if (!unknown.length) {
     return { content: '✅ **Who’s who: all sorted.** Thanks! Staff will check the stats.', embeds: [], components: [], allowedMentions: noMentions };
   }
-  const buttons = unknown.slice(0, 10).map((r) => ({
-    type: BUTTON, style: STYLE.primary, label: short(`That’s me: ${r.name}`, 80), custom_id: `mt:me:${m.id}:${r.i}`, emoji: { name: '🙋' },
+  const shown = unknown.slice(0, WHO_MENUS);
+  const options = [
+    ...choices.slice(0, 24).map((p) => ({
+      label: short(p.displayName ?? p.id, 100),
+      value: p.id,
+      description: short(p.teamName ?? '', 100) || undefined,
+      ...(p.captain ? { emoji: { name: '👑' } } : {}),
+    })),
+    { label: 'Not a real player / a bot', value: NOT_A_PLAYER, emoji: { name: '🤖' } },
+  ];
+  const menus = shown.map((r) => ({
+    type: ROW,
+    components: [{
+      type: SELECT,
+      custom_id: `mt:who:${m.id}:${r.i}`,
+      placeholder: short(`Who is ${r.name}?${statLine(r.stats) ? ` (${statLine(r.stats)})` : ''}`, 150),
+      min_values: 1,
+      max_values: 1,
+      options,
+    }],
   }));
-  const rows = [];
-  for (let k = 0; k < buttons.length; k += 5) rows.push({ type: ROW, components: buttons.slice(k, k + 5) });
+  const more = unknown.length > shown.length ? `\n*${unknown.length - shown.length} more appear once these are answered.*` : '';
   return {
-    content: pings.length ? `❓ ${pings.map((id) => `<@${id}>`).join(' ')} which of these is you?` : '',
+    content: pings.length ? `❓ ${pings.map((id) => `<@${id}>`).join(' ')} who’s who on the end screen?` : '',
     embeds: [{
       title: '❓ Who’s who?',
       color: YELLOW,
-      description: `Staff couldn’t match these in-game (Steam) names from the end-of-match screen to anyone:\n\n${unknown.slice(0, 10).map((r) => `• **${esc(r.name)}**${statLine(r.stats) ? `: ${statLine(r.stats)}` : ''}`).join('\n')}\n\nThe names are read automatically and can come out wrong, so check the screenshot${image ? ' below' : ''}: find your line by its stats. If one of them is you, press its button. Your stats go to you, and next time the bot knows that name.`,
+      description: `Staff couldn’t match these in-game (Steam) names from the end-of-match screen to anyone:\n\n${unknown.slice(0, 10).map((r) => `• **${esc(r.name)}**${statLine(r.stats) ? `: ${statLine(r.stats)}` : ''}`).join('\n')}${more}\n\nThe names are read automatically and can come out wrong, so check the screenshot${image ? ' below' : ''} and go by the stats. **Pick who each one is** in the menus: for yourself or a team-mate. Staff check it before the stats count.`,
       ...(image ? { image: { url: `attachment://${image}` } } : {}),
     }],
-    components: rows,
+    components: menus,
     allowedMentions: { users: pings.slice(0, 100) },
   };
 }
