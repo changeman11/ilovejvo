@@ -47,7 +47,7 @@ export async function updateTrophy() {
       <small>${label}${ids.length > 1 ? ' (shared)' : ''}</small>
     </div>` : '');
 
-  el.innerHTML = `
+  const html = `
     <button class="tr-tab" type="button" aria-expanded="${open}" title="${esc(e.title)} champions">🏆 <span>Champions</span> <b>${name(champ)}</b></button>
     <div class="tr-card">
       <button class="tr-close" type="button" aria-label="Close" title="Close">×</button>
@@ -64,15 +64,26 @@ export async function updateTrophy() {
       ${other(third, '🥉', '3rd place')}
       <a class="tr-more" href="${urls.event(e.id)}" data-link>See the finals →</a>
     </div>`;
-
-  el.querySelector('.tr-tab').addEventListener('click', () => {
-    if (wide()) store.set(FOLD_KEY, ''); else openFor = el.classList.contains('open') ? '' : e.id;
-    updateTrophy();
-  });
-  el.querySelector('.tr-close').addEventListener('click', () => {
-    if (wide()) store.set(FOLD_KEY, e.id); else openFor = '';
-    updateTrophy();
-  });
+  // Only rebuilt when something in it changed: the site redraws on every live update, and
+  // rebuilding each time reloaded the logos (they flickered).
+  if (el.dataset.html !== html) {
+    el.innerHTML = html;
+    el.dataset.html = html;
+  }
+  el.dataset.eventId = e.id;
+  if (!el.dataset.bound) {
+    el.dataset.bound = '1';
+    el.addEventListener('click', (ev) => {
+      const id = el.dataset.eventId;
+      if (ev.target.closest('.tr-tab')) {
+        if (wide()) store.set(FOLD_KEY, ''); else openFor = el.classList.contains('open') ? '' : id;
+        updateTrophy();
+      } else if (ev.target.closest('.tr-close')) {
+        if (wide()) store.set(FOLD_KEY, id); else openFor = '';
+        updateTrophy();
+      }
+    });
+  }
   place();
   requestAnimationFrame(place); // after the featured card has drawn
 }

@@ -805,10 +805,12 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 
 /* ---------- Community characters on the court (js/characters.js) ---------- */
 .char-spot { position: relative; pointer-events: none; }
-.char-spot img { position: absolute; left: 50%; bottom: 0; height: 100%; width: auto; max-width: none; transform: translateX(-50%) translateY(8px); opacity: 0; transition: opacity 0.6s ease, transform 0.6s ease; }
-.char-spot img.on { opacity: 1; transform: translateX(-50%); }
+/* Centred with the separate translate property: it applies after the idle sway (rotate/scale), so the
+   sway pivots between the character's feet instead of sliding them. */
+.char-spot img { position: absolute; left: 50%; translate: -50% 0; bottom: 0; height: 100%; width: auto; max-width: none; transform: translateY(8px); opacity: 0; transition: opacity 0.6s ease, transform 0.6s ease; }
+.char-spot img.on { opacity: 1; transform: none; }
 /* The game's volleyball, in front of their left foot (hidden for pictures that already have one) */
-.char-spot .char-ball { left: 6%; bottom: -4%; height: 27%; transform: none; opacity: 1; z-index: 2; filter: drop-shadow(0 6px 4px rgba(0, 0, 0, 0.25)); }
+.char-spot .char-ball { left: 6%; translate: none; bottom: -4%; height: 27%; transform: none; opacity: 1; z-index: 2; filter: drop-shadow(0 6px 4px rgba(0, 0, 0, 0.25)); }
 .char-spot.own-ball .char-ball { opacity: 0; }
 /* A soft shadow on the grass under their feet */
 .char-spot::after { content: ''; position: absolute; left: 50%; bottom: -2%; width: 46%; height: 7%; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.35), transparent); z-index: -1; }
@@ -1681,3 +1683,11 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .tro-ic small { font: 800 10px var(--font-body); }
 .tro-ic.gold { filter: drop-shadow(0 0 4px rgba(255, 197, 51, 0.8)); }
 @media (prefers-reduced-motion: reduce) { .tcab-first::after { animation: none; } }
+/* Trophy card fixes: logos keep their square shape (rounded corners); the card stays clear of the
+   chat tab on the right edge. */
+.trophy { right: 56px; }
+@media (max-width: 1023px) { .trophy { right: 50px; width: min(300px, calc(100vw - 62px)); } }
+.tr-first .dot, .tr-place .dot.logo, .tr-place .dot { border-radius: 10px; }
+.tr-first .dot.xl { border-radius: 16px; }
+.tcab-first .dot { border-radius: 10px; }
+@media (min-width: 1800px) { .trophy { right: 64px; width: 290px; } }

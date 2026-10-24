@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · trophy card visual fixes · site DEPLOYED (cache v64)
+- Logo flicker (square ↔ circle): the trophy card was rebuilt on every live redraw, reloading the logos. Now rebuilt only when its content changes (`el.dataset.html`); clicks handled once on the card. Trophy logos are rounded squares.
+- Card moved clear of the chat tab (right: 56px; phones 50px; wide screens 64px under FEATURED!).
+- Characters' feet no longer slide while swaying: centred with the `translate` property (applies after rotate/scale) instead of `transform: translateX(-50%)`.
+
 ### 2026-10-25 · Claude (owner's PC) · gentle character sway, trophies · site DEPLOYED (cache v63)
 - Characters: the hop is gone (owner: too much); now a slow idle sway (`char-idle`: small lean + breath, 3.2 s).
 - Trophy announcement on the right (latest podium; live shows DEMO EXHIBITION NIGHT: Chikchester City champions). 3rd is shared by the semi-final losers until a 3rd place result exists. Team pages: Trophy cabinet; Teams tab: trophy icons. Logic `rules/podium.js` (4 tests). Tests 215 pass.
