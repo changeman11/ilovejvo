@@ -2,7 +2,7 @@
 
 This project is worked on by **two assistants in turn** (Claude and ChatGPT). To stay in sync:
 
-1. **Before starting:** read `PROGRESS.md` (current status), then `CLAUDE.md` (the project rulebook: design decisions, constraints, every feature and where it lives), then `HANDOVER.md` if you're new. Run `git status` and `git log -15 --oneline`.
+1. **Before starting:** read `PROGRESS.md` (current status), then `CLAUDE.md` (the project rulebook: design decisions, constraints, every feature and where it lives), then `HANDOVER.md` if you're new. Run `git pull`, then `git status` and `git log -15 --oneline`. The shared repository is https://github.com/changeman11/ilovejvo (`main`).
    - If there are uncommitted changes you didn't make, ask the owner before touching them.
 2. **While working:** follow `CLAUDE.md`. In short:
    - plain-language explanations for the owner
@@ -20,6 +20,6 @@ This project is worked on by **two assistants in turn** (Claude and ChatGPT). To
    - Commit with a clear message, adding a trailer naming the assistant (e.g. `Co-Authored-By: ChatGPT <noreply@openai.com>`).
    - Update `PROGRESS.md`: what changed, what was deployed, what's unfinished or needs testing.
    - Update `CLAUDE.md` when a feature or decision changes. Same commit.
-   - Push if there's a remote.
+   - `git push` (to `origin main`), so the other assistant sees it.
 
 `CLAUDE.md` is named for Claude, but it is the single rulebook for **every** assistant. Don't create a second, competing one: edit that file.

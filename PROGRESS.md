@@ -5,7 +5,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 ## Current state (2026-10-24)
 
 - **Live site:** https://i-love-jvo.web.app, deployed with everything up to the "Event rules" commit. Service worker cache `jvo-shell-v49`.
-- **Repository:** local only (`main`), no GitHub remote yet (`HANDOVER.md` §11).
+- **Repository:** https://github.com/changeman11/ilovejvo (`main`). Pull before working, push after each commit. It's public right now; the owner may switch it to private.
 - **Tests:** 179 passing (`npm test`).
 - **Bot:** running on AWS (`jvo-bot`): pickup, 1v1 ranked, club roles and welcomes are on.
 
@@ -19,6 +19,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 - Custom domain ilovejvo.com: status unconfirmed.
 
 ## Log
+
+### 2026-10-24 · Claude (GitHub)
+- Connected the project to https://github.com/changeman11/ilovejvo and pushed the full history (checked for secrets first). The bot session fixed 1v1 game numbers (`008a470`, deployed). The first real 1v1 (killerado beat shin) worked end to end.
 
 ### 2026-10-24 · Claude
 - **Event rules:** a "📜 Event rules" section on every event page (`pages/event-rules.js`), written from the event's own settings. It covers teams and sign-ups, match format, fixtures, knockout, the night, results and integrity, and the table. Deployed.

@@ -22,7 +22,7 @@ The rule that keeps both in sync: **one copy of the project, one history, one st
 4. **Only one assistant works at a time.** Commit before switching. If both edit the same files without committing, one overwrites the other.
 5. **Deploys:** say in `PROGRESS.md` what was deployed and when. The live site = the last deploy, which may differ from the latest commit if someone forgot to deploy.
 
-**Right now the repository is only on this computer**, at `C:\Users\fanou\OneDrive\Documents\jvo-hub`, with local git history and **no GitHub remote**. To let ChatGPT work on the same code, put it on GitHub (private) and have both assistants push and pull there. See §11.
+**The shared copy is on GitHub: https://github.com/changeman11/ilovejvo** (branch `main`). Claude works in `C:\Users\fanou\OneDrive\Documents\jvo-hub`, a clone with `origin` set to that repository. **Pull before working, push after every commit.** See §11.
 
 ---
 
@@ -282,15 +282,12 @@ The schema is enforced by `firestore.rules`, and the sample data is in `seed/sam
 3. Deploy, then load the live site and confirm the change (a fresh `sw.js` CACHE version).
 4. Commit, and update `PROGRESS.md`.
 
-## 11. GitHub (recommended for syncing with ChatGPT)
+## 11. GitHub
 
-- **Current state:** no remote. Branch `main`. Latest commit: see `git log -1` (this handover is committed on top of `847803b` "Match night flow…").
-- **To set it up (owner, ~3 minutes):**
-  1. Create an empty **private** repository on github.com (no README).
-  2. In this folder, run:
-     ```bash
-     git remote add origin https://github.com/<you>/jvo-hub.git
-     git push -u origin main
-     ```
-  3. Connect ChatGPT to that repository.
-- **After that:** both assistants pull before working and push after. `.gitignore` already keeps out `node_modules`, `.env` files, keys, logs and local data.
+- **Repository:** https://github.com/changeman11/ilovejvo, branch `main`. It was pushed on 2026-10-24 with the full history. The history was checked first: no secrets in any commit.
+- **Every session:**
+  - Start with `git pull`.
+  - End with commit + `git push`.
+  - ChatGPT works on the same repository (connect it in ChatGPT's GitHub settings). If it opens pull requests, merge them on GitHub, then `git pull` here.
+- **Visibility:** the repository is **public** at the moment. There are no secrets in it, but the owner intended private: github.com → the repo → Settings → General → Danger Zone → Change visibility → Private.
+- **Safety:** `.gitignore` keeps out `node_modules`, `.env` files, keys, logs, local data and `exports/`. Never commit a secret: if one is pushed, reset it straight away (removing it from history isn't enough).
