@@ -11,7 +11,6 @@ import { signupsOpen } from './rules/autofix.js';
 import { zoneLabel, countdownParts } from './rules/events.js';
 import { liveSummary } from './rules/flow.js';
 import { phaseText } from './pages/live-parts.js';
-import { watchLiveEvent } from './live.js';
 
 const FOLD_KEY = 'jvo.featuredHidden'; // id of the event folded away on this device
 const LIVE_FOR = 3 * 3600000; // shown as "live now" for 3 hours after the start
@@ -88,8 +87,6 @@ export async function updateFeatured() {
   }
   const e = b.event;
   const live = liveSummary(b, now);
-  // Watch it live from 2 hours before the start, so scores show up as they're confirmed.
-  if (live || (e.date && e.date - now < 2 * 3600000)) watchLiveEvent(e.id, updateFeatured);
   el ??= document.body.appendChild(Object.assign(document.createElement('aside'), { className: 'featured' }));
   el.setAttribute('aria-label', 'Featured event');
 

@@ -1,6 +1,6 @@
 // Match page: score, sets, MVP, box scores, VOD and screenshots.
 
-import { loadEventBundle, NotFoundError } from '../data.js';
+import { loadEventBundle, loadMatchThread, NotFoundError } from '../data.js';
 import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, teamLink, playerLink, urls } from '../ui.js';
 import { formatFor } from '../rules/season.js';
 import { resultOf, statHeads, statCells } from './parts.js';
@@ -77,6 +77,12 @@ export async function render({ eventId, fixtureId }) {
   const mvp = played && result.mvpPlayerId
     ? `<div><span class="mvp-line">MVP · ${playerLink(b.playersById[result.mvpPlayerId], result.mvpPlayerId)}</span></div>` : '';
 
+  // The match's thread on Discord (made by the bot when the match opens), where players can vote too.
+  const thread = await loadMatchThread(eventId, fixtureId);
+  const threadUrl = safeUrl(thread?.url);
+  const threadLink = threadUrl
+    ? `<p style="margin-top:10px"><a class="btn btn-sm" href="${esc(threadUrl)}" target="_blank" rel="noopener">💬 Match thread on Discord</a></p>` : '';
+
   return {
     title: `${home?.shortName ?? 'TBC'} v ${away?.shortName ?? 'TBC'}`,
     html: `
@@ -92,6 +98,7 @@ export async function render({ eventId, fixtureId }) {
           ${played && !result.forfeit ? `<div class="set-strip">${result.sets.map((s, i) => `<span>Set ${i + 1}: ${s.home}–${s.away}</span>`).join('')}<span>Points ${check.homePoints}–${check.awayPoints}</span></div>` : ''}
           ${mvp}
           ${confirmed}
+          ${threadLink}
         </section>
         ${body}
       </div>`,

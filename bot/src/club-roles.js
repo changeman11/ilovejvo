@@ -11,7 +11,9 @@
 //   editRole(roleId, { name, color, hoist })               deleteRole(roleId)
 //   memberRoles(userId) -> Set(roleIds), or null if they're not in the server
 //   addRole(userId, roleId)                                removeRole(userId, roleId)
-import { eligibleClubs, planRoles, wantedClub, planMembers } from './logic/club-roles.js';
+import { eligibleClubs, planRoles, wantedClub, planMembers, wantedCaptains, planCaptains } from './logic/club-roles.js';
+
+const CAPTAIN_COLOR = 0xffe200; // the site's yellow
 
 const FULL_EVERY = 6 * 60 * 60 * 1000;
 const SKEW = 60 * 1000; // re-read a minute of overlap, in case clocks differ a little
@@ -141,7 +143,36 @@ export class ClubRoles {
     const members = planMembers({ want, roleMap, memberRoles });
     for (const { userId, roleId } of members.remove) if (await attempt(() => this.io.removeRole(userId, roleId))) result.removed++;
     for (const { userId, roleId } of members.add) if (await attempt(() => this.io.addRole(userId, roleId))) result.added++;
+    await this.applyCaptains({ clubs, existing, memberRoles, attempt, result });
     return result;
+  }
+
+  // The captain role (CAPTAIN_ROLE, default "Captain"): one role, given to every club's captain
+  // (manager) and taken off anyone who isn't one any more. Remembered as captainRole = roleId.
+  async applyCaptains({ clubs, existing, memberRoles, attempt, result }) {
+    const name = this.config.captainRoleName;
+    if (!name) return;
+    let roleId = this.store.getMeta('captainRole') ?? null;
+    if (roleId && !existing.has(roleId)) roleId = null;
+    if (!roleId) {
+      await attempt(async () => {
+        roleId = await this.io.createRole({ name, color: CAPTAIN_COLOR, hoist: false });
+        result.created++;
+        await this.store.setMeta('captainRole', roleId);
+      });
+      if (!roleId) return;
+      // A new role: everyone who's a captain needs it, not only those whose profile changed.
+      for (const p of this.players.values()) {
+        const id = String(p.discordId ?? '');
+        if (/^\d{15,22}$/.test(id) && !memberRoles.has(id)) memberRoles.set(id, await this.io.memberRoles(id).catch(() => null));
+      }
+    } else if (existing.get(roleId).name !== name) {
+      if (await attempt(() => this.io.editRole(roleId, { name, color: existing.get(roleId).color || CAPTAIN_COLOR, hoist: existing.get(roleId).hoist }))) result.updated++;
+    }
+    const players = [...this.players].map(([id, p]) => ({ ...p, id })); // (stored without their id)
+    const plan = planCaptains({ want: wantedCaptains(players, this.teams, clubs), roleId, memberRoles });
+    for (const userId of plan.remove) if (await attempt(() => this.io.removeRole(userId, roleId))) result.removed++;
+    for (const userId of plan.add) if (await attempt(() => this.io.addRole(userId, roleId))) result.added++;
   }
 }
 

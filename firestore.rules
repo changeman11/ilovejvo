@@ -150,24 +150,28 @@ service cloud.firestore {
 
     // A player's vote: they're signed in as that player, the player is on one of the two teams,
     // the event is public, the match is open (votingOpen) and has no result yet.
+    // Votes from the Discord match threads (bot/src/matches.js) are saved by the bot on the player's
+    // behalf: same checks, `via: 'discord'`, and `uid` must be the player's own site sign-in. The
+    // bot checks it's really that player (their Discord account) before it saves.
     function validVote(eventId, subId) {
       let d = request.resource.data;
       let f = fixtureDoc(eventId, d.fixtureId);
       return signedIn() && stampedByMe() && eventPublished(eventId) && votingOpen(eventId, f)
           && subId == d.fixtureId + '__' + d.playerId
-          && d.uid == uid() && ownsPlayer(d.playerId)
+          && ((d.uid == uid() && ownsPlayer(d.playerId) && d.get('via', 'site') == 'site')
+              || (isPickupBot() && d.get('via', '') == 'discord' && d.uid is string && d.uid == playerDoc(d.playerId).get('uid', null)))
           && d.teamId == playerDoc(d.playerId).get('teamId', '')
           && (d.teamId == f.homeTeamId || d.teamId == f.awayTeamId)
           && !exists(/databases/$(database)/documents/events/$(eventId)/results/$(d.fixtureId))
           && d.sets is list && d.sets.size() >= 1 && d.sets.size() <= 7
           && d.playerStats is map && d.playerStats.size() <= 12
           && (!('screenshotPaths' in d) || (d.screenshotPaths is list && d.screenshotPaths.size() <= 3))
-          && d.keys().hasOnly(['fixtureId', 'playerId', 'uid', 'teamId', 'sets', 'playerStats', 'screenshotPaths', 'createdAt', 'updatedBy', 'updatedAt']);
+          && d.keys().hasOnly(['fixtureId', 'playerId', 'uid', 'teamId', 'sets', 'playerStats', 'screenshotPaths', 'createdAt', 'updatedBy', 'updatedAt', 'via']);
     }
 
     // A SCORE published by players: exactly the set scores one home-team vote and one away-team vote
-    // agree on, written by one of the two voters. No stats or MVP: an admin adds those after checking
-    // the screenshots (statsStatus 'pending').
+    // agree on, written by one of the two voters (or by the bot, for a vote made in a Discord match
+    // thread). No stats or MVP: an admin adds those after checking the screenshots (statsStatus 'pending').
     function agreedResult(eventId, fixtureId) {
       let d = request.resource.data;
       let f = fixtureDoc(eventId, fixtureId);
@@ -178,7 +182,7 @@ service cloud.firestore {
           && d.confirmedBy is list && d.confirmedBy.size() == 2
           && h.fixtureId == fixtureId && a.fixtureId == fixtureId
           && h.teamId == f.homeTeamId && a.teamId == f.awayTeamId
-          && (h.uid == uid() || a.uid == uid())
+          && (h.uid == uid() || a.uid == uid() || isPickupBot())
           && h.sets == d.sets && a.sets == d.sets
           && d.playerStats.size() == 0 && d.mvpPlayerId == null
           && d.statsStatus == 'pending' && d.forfeit == null;
@@ -651,6 +655,14 @@ service cloud.firestore {
                        && (request.resource.data.size == null
                            || (request.resource.data.size is int && request.resource.data.size >= 1 && request.resource.data.size <= 10))
                        && request.resource.data.once is bool);
+    }
+    // Discord match threads (bot/src/matches.js): one per match, id "<eventId>__<fixtureId>".
+    // Public to read (the match page links to the thread); only the bot writes.
+    match /matchThreads/{threadDocId} {
+      allow read: if true;
+      allow create, update: if isPickupBot()
+                            && threadDocId == request.resource.data.eventId + '__' + request.resource.data.fixtureId;
+      allow delete: if isPickupBot() || isAdmin();
     }
     match /pickupBots/{botUid} {
       allow read, write: if false;

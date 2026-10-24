@@ -16,7 +16,7 @@ import * as adminHome from './pages/admin/home.js';
 import * as eventEdit from './pages/admin/event-edit.js';
 import * as people from './pages/admin/people.js';
 import * as resultEntry from './pages/admin/result.js';
-import { NotFoundError } from './data.js';
+import { NotFoundError, onDataChange, stopAdminLive, loadPublicEvents } from './data.js';
 import { onAdminChange, onUserChange, currentAdmin, startDiscordSignIn } from './auth.js';
 import { renderShell, setSection } from './shell.js';
 import './search.js';
@@ -24,7 +24,7 @@ import { updateBell } from './notifications.js';
 import { updateReel } from './reel.js';
 import { updateFeatured } from './featured.js';
 import { syncSchedules } from './admin-sync.js';
-import { stopLive } from './live.js';
+import { stopLive, keptNow, swapKept } from './live.js';
 import { startChatPanel } from './chat-panel.js';
 import './characters.js'; // switches the court picture when characters are on
 import * as teamsList from './pages/teams.js';
@@ -190,7 +190,12 @@ async function show({ quiet = false } = {}) {
     const out = await page.render(params);
     if (id !== renderId) return; // the user already moved on
     const { html, title } = typeof out === 'string' ? { html: out } : out;
+    const before = keptNow(main); // parts that carry on through a redraw (e.g. the team chat)
     main.innerHTML = back + html;
+    swapKept(main, before);
+    dirty = false;
+    livePill?.remove();
+    livePill = null;
     if (title) document.title = `${title} · ${SITE_NAME}`;
     page.mount?.(main);
     renderShell(); // keeps the desktop bars (level, team, next match) up to date after saves
@@ -228,6 +233,60 @@ function navigate(href, { keepScroll = false, replace = false } = {}) {
 
 setNav({ navigate, refresh: () => show(), refreshQuietly: () => show({ quiet: true }) });
 
+// ---------- Live updates: nobody needs to refresh (data.js keeps every read live) ----------
+// When anything on the page changes in the database, the page redraws itself quietly. If the person
+// has started filling something in on this page, it waits: a "New changes" button appears instead,
+// so their typing is never wiped. The bell, the desktop bars, the reel and the featured card always
+// follow straight away.
+let dirty = false; // typed or picked something on this page since it was drawn
+let livePill = null;
+let retryTimer = null;
+// (Kept parts such as the team chat survive a redraw, so typing there doesn't count.)
+main.addEventListener('input', (e) => { if (!e.target.closest('[data-keep]')) dirty = true; });
+main.addEventListener('change', (e) => { if (!e.target.closest('select[data-nav], [data-keep]')) dirty = true; });
+
+const busy = () => {
+  const el = document.activeElement;
+  return Boolean((el && main.contains(el) && !el.closest('[data-keep]') && el.matches('input, textarea, select, [contenteditable]')) || document.querySelector('dialog[open]'));
+};
+
+function showLivePill() {
+  if (livePill) return;
+  livePill = Object.assign(document.createElement('button'), { type: 'button', className: 'live-pill', textContent: '↻ New changes: show them' });
+  livePill.title = 'Something on this page changed. Your unsaved changes here will be lost.';
+  livePill.addEventListener('click', () => show({ quiet: true }));
+  document.body.appendChild(livePill);
+}
+
+function liveRedraw() {
+  clearTimeout(retryTimer);
+  if (dirty) {
+    showLivePill();
+  } else if (busy()) {
+    retryTimer = setTimeout(liveRedraw, 1500); // clicked into a box: wait until they're done
+    return;
+  } else {
+    show({ quiet: true }); // also redraws the bell, bars, reel and featured card
+    return;
+  }
+  renderShell();
+  updateBell({ force: true });
+  updateReel();
+  updateFeatured();
+}
+onDataChange(liveRedraw);
+
+// Some things change with the clock, not the data (a match opening at the start time, a stuck
+// match, the finals opening after the break). While an event is on, look again every minute.
+setInterval(async () => {
+  if (document.hidden) return;
+  updateBell({ force: true });
+  const events = await loadPublicEvents().catch(() => []);
+  const now = Date.now();
+  const on = events.some((e) => e.status === 'upcoming' && e.date && e.date - now < 30 * 60000 && now - e.date < 12 * 3600000);
+  if (on && !dirty && !busy()) show({ quiet: true });
+}, 60000);
+
 // "Sign in with Discord" buttons anywhere on the site. Comes back to the Me page.
 document.addEventListener('click', (e) => {
   const button = e.target.closest('[data-discord-signin]');
@@ -255,12 +314,17 @@ document.addEventListener('change', (e) => {
 window.addEventListener('popstate', show);
 
 // The "Admin" menu link appears for admins: the admin login, or a Discord admin (see auth.js currentAdmin).
+let adminKey = null;
 async function adminChanged() {
   let isAdmin = false;
   try {
     const a = await currentAdmin();
     // The Admin link stays for Discord admins with admin mode off, so they can switch it back on.
     isAdmin = Boolean(a.admin || a.modeOff);
+    // A different admin (or none): admin listeners were opened with the old sign-in, so close them.
+    const key = `${a.via ?? ''}|${a.user?.uid ?? ''}|${Boolean(a.admin)}`;
+    if (adminKey !== null && key !== adminKey) stopAdminLive();
+    adminKey = key;
   } catch { /* stay hidden */ }
   document.querySelectorAll('.admin-only').forEach((el) => { el.hidden = !isAdmin; });
   updateBell({ force: true }); // admin to-dos appear (or go) in the bell

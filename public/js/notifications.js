@@ -1,25 +1,45 @@
 // The bell in the top bar: invites, join requests and their answers, and matches waiting for
 // your result vote. Worked out from the same records the Club hub uses (nothing extra is stored).
 // "Seen" is remembered on this device only: opening the bell clears the red count.
+// It updates by itself (app.js calls updateBell whenever data changes, and every minute), so an
+// admin can leave the site open on a second screen: new admin to-dos pop up as a small alert at
+// the bottom of the screen, and the tab title shows how many are waiting.
+// Admins can clear to-dos (one, or all) on this device; a cleared one comes back only if it changes.
 
 import { currentUser, currentAdmin } from './auth.js';
 import { loadMe, isApprovedTeam, loadAllBundles, loadRequests } from './data.js';
 import { tallyVotes } from './rules/votes.js';
 import { flowOf, matchState, eventPhase } from './rules/flow.js';
 import { checkText } from './rules/profanity.js';
-import { getDocs, query, collection, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { onSnapshot, query, collection, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
 import { matchesToReport } from './pages/report.js';
 import { esc, urls, fmtDay, fmtTime } from './ui.js';
 import { signupsOpen, lockTime } from './rules/autofix.js';
+import { navigate } from './nav.js';
 
 const box = document.querySelector('[data-bell]');
 const SEEN_KEY = 'jvo.notificationsSeenAt';
+const CLEARED_KEY = 'jvo.adminCleared'; // admin to-dos cleared on this device: { id: true }
 const RECENT = 14 * 24 * 3600 * 1000; // answers older than two weeks drop off
 let cache = { at: 0, key: null, items: [], admin: false, player: false };
 
 const seenAt = () => { try { return Number(localStorage.getItem(SEEN_KEY) ?? 0); } catch { return 0; } };
 const markSeen = () => { try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch { /* fine */ } };
+const cleared = () => { try { return JSON.parse(localStorage.getItem(CLEARED_KEY) ?? '{}') ?? {}; } catch { return {}; } };
+function saveCleared(map) { try { localStorage.setItem(CLEARED_KEY, JSON.stringify(map)); } catch { /* fine */ } }
+
+// Global chat, the latest 150 messages, watched live (for the "swearing today" to-do).
+let chatDocs = null;
+let chatStop = null;
+function watchChat() {
+  if (chatStop) return;
+  chatStop = onSnapshot(query(collection(db, 'chat'), orderBy('createdAt', 'desc'), limit(150)), (snap) => {
+    const firstTime = chatDocs === null;
+    chatDocs = snap.docs.map((d) => d.data({ serverTimestamps: 'estimate' }));
+    if (!firstTime) updateBell({ force: true });
+  }, (err) => { console.warn('Chat check:', err); chatStop = null; });
+}
 
 const DAY = 24 * 3600 * 1000;
 const kind = (e) => (e.type === 'tournament' ? 'tournament' : 'exhibition night');
@@ -144,24 +164,40 @@ async function gatherAdmin() {
     }
   }
   // Global chat messages from the last day with swearing in them (slurs are already blocked).
-  try {
-    const snap = await getDocs(query(collection(db, 'chat'), orderBy('createdAt', 'desc'), limit(150)));
-    const rude = snap.docs.map((d) => d.data())
-      .filter((m) => (m.createdAt?.toMillis?.() ?? 0) > now - DAY && checkText(m.body).level !== 'none');
-    if (rude.length) {
-      out.push({ id: 'a-chat', at: rude[0].createdAt.toMillis(), icon: '🗯️', text: `<b>${rude.length}</b> chat message${rude.length === 1 ? '' : 's'} with swearing today (marked ⚑ in the chat)`, openChat: true });
-    }
-  } catch (err) { console.warn('Chat check:', err); }
+  watchChat();
+  const rude = (chatDocs ?? [])
+    .filter((m) => (m.createdAt?.toMillis?.() ?? 0) > now - DAY && checkText(m.body).level !== 'none');
+  if (rude.length) {
+    // The id changes with the count, so a cleared one comes back when there's more.
+    out.push({ id: `a-chat-${rude.length}`, at: rude[0].createdAt.toMillis(), icon: '🗯️', text: `<b>${rude.length}</b> chat message${rude.length === 1 ? '' : 's'} with swearing today (marked ⚑ in the chat)`, openChat: true });
+  }
   return out.map((i) => ({ ...i, admin: true })).sort((x, y) => (y.at ?? 0) - (x.at ?? 0));
 }
 
-const itemHtml = (i) => (i.openChat ? `<li><a href="#" data-open-chat><span class="bell-icon">${i.icon}</span><span>${i.text}</span></a></li>` : `<li><a href="${esc(i.href)}" data-link><span class="bell-icon">${i.icon}</span><span>${i.text}${i.at && !i.noDate ? `<small>${esc(fmtDay(i.at))}</small>` : ''}</span></a></li>`);
+const itemLink = (i) => (i.openChat
+  ? `<a href="#" data-open-chat><span class="bell-icon">${i.icon}</span><span>${i.text}</span></a>`
+  : `<a href="${esc(i.href)}" data-link><span class="bell-icon">${i.icon}</span><span>${i.text}${i.at && !i.noDate ? `<small>${esc(fmtDay(i.at))}</small>` : ''}</span></a>`);
+const itemHtml = (i) => `<li>${itemLink(i)}</li>`;
+const adminItemHtml = (i) => `<li class="bell-row">${itemLink(i)}<button class="bell-x" type="button" data-clear="${esc(i.id)}" title="Clear this" aria-label="Clear this">×</button></li>`;
+
+// Admin to-dos that haven't been cleared on this device. Cleared ones that no longer exist are forgotten.
+function visibleAdmin(items) {
+  const map = cleared();
+  const ids = new Set(items.map((i) => i.id));
+  const pruned = Object.fromEntries(Object.entries(map).filter(([id]) => ids.has(id)));
+  if (Object.keys(pruned).length !== Object.keys(map).length) saveCleared(pruned);
+  return { shown: items.filter((i) => !pruned[i.id]), hidden: items.filter((i) => pruned[i.id]).length };
+}
+
+let showCleared = false;
 
 function draw(items, open = false) {
   const mine = items.filter((i) => !i.admin);
-  const adminItems = items.filter((i) => i.admin);
-  // Admin to-dos and invites/requests stay counted until they're dealt with; the rest until you open the bell.
-  const unseen = items.filter((i) => i.admin || (i.at ?? 0) > seenAt() || i.id.startsWith('offer') || i.id.startsWith('req')).length;
+  const { shown: adminItems, hidden } = visibleAdmin(items.filter((i) => i.admin));
+  const adminList = showCleared ? items.filter((i) => i.admin) : adminItems;
+  // Admin to-dos and invites/requests stay counted until they're dealt with (or cleared); the rest until you open the bell.
+  const unseen = adminItems.length + mine.filter((i) => (i.at ?? 0) > seenAt() || i.id.startsWith('offer') || i.id.startsWith('req')).length;
+  setTitleCount(cache.admin ? adminItems.length : 0);
   box.hidden = false;
   box.innerHTML = `
     <button class="round-btn bell-btn" type="button" data-bell-toggle aria-expanded="${open}" aria-label="Notifications${unseen ? ` (${unseen} new)` : ''}" title="Notifications">
@@ -169,9 +205,13 @@ function draw(items, open = false) {
     </button>
     <div class="bell-panel" ${open ? '' : 'hidden'} role="dialog" aria-label="Notifications">
       ${cache.admin ? `
-        <b class="bell-title">Admin to-do${adminItems.length ? ` <span class="bell-tag">${adminItems.length}</span>` : ''}</b>
-        ${adminItems.length ? `<ul>${adminItems.slice(0, 10).map(itemHtml).join('')}</ul>${adminItems.length > 10 ? '<p class="small"><a href="/admin/requests" data-link>See everything in the admin inbox</a></p>' : ''}`
-          : '<p class="muted small">All caught up. Approvals and results to check show up here.</p>'}` : ''}
+        <div class="bell-head">
+          <b class="bell-title">Admin to-do${adminItems.length ? ` <span class="bell-tag">${adminItems.length}</span>` : ''}</b>
+          ${adminItems.length ? '<button class="btn btn-sm" type="button" data-clear-all>Clear all</button>' : ''}
+        </div>
+        ${adminList.length ? `<ul>${adminList.slice(0, 15).map(adminItemHtml).join('')}</ul>${adminList.length > 15 ? '<p class="small"><a href="/admin/requests" data-link>See everything in the admin inbox</a></p>' : ''}`
+          : '<p class="muted small">All caught up. Approvals and results to check show up here.</p>'}
+        ${hidden ? `<p class="small"><button class="link-btn" type="button" data-show-cleared>${showCleared ? 'Hide' : 'Show'} ${hidden} cleared</button></p>` : ''}` : ''}
       ${cache.player ? `
         <b class="bell-title">Notifications</b>
         ${mine.length ? `<ul>${mine.slice(0, 12).map(itemHtml).join('')}</ul>`
@@ -179,7 +219,54 @@ function draw(items, open = false) {
     </div>`;
 }
 
-// Refreshes the bell (cached for a minute so page changes stay cheap).
+// "(3) I<3JVO": admin to-dos waiting, in the tab title (handy with the site on a second screen).
+const TITLE_COUNT = /^\(\d+\) /;
+let titleCount = 0;
+function setTitleCount(n) {
+  titleCount = n;
+  const base = document.title.replace(TITLE_COUNT, '');
+  const next = n ? `(${n}) ${base}` : base;
+  if (document.title !== next) document.title = next;
+}
+// Pages set their own title when they draw: put the count back in front.
+new MutationObserver(() => { if (titleCount && !TITLE_COUNT.test(document.title)) setTitleCount(titleCount); })
+  .observe(document.querySelector('title') ?? document.head, { childList: true, characterData: true, subtree: true });
+
+// New admin to-dos (since the bell last looked) pop up at the bottom corner for a while.
+let knownAdmin = null; // ids already shown; null until the first look
+let bellRun = 0;
+function alertNew(adminItems) {
+  const { shown } = visibleAdmin(adminItems);
+  if (knownAdmin === null) {
+    knownAdmin = new Set(adminItems.map((i) => i.id));
+    return;
+  }
+  const fresh = shown.filter((i) => !knownAdmin.has(i.id));
+  for (const i of adminItems) knownAdmin.add(i.id);
+  if (!fresh.length) return;
+  let stack = document.querySelector('.admin-toasts');
+  if (!stack) {
+    stack = Object.assign(document.createElement('div'), { className: 'admin-toasts' });
+    stack.setAttribute('role', 'status');
+    stack.setAttribute('aria-live', 'polite');
+    document.body.appendChild(stack);
+  }
+  for (const i of fresh.slice(0, 4)) {
+    const toast = Object.assign(document.createElement('div'), { className: 'admin-toast' });
+    toast.innerHTML = `<span class="bell-icon">${i.icon}</span><span><small>Admin to-do</small>${i.text}</span><button class="bell-x" type="button" aria-label="Close">×</button>`;
+    if (i.openChat) toast.dataset.openChat = ''; // chat-panel.js opens the chat
+    const close = () => toast.remove();
+    toast.querySelector('.bell-x').addEventListener('click', (e) => { e.stopPropagation(); close(); });
+    toast.addEventListener('click', () => {
+      setTimeout(close); // after the chat panel has seen the click
+      if (!i.openChat && i.href) navigate(i.href);
+    });
+    stack.appendChild(toast);
+    setTimeout(close, 20000);
+  }
+}
+
+// Refreshes the bell. Everything it reads is live (data.js), so redrawing it is cheap.
 // Shows for players (Discord sign-in), admins (admin login), or both on the same device.
 export async function updateBell({ force = false } = {}) {
   if (!box) return;
@@ -188,16 +275,21 @@ export async function updateBell({ force = false } = {}) {
   if (!user && !adminUid) {
     box.hidden = true;
     box.innerHTML = '';
+    setTitleCount(0);
     return;
   }
   const key = `${user?.uid ?? ''}|${adminUid ?? ''}`;
   if (force || cache.key !== key || Date.now() - cache.at > 60000) {
+    const run = ++bellRun;
     try {
       const [items, adminItems] = await Promise.all([
         user ? gather(user.uid) : [],
         adminUid ? gatherAdmin().catch((err) => { console.warn('Admin notifications:', err); return []; }) : [],
       ]);
+      if (run !== bellRun) return; // a newer look has started: let it draw
+      if (cache.key !== key) knownAdmin = null; // someone else signed in: don't pop up everything
       cache = { at: Date.now(), key, items: [...adminItems, ...items], admin: Boolean(adminUid), player: Boolean(user) };
+      if (adminUid) alertNew(adminItems);
     } catch (err) {
       console.warn('Notifications:', err);
       return;
@@ -209,6 +301,21 @@ export async function updateBell({ force = false } = {}) {
 
 if (box) {
   box.addEventListener('click', (e) => {
+    const one = e.target.closest('[data-clear]');
+    if (one || e.target.closest('[data-clear-all]')) {
+      e.preventDefault();
+      const map = cleared();
+      const ids = one ? [one.dataset.clear] : cache.items.filter((i) => i.admin).map((i) => i.id);
+      for (const id of ids) map[id] = true;
+      saveCleared(map);
+      draw(cache.items, true);
+      return;
+    }
+    if (e.target.closest('[data-show-cleared]')) {
+      showCleared = !showCleared;
+      draw(cache.items, true);
+      return;
+    }
     if (e.target.closest('[data-bell-toggle]')) {
       const panel = box.querySelector('.bell-panel');
       const opening = panel.hidden;

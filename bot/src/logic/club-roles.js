@@ -51,6 +51,33 @@ export function wantedClub(players, clubs) {
   return want;
 }
 
+// Captains: the Discord IDs of every role-eligible club's captain (manager). The captain is the
+// player whose id is the club's managerPlayerId (or whose sign-in is its managerUid), and they must
+// still be in that club. teams: Map teamId -> team.
+export function wantedCaptains(players, teams, clubs) {
+  const ids = new Set();
+  for (const p of players) {
+    const id = String(p.discordId ?? '').trim();
+    if (!/^\d{15,22}$/.test(id) || !p.teamId || !clubs.has(p.teamId)) continue;
+    const t = teams.get(p.teamId);
+    if ((t?.managerPlayerId && t.managerPlayerId === p.id) || (t?.managerUid && p.uid && t.managerUid === p.uid)) ids.add(id);
+  }
+  return ids;
+}
+
+// The captain role for these members: -> { add: [userId], remove: [userId] }
+export function planCaptains({ want, roleId, memberRoles }) {
+  const add = [];
+  const remove = [];
+  for (const [userId, roles] of memberRoles) {
+    if (!roles) continue;
+    const has = roles.has(roleId);
+    if (want.has(userId) && !has) add.push(userId);
+    else if (!want.has(userId) && has) remove.push(userId);
+  }
+  return { add, remove };
+}
+
 // memberRoles: Map discordId -> Set(roleIds), or null when they aren't in the Discord server.
 //   -> { add: [{ userId, roleId }], remove: [{ userId, roleId }] }
 export function planMembers({ want, roleMap, memberRoles }) {

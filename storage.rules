@@ -43,11 +43,23 @@ service firebase.storage {
       allow delete: if isAdmin() || managesTeam(teamId);
     }
 
+    // The Discord bot's own account (listed in /pickupBots, password sign-in), like firestore.rules.
+    function isPickupBot() {
+      return signedIn()
+          && request.auth.token.firebase.sign_in_provider == 'password'
+          && firestore.exists(/databases/(default)/documents/pickupBots/$(request.auth.uid));
+    }
+
     match /players/{playerId}/{kind}/{file} {
       allow get: if true;
       // "shot" = end-of-match screenshots attached to the player's result votes.
       allow create: if kind in ['avatar', 'banner', 'background', 'shot'] && validImage(kind)
                     && (isAdmin() || ownsPlayer(playerId));
+      // Screenshots attached to a vote in a Discord match thread: the bot copies them here. They
+      // come straight from Discord (not shrunk in a browser), so they may be up to 10 MB.
+      allow create: if kind == 'shot' && isPickupBot()
+                    && request.resource.size <= 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/(png|jpeg|webp|gif)');
       allow delete: if isAdmin() || ownsPlayer(playerId);
     }
 

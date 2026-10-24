@@ -13,6 +13,8 @@ import { SiteReader } from './store/firestore-rest.js';
 import { SiteQueue, RankedSiteQueue } from './site-queue.js';
 import { Ranked } from './ranked.js';
 import { welcomeMember } from './welcome.js';
+import { MatchThreads } from './matches.js';
+import { SiteWatch } from './site-watch.js';
 import { checkMembersIntent } from './login.js';
 
 const log = {
@@ -79,6 +81,8 @@ let clubRoles = null;
 let siteQueue = null;
 let ranked = null;
 let rankedSite = null;
+let matches = null;
+let matchSite = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -99,6 +103,13 @@ client.once(Events.ClientReady, async () => {
       await ranked.start();
       rankedSite?.start();
       log.info(`[1v1] queue in <#${config.rankedChannelId}>, results in <#${config.rankedResultsChannelId}>`);
+    }
+    // Match threads: a thread per site match, votes saved to the site (needs STORE=firebase).
+    if (config.matchThreads) {
+      matchSite = new SiteWatch({ firebase: config.firebase, log, onChange: () => matches?.sync() });
+      matches = new MatchThreads({ io: discord.matchIo, site: matchSite, rest: store.rest, config, log });
+      matchSite.start();
+      await matches.start();
     }
     if (config.clubRoles) {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
@@ -141,6 +152,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const roleIds = Array.isArray(interaction.member?.roles) ? interaction.member.roles : [...(interaction.member?.roles?.cache?.keys() ?? [])];
   user.isStaff = user.isAdmin || roleIds.some((id) => config.staffRoleIds.includes(id));
   try {
+    // Match threads: "Report score" (answers with the form), "Confirm their score", and the form.
+    if (matches && interaction.isButton() && interaction.customId.startsWith('mt:')) {
+      if (interaction.customId.startsWith('mt:vote:')) {
+        const reply = await matches.button(interaction.customId, user);
+        if (reply?.modal) return interaction.showModal({ toJSON: () => reply.modal });
+        return interaction.reply({ content: reply?.ephemeral ?? 'Something went wrong.', flags: MessageFlags.Ephemeral });
+      }
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const reply = await matches.button(interaction.customId, user);
+      return interaction.editReply(reply?.ephemeral ?? 'Done.');
+    }
+    if (matches && interaction.isModalSubmit() && interaction.customId.startsWith('mtm:')) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const sets = interaction.fields.getTextInputValue('sets');
+      let files = [];
+      try {
+        files = [...(interaction.fields.getUploadedFiles('shots')?.values() ?? [])].map((f) => ({ url: f.url, name: f.name, contentType: f.contentType }));
+      } catch {
+        // no screenshot attached
+      }
+      const reply = await matches.modal(interaction.customId, user, { sets, files });
+      return interaction.editReply(reply?.ephemeral ?? 'Saved.');
+    }
     // 1v1 ranked: buttons, and the result form.
     if (ranked && interaction.isButton() && /^(rq|rr|rres|rstaff):/.test(interaction.customId)) {
       if (interaction.customId.startsWith('rres:')) {
@@ -215,6 +249,8 @@ process.on('unhandledRejection', (err) => log.error('[bot] unhandled:', err));
 async function stop(signal) {
   log.info(`${signal}: shutting down`);
   clubRoles?.stop();
+  matches?.stop();
+  matchSite?.stop();
   siteQueue?.stop();
   rankedSite?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);

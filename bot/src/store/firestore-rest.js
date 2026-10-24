@@ -170,17 +170,41 @@ export class FirestoreRest {
   }
 
   // Several writes that all happen or none do.
-  //   writes: [{ path: 'pickupGames/g1', data: {...}, mask?: ['field'], mustNotExist?: true }
+  //   writes: [{ path: 'pickupGames/g1', data: {...}, mask?: ['field'], mustNotExist?: true, serverTime?: ['updatedAt'] }
   //            or { delete: 'pickupSignups/123' }]
   // Without `mask` the whole document is replaced; with it, only those fields change.
+  // serverTime: fields set to the server's clock as it saves (the site's rules check updatedAt that way).
   async commit(writes) {
     return this.call('POST', `${this.docsBase}${this.root}:commit`, {
       writes: writes.map((w) => (w.delete ? { delete: `${this.root}/${w.delete}` } : {
         update: { name: `${this.root}/${w.path}`, fields: toFields(w.data) },
         ...(w.mask ? { updateMask: { fieldPaths: w.mask } } : {}),
         ...(w.mustNotExist ? { currentDocument: { exists: false } } : {}),
+        ...(w.serverTime?.length ? { updateTransforms: w.serverTime.map((fieldPath) => ({ fieldPath, setToServerValue: 'REQUEST_TIME' })) } : {}),
       })),
     });
+  }
+
+  // Uploads a file to Firebase Storage (storage.rules decides; the bot may only add match
+  // screenshots). bucket: e.g. 'i-love-jvo.firebasestorage.app'. Returns the path.
+  async upload(bucket, path, data, contentType) {
+    const host = this.emulator?.storage ?? 'https://firebasestorage.googleapis.com';
+    const url = `${host}/v0/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(path)}`;
+    const send = async () => this.fetchFn(url, {
+      method: 'POST',
+      headers: { authorization: `Firebase ${await this.token()}`, 'content-type': contentType },
+      body: data,
+    });
+    let res = await send();
+    if (res.status === 401) {
+      this.idToken = null;
+      res = await send();
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(`Storage upload failed (${res.status}): ${body.error?.message ?? ''}${res.status === 403 ? ' (are the latest storage.rules deployed?)' : ''}`);
+    }
+    return path;
   }
 
   // Emulator only: create the bot account and list it in /pickupBots (the "owner" key skips the

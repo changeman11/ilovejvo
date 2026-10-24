@@ -5,16 +5,13 @@
 // - The Elo leaderboard (pickupRatings) and recent games (pickupGames).
 // The page redraws itself when the live state or your sign-up changes.
 
-import { onSnapshot, doc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from '../firebase.js';
-import { loadPickupLive, loadPickupRatings, loadPickupGames, loadPickupSignup, loadPlayers, invalidate, loadRankedLive, loadRankedRatings, loadRankedSignup } from '../data.js';
+import { loadPickupLive, loadPickupRatings, loadPickupGames, loadPickupSignup, loadPlayers, loadRankedLive, loadRankedRatings, loadRankedSignup } from '../data.js';
 import { pickupSignUp, pickupWithdraw, pickupVote, rankedJoin, rankedLeave } from '../player-data.js';
 import { currentUser, discordOf, currentAdmin } from '../auth.js';
 import { commit } from '../writes.js';
 import { esc, skeleton, pageTitle, urls } from '../ui.js';
 import { discordInviteUrl } from '../config.js';
 import { keepUntilPageChanges } from '../live.js';
-import { refreshQuietly } from '../nav.js';
 
 export const title = 'Pickup';
 
@@ -312,27 +309,8 @@ export function mount(el) {
   const timer = setInterval(tick, 1000);
   keepUntilPageChanges(() => clearInterval(timer));
 
-  // Redraw when the bot's live state or your own sign-up changes.
-  let pending = null;
-  const redraw = () => {
-    clearTimeout(pending);
-    pending = setTimeout(() => {
-      invalidate('pickup:');
-      refreshQuietly();
-    }, 300);
-  };
-  keepUntilPageChanges(() => clearTimeout(pending));
-  const watch = (ref) => {
-    let first = true;
-    keepUntilPageChanges(onSnapshot(ref, () => {
-      if (first) { first = false; return; }
-      redraw();
-    }, () => {}));
-  };
-  watch(doc(db, 'pickupMeta/live'));
-  watch(doc(db, 'pickupMeta/live1v1'));
-  if (me) watch(doc(db, `rankedSignups/${me.discordId}`));
-  if (me) watch(doc(db, `pickupSignups/${me.discordId}`));
+  // The bot's live state and your own sign-ups are live reads (data.js): the page redraws itself
+  // when they change, including straight after a button press here.
 
   // Admins: set the mode (the bot picks it up straight away).
   el.querySelector('[data-pickup-admin]')?.addEventListener('submit', async (e) => {
@@ -361,7 +339,6 @@ export function mount(el) {
         const size = vote.dataset.vote ? Number(vote.dataset.vote) : null;
         if (me.signedUp) await pickupVote(me.discordId, size);
         else if (size) await pickupSignUp(me.discordId, me.name, size);
-        redraw();
       } catch (err) {
         console.error(err);
         vote.disabled = false;
@@ -374,7 +351,6 @@ export function mount(el) {
       try {
         if (r.dataset.ranked === 'join') await rankedJoin(me.discordId, me.name);
         else await rankedLeave(me.discordId);
-        redraw();
       } catch (err) {
         console.error(err);
         r.disabled = false;
@@ -387,7 +363,6 @@ export function mount(el) {
     try {
       if (button.dataset.pickup === 'join') await pickupSignUp(me.discordId, me.name);
       else await pickupWithdraw(me.discordId);
-      redraw();
     } catch (err) {
       console.error(err);
       button.disabled = false;

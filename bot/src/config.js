@@ -4,8 +4,8 @@ import { parseModes } from './logic/modes.js';
 import { DEFAULT_K, DEFAULT_START } from './logic/elo.js';
 
 // The live site's public Firebase settings (the same ones as public/js/config.js; not secret).
-const LIVE_FIREBASE = { projectId: 'i-love-jvo', apiKey: 'AIzaSyDLQRbRGct6B2LxAjjv6FXznPOzx8f7aHU' };
-const EMULATOR_FIREBASE = { projectId: 'demo-jvo-hub', apiKey: 'demo-key' };
+const LIVE_FIREBASE = { projectId: 'i-love-jvo', apiKey: 'AIzaSyDLQRbRGct6B2LxAjjv6FXznPOzx8f7aHU', storageBucket: 'i-love-jvo.firebasestorage.app' };
+const EMULATOR_FIREBASE = { projectId: 'demo-jvo-hub', apiKey: 'demo-key', storageBucket: 'demo-jvo-hub.appspot.com' };
 
 export class ConfigError extends Error {
   constructor(problems) {
@@ -54,10 +54,15 @@ export function loadConfig(env = process.env) {
   const firebase = {
     projectId: text('FIREBASE_PROJECT_ID', firebaseDefaults.projectId),
     apiKey: text('FIREBASE_API_KEY', firebaseDefaults.apiKey),
+    storageBucket: text('FIREBASE_STORAGE_BUCKET', firebaseDefaults.storageBucket),
     email: text('FIREBASE_BOT_EMAIL', 'pickup-bot@users.ilovejvo.com'),
     password: text('FIREBASE_BOT_PASSWORD', emulator ? 'emulator-only-password' : ''),
     emulator: emulator
-      ? { firestore: `http://${text('FIRESTORE_EMULATOR_HOST', '127.0.0.1:8080')}`, auth: `http://${text('FIREBASE_AUTH_EMULATOR_HOST', '127.0.0.1:9099')}` }
+      ? {
+          firestore: `http://${text('FIRESTORE_EMULATOR_HOST', '127.0.0.1:8080')}`,
+          auth: `http://${text('FIREBASE_AUTH_EMULATOR_HOST', '127.0.0.1:9099')}`,
+          storage: `http://${text('FIREBASE_STORAGE_EMULATOR_HOST', '127.0.0.1:9199')}`,
+        }
       : null,
   };
   if (store === 'firebase' && !firebase.password) {
@@ -86,6 +91,16 @@ export function loadConfig(env = process.env) {
     clubRoles: text('CLUB_ROLES') === '1',
     clubRolesHoist: text('CLUB_ROLES_GROUPED', '1') !== '0',
     clubRolesMinutes: number('CLUB_ROLES_MINUTES', 5, 1, 1440),
+    // With club roles on: one more role for every club's captain (manager). CAPTAIN_ROLE=0 = none.
+    captainRoleName: text('CAPTAIN_ROLE') === '0' ? '' : text('CAPTAIN_ROLE', 'Captain').slice(0, 100),
+    // Match threads (matches.js): a thread per site match in MATCH_CHANNEL_ID (made if empty) once
+    // it opens; players vote there, and are pinged again every MATCH_REMIND_MINUTES (at most
+    // MATCH_REMIND_MAX times, then admins are pinged) until the score is in.
+    matchThreads: text('MATCH_THREADS') === '1',
+    matchChannelId: discordId('MATCH_CHANNEL_ID', '', false),
+    matchRemindMinutes: number('MATCH_REMIND_MINUTES', 10, 1, 240),
+    matchRemindMax: number('MATCH_REMIND_MAX', 6, 0, 50),
+    matchCloseMinutes: number('MATCH_CLOSE_MINUTES', 15, 0, 1440),
     // 1v1 ranked queue (ranked.js). Channels are made if these are empty.
     // Welcome new members here (needs the Server Members intent). Empty = no welcomes.
     welcomeChannelId: discordId('WELCOME_CHANNEL_ID', '', false),
@@ -111,6 +126,7 @@ export function loadConfig(env = process.env) {
   for (const id of config.adminRoleIds) {
     if (!/^\d{15,22}$/.test(id)) problems.push(`ADMIN_ROLE_IDS should be role IDs separated by commas, got "${id}"`);
   }
+  if (config.matchThreads && store !== 'firebase') problems.push('MATCH_THREADS=1 needs STORE=firebase (votes are saved to the site)');
   if (problems.length) throw new ConfigError(problems);
   return config;
 }

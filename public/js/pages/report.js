@@ -30,10 +30,12 @@ export function votesSummary(b, f) {
   const subs = (b.submissions ?? []).filter((s) => s.fixtureId === f.id);
   if (!subs.length) return '';
   const tally = tallyVotes(subs, f);
+  // 👑 = the club's captain (manager); "via Discord" = voted in the bot's match thread.
+  const captain = (teamId, v) => Boolean(v.uid && b.teamsById[teamId]?.managerUid === v.uid);
   const side = (teamId, votes) => `
     <div class="vote-side">
       <b>${teamDot(b.teamsById[teamId])} ${esc(b.teamsById[teamId]?.name ?? 'TBC')}</b>
-      ${votes.length ? votes.map((v) => `<span class="vote${tally.pair && (tally.pair.home.id === v.id || tally.pair.away.id === v.id) ? ' ok' : ''}">${playerLink(b.playersById[v.playerId], v.playerId)} says <b class="num">${esc(voteLabel(v.sets))}</b>
+      ${votes.length ? votes.map((v) => `<span class="vote${tally.pair && (tally.pair.home.id === v.id || tally.pair.away.id === v.id) ? ' ok' : ''}">${captain(teamId, v) ? '<span title="Captain">👑</span> ' : ''}${playerLink(b.playersById[v.playerId], v.playerId)} says <b class="num">${esc(voteLabel(v.sets))}</b>${v.via === 'discord' ? ' <span class="muted small">via Discord</span>' : ''}
         ${v.screenshotPaths?.length ? `<span class="vote-shots">${shotThumbs(v.screenshotPaths)}</span>` : ''}</span>`).join('')
         : '<span class="muted small">no vote yet</span>'}
     </div>`;

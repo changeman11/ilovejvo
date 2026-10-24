@@ -1,12 +1,17 @@
 // Reads data from Firestore and turns it into plain objects the pages can use.
 // Dates become milliseconds so the rules engine never sees Firebase types.
-// Everything is cached for the visit; admin pages ask for fresh copies.
+//
+// Everything is LIVE (changed 2026-10-24): each document or collection a page reads gets a
+// Firestore listener that stays open for the visit, so the copy here is always current. When
+// anything changes, onDataChange() listeners run (app.js redraws the page, the bell, the bars),
+// so nobody has to refresh. A listener costs one read per document at the start (the same as a
+// plain read) and then only one read per changed document.
 //
 // `admin: true` reads through the admin sign-in (see firebase.js), which can see drafts and
 // requests. Everything else reads through the public/player connection.
 
 import {
-  doc, getDoc, getDocs, collection, query, where, orderBy, limit,
+  doc, collection, query, where, orderBy, limit, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db, adminDatabase } from './firebase.js';
 import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './rules/defaults.js';
@@ -25,41 +30,92 @@ function plain(value) {
   return value;
 }
 
-const asObj = (d) => ({ id: d.id, ...plain(d.data()) });
+// Saves still waiting for the server have a null time; estimate it so new things sort first.
+const asObj = (d) => ({ id: d.id, ...plain(d.data({ serverTimestamps: 'estimate' })) });
 
-async function getOne(path, admin = false) {
-  const snap = await getDoc(doc(dbFor(admin), path));
-  return snap.exists() ? asObj(snap) : null;
+// ---------- Live copies ----------
+// live: key -> { promise, stop }. Each is one listener; the promise always holds the latest copy.
+// Admin reads are kept separately (keys start with "A|").
+const live = new Map();
+const changeListeners = new Set();
+let changeTimer = null;
+let changedKeys = new Set();
+
+// Runs fn(keys) shortly after anything read here changes (several changes are grouped together).
+export function onDataChange(fn) {
+  changeListeners.add(fn);
+  return () => changeListeners.delete(fn);
 }
 
-async function getAll(path, admin = false) {
-  const snap = await getDocs(collection(dbFor(admin), path));
-  return snap.docs.map(asObj);
+function changed(key) {
+  changedKeys.add(key);
+  derived.clear(); // anything built from the old copies is out of date
+  clearTimeout(changeTimer);
+  changeTimer = setTimeout(() => {
+    const keys = changedKeys;
+    changedKeys = new Set();
+    for (const fn of changeListeners) {
+      try { fn(keys); } catch (err) { console.error(err); }
+    }
+  }, 250);
 }
 
-async function queryAll(path, field, value, admin = false) {
-  const snap = await getDocs(query(collection(dbFor(admin), path), where(field, '==', value)));
-  return snap.docs.map(asObj);
+// ref: a document or a query. map(snapshot) -> the plain value to keep.
+function watch(key, admin, ref, map) {
+  const k = admin ? `A|${key}` : key;
+  if (live.has(k)) return live.get(k).promise;
+  const entry = { promise: null, stop: () => {} };
+  entry.promise = new Promise((resolve, reject) => {
+    let first = true;
+    entry.stop = onSnapshot(ref, (snap) => {
+      const value = map(snap);
+      entry.promise = Promise.resolve(value);
+      if (first) { first = false; resolve(value); } else changed(k);
+    }, (err) => {
+      // Not allowed (any more), e.g. signed out or an event made a draft: forget it.
+      if (live.get(k) === entry) live.delete(k);
+      if (first) { first = false; reject(err); } else changed(k);
+    });
+  });
+  live.set(k, entry);
+  return entry.promise;
 }
 
-// Caches a promise; drops it on failure so the next visit can retry.
-// Admin reads are cached separately (keys start with "A|").
-const cache = new Map();
+const getOne = (path, admin = false) =>
+  watch(`doc:${path}`, admin, doc(dbFor(admin), path), (snap) => (snap.exists() ? asObj(snap) : null));
+
+const getAll = (path, admin = false) =>
+  watch(`col:${path}`, admin, collection(dbFor(admin), path), (snap) => snap.docs.map(asObj));
+
+const queryAll = (path, field, value, admin = false) =>
+  watch(`q:${path}:${field}=${value}`, admin, query(collection(dbFor(admin), path), where(field, '==', value)), (snap) => snap.docs.map(asObj));
+
+// Things worked out from the live copies (e.g. an event's schedule), kept until the next change.
+const derived = new Map();
 function cached(key, admin, load) {
   const k = admin ? `A|${key}` : key;
-  if (!cache.has(k)) {
+  if (!derived.has(k)) {
     const p = load();
-    p.catch(() => cache.delete(k));
-    cache.set(k, p);
+    p.catch(() => derived.delete(k));
+    derived.set(k, p);
   }
-  return cache.get(k);
+  return derived.get(k);
 }
 
-// Forget cached data after a change (or pass nothing to forget everything). Clears both kinds.
+// Pages call this after a save. The live copies update themselves, so this only drops worked-out
+// values (they're rebuilt from the latest copies on the next read).
 export function invalidate(prefix = '') {
-  for (const key of [...cache.keys()]) {
-    if (key.startsWith(prefix) || key.startsWith(`A|${prefix}`)) cache.delete(key);
+  for (const key of [...derived.keys()]) {
+    if (key.startsWith(prefix) || key.startsWith(`A|${prefix}`)) derived.delete(key);
   }
+}
+
+// Stops every admin listener (the admin signed out).
+export function stopAdminLive() {
+  for (const [k, entry] of [...live]) {
+    if (k.startsWith('A|')) { entry.stop(); live.delete(k); }
+  }
+  derived.clear();
 }
 
 // ---------- Teams and players (shared by every event) ----------
@@ -200,21 +256,16 @@ export function loadJoinRequest(teamId, playerId) {
   return getOne(`joinRequests/${teamId}__${playerId}`).catch(() => null);
 }
 
-// ---------- Transfer news (newest first; kept for a minute so page changes stay cheap) ----------
+// ---------- Transfer news (the latest 30, newest first) ----------
 
-let transfersCache = { at: 0, list: null };
-export async function loadTransfers({ fresh = false } = {}) {
-  if (!fresh && transfersCache.list && Date.now() - transfersCache.at < 60000) return transfersCache.list;
-  const snap = await getDocs(query(collection(db, 'transfers'), orderBy('at', 'desc'), limit(30)));
-  transfersCache = { at: Date.now(), list: snap.docs.map(asObj) };
-  return transfersCache.list;
-}
+export const loadTransfers = () =>
+  watch('transfers:latest', false, query(collection(db, 'transfers'), orderBy('at', 'desc'), limit(30)), (snap) => snap.docs.map(asObj));
 
-// ---------- Comments on a team or player page (never cached, so new ones show straight away) ----------
+// ---------- Comments on a team or player page (live, newest first) ----------
 
 export async function loadComments(kind, id) {
   const list = await getAll(`${kind}s/${id}/comments`).catch(() => []);
-  return list.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 }
 
 // ---------- Site settings (settings/{id}: faq, rules) ----------
@@ -255,10 +306,11 @@ export async function loadPickupRank(discordId) {
   return i < 0 ? null : { rating: list[i], rank: i + 1, total: list.length };
 }
 
-export async function loadPickupGames(count = 15) {
-  const snap = await getDocs(query(collection(db, 'pickupGames'), orderBy('createdAt', 'desc'), limit(count)));
-  return snap.docs.map(asObj);
-}
+export const loadPickupGames = (count = 15) =>
+  watch(`pickupGames:latest:${count}`, false, query(collection(db, 'pickupGames'), orderBy('createdAt', 'desc'), limit(count)), (snap) => snap.docs.map(asObj));
+
+// The Discord match thread for one match (bot/src/matches.js), or null.
+export const loadMatchThread = (eventId, fixtureId) => getOne(`matchThreads/${eventId}__${fixtureId}`).catch(() => null);
 
 export const loadPickupLive = () => getOne('pickupMeta/live').catch(() => null);
 export const loadPickupSignup = (discordId) => (discordId ? getOne(`pickupSignups/${discordId}`).catch(() => null) : Promise.resolve(null));

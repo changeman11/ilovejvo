@@ -12,7 +12,6 @@ import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, isLocked, sch
 import { syncSchedules } from '../../admin-sync.js';
 import { FLOW_DEFAULTS, flowOf, eventPhase, liveSummary } from '../../rules/flow.js';
 import { zoneLabel } from '../../rules/events.js';
-import { watchEvent } from '../../live.js';
 import { saveEvent, saveFlow, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures, makeMixTeams, breakUpMixTeam } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
@@ -496,8 +495,6 @@ export function mount(el) {
   const root = el.querySelector('.admin-root');
   if (!root) return;
   bindAuthActions(root);
-  // Fixtures and teams tabs follow sign-ups live (not Details, which is a form being edited).
-  if (page?.id && page.tab !== 'details') watchEvent(page.id, { admin: true });
   if (!root.querySelector('.entry')) return;
   const uid = page.user.uid;
 

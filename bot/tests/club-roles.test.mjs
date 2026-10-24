@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { eligibleClubs, colorNumber, planRoles, wantedClub, planMembers } from '../src/logic/club-roles.js';
+import { eligibleClubs, colorNumber, planRoles, wantedClub, planMembers, wantedCaptains, planCaptains } from '../src/logic/club-roles.js';
 import { ClubRoles } from '../src/club-roles.js';
 import { FileStore } from '../src/store/file-store.js';
 
@@ -64,6 +64,25 @@ test('members: right club role added, old club roles removed, other roles never 
   const plan = planMembers({ want, roleMap, memberRoles });
   assert.deepEqual(plan.add, [{ userId: A, roleId: 'r1' }]);
   assert.deepEqual(plan.remove, [{ userId: B, roleId: 'r1' }, { userId: C, roleId: 'r2' }]);
+});
+
+test('captains: each club’s manager (still in the club) gets the captain role, nobody else', () => {
+  const teams = new Map([
+    ['reef', { managerPlayerId: 'dA' }],
+    ['tide', { managerUid: 'discord:B' }],
+    ['pend', { managerPlayerId: 'dC' }],
+  ]);
+  const clubs = new Map([['reef', {}], ['tide', {}]]);
+  const players = [
+    { id: 'dA', discordId: A, teamId: 'reef' },
+    { id: 'dB', discordId: B, teamId: 'tide', uid: 'discord:B' },
+    { id: 'dC', discordId: C, teamId: 'pend' }, // club not approved
+    { id: 'dD', discordId: D, teamId: 'reef' }, // a player, not the captain
+  ];
+  const want = wantedCaptains(players, teams, clubs);
+  assert.deepEqual([...want].sort(), [A, B].sort());
+  const plan = planCaptains({ want, roleId: 'cap', memberRoles: new Map([[A, new Set()], [B, new Set(['cap'])], [D, new Set(['cap'])], [C, null]]) });
+  assert.deepEqual(plan, { add: [A], remove: [D] });
 });
 
 // ---------- the whole thing, with a pretend Discord and a pretend site ----------
@@ -145,4 +164,27 @@ test('club roles end to end: made, coloured, grouped, given, moved and cleaned u
   const again = await roles.fullSync();
   assert.equal(again.created, 1);
   assert.deepEqual([...discord.members.get(C)], [discord.roleNamed('Tasman Tide FC')]);
+});
+
+test('captain role end to end: made once, follows a hand-over', async () => {
+  const discord = new FakeDiscord();
+  const site = new FakeSite();
+  site.docs.teams.set('reef', { ...site.docs.teams.get('reef'), managerPlayerId: 'dA' });
+  const store = new FileStore();
+  const roles = new ClubRoles({ io: discord, site, store, config: { clubRolesHoist: true, clubRolesMinutes: 5, captainRoleName: 'Captain' }, log: { info() {}, warn() {}, error() {} }, now: () => 10_000_000 });
+  await roles.fullSync();
+  const cap = discord.roleNamed('Captain');
+  assert.ok(cap, 'the captain role is made');
+  assert.equal(store.getMeta('captainRole'), cap);
+  assert.deepEqual(discord.roleList.get(cap), { name: 'Captain', color: 0xffe200, hoist: false });
+  assert.ok(discord.members.get(A).has(cap));
+  assert.ok(!discord.members.get(B).has(cap), 'Tide has no manager listed');
+
+  // A hands Reef over to B (B joins Reef); the role moves with it.
+  site.docs.players.set('dB', { discordId: B, teamId: 'reef', updatedAt: 1 });
+  site.docs.teams.set('reef', { ...site.docs.teams.get('reef'), managerPlayerId: 'dB' });
+  await roles.fullSync();
+  assert.ok(!discord.members.get(A).has(cap));
+  assert.ok(discord.members.get(B).has(cap));
+  assert.equal([...discord.roleList.values()].filter((r) => r.name === 'Captain').length, 1, 'still only one captain role');
 });

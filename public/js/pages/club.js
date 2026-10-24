@@ -193,7 +193,7 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
         </section>` : ''}
       </div>
       <div class="stack">
-        ${chatBlock(team)}
+        ${chatBlock(team, me.player)}
         <section>
           <div class="section-head"><h2>Next matches</h2><a href="/fixtures?team=${encodeURIComponent(team.id)}" data-link>All</a></div>
           <div class="panel flush fixtures">${upcoming.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('') || '<p class="muted" style="padding:16px">Nothing scheduled.</p>'}</div>

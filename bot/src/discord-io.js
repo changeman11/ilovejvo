@@ -219,7 +219,62 @@ export async function setupDiscord(client, config, log = console) {
     };
   }
 
-  return { guild, text, category, io, roleIo, rankedIo };
+  // ---------- Match threads (matches.js) ----------
+  // One text channel (MATCH_CHANNEL_ID, or #match-threads made in the bot's category) where the
+  // bot starts a public thread per match. Everyone can read and talk in the threads; only the bot
+  // posts in the channel itself.
+  let matchIo = null;
+  if (config.matchThreads) {
+    let channel = config.matchChannelId ? await guild.channels.fetch(config.matchChannelId).catch(() => null) : null;
+    if (config.matchChannelId && !channel?.isTextBased()) log.warn(`⚠️  MATCH_CHANNEL_ID (${config.matchChannelId}) isn't a text channel; making #match-threads.`);
+    if (!channel?.isTextBased() || channel.type !== ChannelType.GuildText) {
+      channel = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === 'match-threads')
+        ?? await guild.channels.create({
+          name: 'match-threads',
+          type: ChannelType.GuildText,
+          parent: category?.id,
+          topic: 'A thread for every I<3JVO match: vote on the score and post your screenshots there.',
+          permissionOverwrites: [
+            { id: guild.roles.everyone.id, type: OverwriteType.Role, deny: [P.SendMessages, P.CreatePublicThreads, P.CreatePrivateThreads], allow: [P.SendMessagesInThreads] },
+            { id: me.id, type: OverwriteType.Member, allow: [P.ViewChannel, P.SendMessages, P.SendMessagesInThreads, P.EmbedLinks, P.AttachFiles, P.ReadMessageHistory, P.CreatePublicThreads, P.ManageThreads, P.MentionEveryone] },
+          ],
+          reason: 'I<3JVO match threads',
+        });
+    }
+    check(channel, ['ViewChannel', 'SendMessages', 'SendMessagesInThreads', 'CreatePublicThreads', 'ManageThreads', 'EmbedLinks', 'AttachFiles'], `#${channel.name}`);
+    matchIo = {
+      guildId: guild.id,
+      channelId: channel.id,
+      async createThread(name) {
+        const thread = await channel.threads.create({ name, autoArchiveDuration: 1440, type: ChannelType.PublicThread, reason: 'I<3JVO match thread' });
+        return thread.id;
+      },
+      async post(message, threadId, files = []) {
+        const out = files.length ? { ...message, files: files.map((f) => ({ attachment: f.data, name: f.name })) } : message;
+        return (await (await channelFor(threadId)).send(out)).id;
+      },
+      async edit(messageId, message, threadId) {
+        const thread = await channelFor(threadId);
+        if (thread.archived && !thread.locked) await thread.setArchived(false).catch(() => {});
+        await thread.messages.edit(messageId, message);
+      },
+      async close(threadId) {
+        const thread = await channelFor(threadId).catch(() => null);
+        if (!thread) return;
+        await thread.setLocked(true, 'Match finished');
+        await thread.setArchived(true, 'Match finished');
+      },
+      async download(url) {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) throw new Error(`download failed (${res.status})`);
+        const data = Buffer.from(await res.arrayBuffer());
+        if (data.length > 10 * 1024 * 1024) throw new Error('screenshot over 10 MB');
+        return data;
+      },
+    };
+  }
+
+  return { guild, text, category, io, roleIo, rankedIo, matchIo };
 }
 
 // Admins: anyone with Manage Server, or one of ADMIN_ROLE_IDS.
