@@ -24,6 +24,7 @@ import './search.js';
 import { updateBell } from './notifications.js';
 import { updateReel } from './reel.js';
 import { updateFeatured } from './featured.js';
+import { updateTrophy } from './trophy.js';
 import { syncSchedules } from './admin-sync.js';
 import { startStatsReader, readWaitingStats } from './stats-reader.js';
 import { stopLive, keptNow, swapKept } from './live.js';
@@ -205,6 +206,7 @@ async function show({ quiet = false } = {}) {
     updateBell({ force: ['/club', '/me'].includes(location.pathname) });
     updateReel();
     updateFeatured();
+    updateTrophy();
     syncSchedules().catch(() => 0); // admins only: saves schedules that just locked, finals that are ready
   } catch (err) {
     if (id !== renderId) return;
@@ -276,6 +278,7 @@ function liveRedraw() {
   updateBell({ force: true });
   updateReel();
   updateFeatured();
+  updateTrophy();
 }
 onDataChange(liveRedraw);
 

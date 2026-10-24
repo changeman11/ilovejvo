@@ -812,23 +812,21 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 .char-spot.own-ball .char-ball { opacity: 0; }
 /* A soft shadow on the grass under their feet */
 .char-spot::after { content: ''; position: absolute; left: 50%; bottom: -2%; width: 46%; height: 7%; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.35), transparent); z-index: -1; }
-/* The game's idle hop: squash on landing, stretch going up; the shadow shrinks while they're in
-   the air. Uses the separate translate/scale properties so it doesn't fight the fade-in transform.
-   Runs on both pictures all the time so it stays in step with the shadow when characters swap. */
-.char-spot img:not(.char-ball) { transform-origin: 50% 100%; animation: char-hop 1.25s ease-in-out infinite; }
-.char-spot::after { animation: char-hop-shadow 1.25s ease-in-out infinite; }
-@keyframes char-hop {
-  0%, 100% { translate: 0 0; scale: 1.06 0.94; }
-  14% { translate: 0 -1%; scale: 0.95 1.06; }
-  38% { translate: 0 -6%; scale: 1 1; }
-  62% { translate: 0 0; scale: 1 1; }
-  74% { translate: 0 0; scale: 1.05 0.95; }
-  88% { translate: 0 0; scale: 0.99 1.01; }
+/* Idle sway, like a character standing in the game's menu: a slow breath (a touch taller and
+   narrower) with a gentle lean side to side, feet planted. No jumping. Uses the separate rotate/scale
+   properties so it doesn't fight the fade-in transform; runs on both pictures so swaps stay smooth. */
+.char-spot img:not(.char-ball) { transform-origin: 50% 100%; animation: char-idle 3.2s ease-in-out infinite; }
+.char-spot::after { animation: char-idle-shadow 3.2s ease-in-out infinite; }
+@keyframes char-idle {
+  0%, 100% { rotate: -1.2deg; scale: 1 1; }
+  25% { rotate: 0deg; scale: 0.992 1.016; }
+  50% { rotate: 1.2deg; scale: 1 1; }
+  75% { rotate: 0deg; scale: 0.992 1.016; }
 }
-@keyframes char-hop-shadow {
-  0%, 100% { scale: 1.06 1; opacity: 1; }
-  38% { scale: 0.72 0.8; opacity: 0.6; }
-  62% { scale: 1 1; opacity: 1; }
+@keyframes char-idle-shadow {
+  0%, 100% { scale: 1.03 1; }
+  25%, 75% { scale: 0.97 1; }
+  50% { scale: 1.03 1; }
 }
 @media (prefers-reduced-motion: reduce) { .char-spot img { transition: none; } .char-spot img:not(.char-ball), .char-spot::after { animation: none; } }
 
@@ -1615,3 +1613,71 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .award-card.ink .ac-lead { background: rgba(255, 255, 255, 0.45); }
 .award-card.ink .ac-num { color: var(--ink); text-shadow: none; }
 .award-card.ink .ac-emoji { background: rgba(255, 255, 255, 0.5); border-color: var(--ink); }
+
+/* ---------- Trophy announcement (js/trophy.js): the latest podium, 1st place in the spotlight ---------- */
+.trophy { position: fixed; z-index: 24; top: 84px; right: 16px; width: min(300px, calc(100vw - 32px)); display: grid; justify-items: end; }
+@media (max-width: 1023px) { .trophy { top: 66px; right: 12px; } }
+.tr-tab {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 12px; cursor: pointer;
+  border: 3px solid var(--ink); border-radius: 999px; color: var(--ink); font: 600 14px var(--font-head);
+  background: linear-gradient(135deg, #ffe680, #ffc533 55%, #ff9f1c); box-shadow: 0 4px 0 var(--ink);
+}
+.tr-tab span { text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
+.tr-tab b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trophy.open .tr-tab { display: none; }
+.tr-card { display: none; position: relative; width: 100%; padding: 14px 14px 12px; border: 3px solid var(--ink); border-radius: 20px; background: #12131a; color: #fff; box-shadow: 0 8px 0 rgba(0, 0, 0, 0.3); }
+.trophy.open .tr-card { display: grid; gap: 8px; animation: tr-in 0.35s ease-out; }
+@keyframes tr-in { from { transform: translateY(-8px) scale(0.97); } to { transform: none; } }
+.tr-close { position: absolute; top: 6px; right: 8px; border: 0; background: none; color: #8e93a6; font-size: 20px; cursor: pointer; }
+.tr-close:hover { color: #fff; }
+.tr-ribbon { justify-self: start; padding: 2px 10px; border-radius: 999px; background: linear-gradient(90deg, #ffe680, #ffc533); color: var(--ink); font: 700 12px/1.5 var(--font-head); text-transform: uppercase; letter-spacing: 0.06em; }
+.tr-event { color: #b9bdd0; font-size: 12px; font-weight: 700; text-decoration: none; }
+.tr-event:hover { color: #fff; }
+/* 1st place: the spotlight */
+.tr-first {
+  position: relative; overflow: hidden; display: grid; justify-items: center; gap: 4px; padding: 16px 10px 12px; text-decoration: none; color: var(--ink);
+  border: 3px solid var(--ink); border-radius: 16px; background: radial-gradient(circle at 50% 0%, #fff6c2 0%, #ffd84d 45%, #f5a300 100%);
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12), 0 0 24px rgba(255, 197, 51, 0.45);
+}
+.tr-first::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.7), transparent); transform: skewX(-18deg); animation: tr-shine 3.5s ease-in-out infinite; }
+@keyframes tr-shine { 0%, 60% { left: -60%; } 100% { left: 130%; } }
+.tr-cup { font-size: 34px; line-height: 1; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.25)); animation: tr-cup 2.6s ease-in-out infinite; }
+@keyframes tr-cup { 0%, 100% { rotate: -6deg; } 50% { rotate: 6deg; } }
+.tr-first .dot.xl { width: 64px; height: 64px; border-width: 3px; box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2); }
+.tr-champ { font: 600 22px/1.1 var(--font-head); text-align: center; overflow-wrap: anywhere; }
+.tr-firstlabel { font: 800 11px var(--font-body); text-transform: uppercase; letter-spacing: 0.1em; padding: 1px 8px; border-radius: 999px; background: var(--ink); color: #ffd84d; }
+.tr-sparkles i { position: absolute; color: #fff; font-style: normal; font-size: 14px; opacity: 0; animation: tr-twinkle 2.4s ease-in-out infinite; }
+.tr-sparkles i:nth-child(1) { top: 10%; left: 12%; }
+.tr-sparkles i:nth-child(2) { top: 18%; right: 14%; animation-delay: 0.5s; font-size: 18px; }
+.tr-sparkles i:nth-child(3) { bottom: 26%; left: 8%; animation-delay: 1s; }
+.tr-sparkles i:nth-child(4) { bottom: 14%; right: 10%; animation-delay: 1.5s; font-size: 12px; }
+.tr-sparkles i:nth-child(5) { top: 44%; right: 24%; animation-delay: 1.9s; font-size: 10px; }
+@keyframes tr-twinkle { 0%, 100% { opacity: 0; scale: 0.6; } 40% { opacity: 1; scale: 1.1; } 60% { opacity: 0.8; scale: 1; } }
+/* 2nd and 3rd */
+.tr-place { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 8px; padding: 6px 8px; border-radius: 12px; background: #1f2130; }
+.tr-medal { grid-row: span 2; font-size: 22px; }
+.tr-teams { display: grid; gap: 2px; min-width: 0; }
+.tr-teams a { display: flex; align-items: center; gap: 6px; min-width: 0; color: #fff; font-weight: 700; text-decoration: none; }
+.tr-teams a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-place small { color: #b9bdd0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.tr-more { justify-self: center; color: #ffd84d; font-size: 13px; font-weight: 800; text-decoration: none; }
+@media (min-width: 1800px) { .trophy { right: 64px; width: 290px; } }
+@media (prefers-reduced-motion: reduce) { .tr-first::after, .tr-cup, .tr-sparkles i, .trophy.open .tr-card { animation: none; } }
+
+/* Trophy cabinet (team page) and trophy icons (Teams tab) */
+.trophy-cabinet { display: grid; gap: 8px; }
+.tcab-first {
+  position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; padding: 12px 14px; text-decoration: none; color: var(--ink);
+  border: 3px solid var(--ink); border-radius: 16px; background: radial-gradient(circle at 20% 0%, #fff6c2, #ffd84d 50%, #f5a300); box-shadow: 0 4px 0 var(--ink);
+}
+.tcab-first::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.6), transparent); transform: skewX(-18deg); animation: tr-shine 4s ease-in-out infinite; }
+.tcab-cup { font-size: 34px; line-height: 1; }
+.tcab-first b { display: block; font: 600 20px/1.1 var(--font-head); text-transform: uppercase; letter-spacing: 0.03em; }
+.tcab-first small, .tcab-rest small { display: block; font-size: 12px; font-weight: 700; opacity: 0.8; }
+.tcab-rest { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.tcab-rest a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 2px solid var(--line); border-radius: 12px; color: var(--ink); text-decoration: none; }
+.tcab-rest a > span:first-child { font-size: 22px; }
+.tro-icons { display: inline-flex; gap: 2px; margin-left: 6px; vertical-align: middle; font-size: 15px; }
+.tro-ic small { font: 800 10px var(--font-body); }
+.tro-ic.gold { filter: drop-shadow(0 0 4px rgba(255, 197, 51, 0.8)); }
+@media (prefers-reduced-motion: reduce) { .tcab-first::after { animation: none; } }

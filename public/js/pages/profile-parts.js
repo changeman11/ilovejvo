@@ -115,3 +115,23 @@ export const aboutBlock = (text) => (text?.trim()
   : '');
 
 export const sideBlock = (title, body) => `<section class="panel"><h2 class="pro-h">${title}</h2>${body}</section>`;
+
+// Trophies (rules/podium.js trophiesByTeam): 1st places get a big gold plaque, 2nd/3rd smaller.
+// list: [{ place, eventId, title, joint }] best first.
+export function trophyCabinet(list) {
+  if (!list?.length) return '';
+  const firsts = list.filter((t) => t.place === 1);
+  const rest = list.filter((t) => t.place !== 1);
+  return `<section class="panel trophy-cabinet"><h2 class="pro-h">🏆 Trophy cabinet</h2>
+    ${firsts.map((t) => `<a class="tcab-first" href="/event/${encodeURIComponent(t.eventId)}" data-link><span class="tcab-cup" aria-hidden="true">🏆</span><span><b>Champions</b><small>${esc(t.title)}</small></span></a>`).join('')}
+    ${rest.length ? `<ul class="tcab-rest">${rest.map((t) => `<li><a href="/event/${encodeURIComponent(t.eventId)}" data-link><span aria-hidden="true">${t.place === 2 ? '🥈' : '🥉'}</span><span><b>${t.place === 2 ? '2nd place' : `3rd place${t.joint ? ' (shared)' : ''}`}</b><small>${esc(t.title)}</small></span></a></li>`).join('')}</ul>` : ''}
+  </section>`;
+}
+
+// Small trophy icons next to a club's name: 🏆 per title (×n), then 🥈 / 🥉.
+export function trophyIcons(list) {
+  if (!list?.length) return '';
+  const n = (p) => list.filter((t) => t.place === p).length;
+  const one = (icon, count, label) => (count ? `<span class="tro-ic${icon === '🏆' ? ' gold' : ''}" title="${count} × ${label}">${icon}${count > 1 ? `<small>×${count}</small>` : ''}</span>` : '');
+  return `<span class="tro-icons">${one('🏆', n(1), 'champions')}${one('🥈', n(2), '2nd place')}${one('🥉', n(3), '3rd place')}</span>`;
+}

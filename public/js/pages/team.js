@@ -14,7 +14,8 @@ import { seasonTeamStats } from '../rules/stats.js';
 import { teamCareer, teamBadges, teamXp, levelFor } from '../rules/badges.js';
 import { allFixtures, resultOf, fixtureRow } from './parts.js';
 import { statDefsFor } from './career.js';
-import { profileShell, showcaseTiles, badgesBlock, aboutBlock, sideBlock } from './profile-parts.js';
+import { profileShell, showcaseTiles, badgesBlock, aboutBlock, sideBlock, trophyCabinet } from './profile-parts.js';
+import { trophiesByTeam } from '../rules/podium.js';
 import { commentsBlock, mountComments } from './comments.js';
 import { SQUAD_MAX } from '../rules/defaults.js';
 
@@ -93,6 +94,7 @@ export async function render({ teamId }) {
     ${await commentsBlock({ kind: 'team', targetId: teamId, ownerUid: team.managerUid ?? null })}`;
 
   const side = `
+    ${trophyCabinet(trophiesByTeam(bundles).get(teamId))}
     ${sideBlock('Badges', badgesBlock(teamBadges(rec), 'Badges are earned by playing matches.'))}
     ${sideBlock('Record', `
       <dl class="facts pro-facts">

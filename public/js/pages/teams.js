@@ -10,6 +10,8 @@ import { mediaUrl } from '../media.js';
 import { seasonMatches } from '../rules/season.js';
 import { teamCareer, teamXp, playerXp, levelFor } from '../rules/badges.js';
 import { careerStats } from './career.js';
+import { trophyIcons } from './profile-parts.js';
+import { trophiesByTeam } from '../rules/podium.js';
 import { SQUAD_MAX, squadSize } from '../rules/defaults.js';
 
 export const title = 'Teams & players';
@@ -62,7 +64,7 @@ function bannerHtml(t, logo, banner) {
   return '<img class="tc-banner-ball" src="/images/art/ball.png" alt="" loading="lazy" decoding="async"><img class="tc-banner-ball small" src="/images/art/ball.png" alt="" loading="lazy" decoding="async">';
 }
 
-function teamCards(teams, people, records) {
+function teamCards(teams, people, records, trophies = new Map()) {
   if (!teams.length) return notice('No teams yet', ' Teams appear here once an admin approves them.', '55');
   return `<div class="team-grid">${teams.map((t) => {
     const r = records.get(t.id);
@@ -80,7 +82,7 @@ function teamCards(teams, people, records) {
             ${logo ? framedImg({ src: logo, cls: 'tc-logo', frame: t.logoFrame })
               : `<span class="tc-logo mono" style="background:${esc(t.colors?.primary ?? '#ffffff')}">${esc((t.shortName ?? t.name).slice(0, 4))}</span>`}
             <div class="tc-text">
-              <h3>${esc(t.name)}</h3>
+              <h3>${esc(t.name)}${trophyIcons(trophies.get(t.id))}</h3>
               ${t.tagline ? `<p class="tc-tag">${esc(t.tagline)}</p>` : ''}
               <p class="muted small">${r ? `${r.wins}–${r.losses} · level ${levelFor(teamXp(r)).level}` : 'No matches yet'}</p>
             </div>
@@ -145,7 +147,7 @@ export async function render() {
   let body;
   if (view === 'teams') {
     const records = teamCareer(bundles.map((b) => ({ eventId: b.event.id, matches: seasonMatches(b).matches })));
-    body = teamCards(teams, people, records);
+    body = teamCards(teams, people, records, trophiesByTeam(bundles));
   } else {
     const careers = careerStats(bundles);
     body = view === 'free'

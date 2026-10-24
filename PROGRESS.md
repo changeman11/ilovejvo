@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · gentle character sway, trophies · site DEPLOYED (cache v63)
+- Characters: the hop is gone (owner: too much); now a slow idle sway (`char-idle`: small lean + breath, 3.2 s).
+- Trophy announcement on the right (latest podium; live shows DEMO EXHIBITION NIGHT: Chikchester City champions). 3rd is shared by the semi-final losers until a 3rd place result exists. Team pages: Trophy cabinet; Teams tab: trophy icons. Logic `rules/podium.js` (4 tests). Tests 215 pass.
+
 ### 2026-10-25 · Claude (owner's PC) · characters added by the bot automatically · site + rules + storage rules + bot DEPLOYED (cache v62)
 - Bot `CHARACTERS=1` (server `.env`): watches #in-game-characters every 5 min, cuts out new pictures, skips screenshots/cards/black backgrounds/repeats, uploads to the site, ✅ on the post; deleted post or staff ❌ = taken off. Started fine (`[characters] watching #in-game-characters every 5 min`).
 - All current pictures were already handled (127 messages, 47 pictures: 15 on the court, 32 set aside). The checks agree with the hand sorting on all 47; repeats fingerprint ≤6 vs new ≥16 (limit 10).
