@@ -20,7 +20,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
-### 2026-10-24 · Claude (owner's PC) · bot UPLOADED with stat roles (site + rules still NOT deployed)
+### 2026-10-24 · Claude (owner's PC) · bot UPLOADED with stat roles (site + rules were already deployed by the partner's Claude, cache v54, so who's who works)
 - Bot tests pass (70, 3 emulator tests skipped). Uploaded 07:56 UTC; server `.env` backed up, `STAT_ROLES=1` added (`MATCH_THREADS=1` kept).
 - Log: `[stat roles] 8 roles made, 28 given, 0 taken away`. Welcomes, site queue, 1v1, match threads (13 open, new threads starting), club roles all started normally; no errors, no crash restarts.
 - **Still to do:** deploy hosting + firestore rules from the entry below. Until the rules are live, the bot's "That's me" (who's who) answers will be refused.
