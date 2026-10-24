@@ -25,3 +25,6 @@ bot/deploy/upload.local.json
 
 # Handover ZIPs (made from a commit with git archive)
 exports/
+
+# Character pictures looked at and set aside (screenshots, cards, repeats): only their names are kept (skipped.txt)
+art-src/community/skipped/

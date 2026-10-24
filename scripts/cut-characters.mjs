@@ -1,5 +1,6 @@
 // Cuts community characters out of their plain backgrounds for the Home page.
-//   art-src/community/*.png  ->  public/images/characters/<name>.png  (+ list.json)
+//   art-src/community/*.png|jpg|webp  ->  public/images/characters/<name>.png  (+ list.json)
+// (art-src/community/skipped/ is ignored: pictures that aren't a character on a plain background.)
 // Run from the project folder:  node scripts/cut-characters.mjs
 //
 // The background colour is taken from the picture's corners. Everything of that colour that
@@ -8,6 +9,7 @@
 // The picture is then trimmed to the character and resized.
 
 import Jimp from 'jimp';
+import sharp from 'sharp'; // only to read .webp (Jimp can't)
 import { readdirSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, basename, extname } from 'node:path';
 
@@ -19,7 +21,7 @@ mkdirSync(OUT, { recursive: true });
 const dist = (d, i, c) => Math.abs(d[i] - c[0]) + Math.abs(d[i + 1] - c[1]) + Math.abs(d[i + 2] - c[2]);
 
 async function cut(file) {
-  const img = await Jimp.read(join(SRC, file));
+  const img = /\.webp$/i.test(file) ? await Jimp.read(await sharp(join(SRC, file)).png().toBuffer()) : await Jimp.read(join(SRC, file));
   const { width: w, height: h, data: d } = img.bitmap;
   // Already transparent (corners see-through)? Then just trim and resize.
   const cornerAlpha = [0, w - 1, (h - 1) * w, h * w - 1].map((p) => d[p * 4 + 3]);
@@ -72,7 +74,7 @@ async function trimAndSave(img, file, bgLabel, isClear) {
   return { name, bg: bgLabel, keptShare: Math.round((1 - cleared / (w * h)) * 100) };
 }
 
-const files = readdirSync(SRC).filter((f) => /\.(png|jpe?g)$/i.test(f)).sort();
+const files = readdirSync(SRC).filter((f) => /\.(png|jpe?g|webp)$/i.test(f)).sort();
 const done = [];
 for (const f of files) {
   const r = await cut(f);

@@ -812,7 +812,25 @@ table.entry tr.off input[data-stat] { opacity: 0.35; }
 .char-spot.own-ball .char-ball { opacity: 0; }
 /* A soft shadow on the grass under their feet */
 .char-spot::after { content: ''; position: absolute; left: 50%; bottom: -2%; width: 46%; height: 7%; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.35), transparent); z-index: -1; }
-@media (prefers-reduced-motion: reduce) { .char-spot img { transition: none; } }
+/* The game's idle hop: squash on landing, stretch going up; the shadow shrinks while they're in
+   the air. Uses the separate translate/scale properties so it doesn't fight the fade-in transform.
+   Runs on both pictures all the time so it stays in step with the shadow when characters swap. */
+.char-spot img:not(.char-ball) { transform-origin: 50% 100%; animation: char-hop 1.25s ease-in-out infinite; }
+.char-spot::after { animation: char-hop-shadow 1.25s ease-in-out infinite; }
+@keyframes char-hop {
+  0%, 100% { translate: 0 0; scale: 1.06 0.94; }
+  14% { translate: 0 -1%; scale: 0.95 1.06; }
+  38% { translate: 0 -6%; scale: 1 1; }
+  62% { translate: 0 0; scale: 1 1; }
+  74% { translate: 0 0; scale: 1.05 0.95; }
+  88% { translate: 0 0; scale: 0.99 1.01; }
+}
+@keyframes char-hop-shadow {
+  0%, 100% { scale: 1.06 1; opacity: 1; }
+  38% { scale: 0.72 0.8; opacity: 0.6; }
+  62% { scale: 1 1; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .char-spot img { transition: none; } .char-spot img:not(.char-ball), .char-spot::after { animation: none; } }
 
 /* Character picker (bottom right of the Home court / phone banner) */
 .char-pick { position: absolute; right: 10px; bottom: 10px; z-index: 6; }

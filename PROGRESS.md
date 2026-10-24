@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · characters from Discord + hop · site DEPLOYED (cache v61)
+- `scripts/fetch-characters.mjs` pulled 47 pictures from #in-game-characters: 15 new characters added (34 on the court now). Skipped 32: 19 repeats of characters already there, in-game screenshots, 2 player cards, a photo, and one on a black background (cut-out ate its outlines). Skipped names in `art-src/community/skipped.txt`.
+- Characters hop like in the game (squash/stretch, shadow shrinks in the air).
+- Not automatic: run fetch + cut again when new pictures are posted, check them, deploy.
+
 ### 2026-10-25 · Claude (owner's PC) · 3rd place button, thread screenshots, home/away balance, Stats page · site + bot DEPLOYED (cache v60)
 - **DEMO EXHIBITION NIGHT 3rd place:** not added to live data from here (no admin sign-in). The owner presses **Add 3rd place match** on its admin Fixtures tab: it sets `finals.thirdPlace` and saves `finals-3rd` (semi-final losers) straight away; then enter score + stats as usual.
 - **Bot thread screenshots:** GIFs/memes posted after the screenshot were being copied instead (newest first) and the bot stopped looking. Now only screenshot-like pictures count, and GIF-only copies are looked at again.

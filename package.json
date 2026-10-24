@@ -17,6 +17,7 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "jimp": "^0.22.12"
+    "jimp": "^0.22.12",
+    "sharp": "^0.34.4"
   }
 }
