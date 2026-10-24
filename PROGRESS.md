@@ -4,7 +4,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Current state (2026-10-24)
 
-- **Live site:** https://i-love-jvo.web.app, deployed with everything up to the "Event rules" commit. Service worker cache `jvo-shell-v49`.
+- **Live site:** https://i-love-jvo.web.app, includes the typed CONFIRM safeguard for Clear fixtures. Service worker cache `jvo-shell-v50`.
 - **Repository:** https://github.com/changeman11/ilovejvo (`main`). Pull before working, push after each commit. It's public right now; the owner may switch it to private.
 - **Tests:** 179 passing (`npm test`).
 - **Bot:** running on AWS (`jvo-bot`): pickup, 1v1 ranked, club roles and welcomes are on.
@@ -23,7 +23,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 ### 2026-10-24 · ChatGPT
 - Clear fixtures now requires exact `CONFIRM` and warns about permanent deletion of unfinished fixtures and votes, schedule rebuilding and disruption during a live event.
 - Validation: 177 tests passed, 3 skipped; confirmation handler checked for cancellation, blank/wrong text and exact CONFIRM. JavaScript syntax check passed.
-- Not deployed; browser/emulator verification still needed before deployment.
+- Deployed to Firebase Hosting (`i-love-jvo`) from this workspace on 2026-10-24. Live JavaScript and cache v50 verified after release. Authenticated admin browser/emulator verification remains outstanding; confirmation branches were checked with a mocked handler.
 
 ### 2026-10-24 · Claude (GitHub)
 - Connected the project to https://github.com/changeman11/ilovejvo and pushed the full history (checked for secrets first). The bot session fixed 1v1 game numbers (`008a470`, deployed). The first real 1v1 (killerado beat shin) worked end to end.
