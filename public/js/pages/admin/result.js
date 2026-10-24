@@ -11,6 +11,7 @@ import { shotThumbs } from '../report.js';
 import { saveResult, deleteResult, rememberGameNames } from '../../admin-data.js';
 import { matchNames } from '../../rules/endscreen.js';
 import { mediaUrl, oldMediaUrl } from '../../media.js';
+import { readMatchShot } from '../../stats-reader.js';
 import { navigate } from '../../nav.js';
 import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
 import { statHeads } from '../parts.js';
@@ -224,7 +225,7 @@ function screenshotsPanel() {
           <figcaption><button type="button" class="btn btn-sm btn-primary" data-act="read-shot" data-url="${esc(s.url)}">Read stats</button> <span class="muted small">from ${esc(s.who)}</span></figcaption></figure>`).join('')}
         <figure class="upload-shot"><label class="btn btn-sm">Read a screenshot from this computer…<input type="file" accept="image/*" data-read-file hidden></label></figure>
       </div>
-      <p class="small read-status" aria-live="polite">${esc(r?.message ?? '')}</p>
+      <p class="small read-status" aria-live="polite">${esc(r?.message ?? savedStatus(page.existing))}</p>
       ${r ? `
       <div class="read-view">
         <a href="${esc(r.url)}" target="_blank" rel="noopener" class="read-view-shot"><img src="${esc(r.url)}" alt="The screenshot being read"></a>
@@ -251,40 +252,62 @@ const b_teamTag = (pid) => {
   return t ? ` · ${page.b.teamsById[t]?.shortName ?? ''}` : '';
 };
 
+const readMessage = (rows, auto = false) => {
+  const found = rows.filter((r) => r.playerId).length;
+  return `${auto ? '⚡ Read automatically when the score came in. ' : ''}Read ${rows.length} players; ${found} matched by name automatically. Check every name and number against the screenshot.`;
+};
+const friendly = (msg) => (/^Couldn’t (find|download|open)/.test(msg ?? '') ? msg : 'Couldn’t read that screenshot. Try a full-screen PNG of the end-of-match screen.');
+
+// The background reading (stats-reader.js) saved on the result, as the page's reading.
+function savedReading(existing) {
+  const d = existing?.statsDraft;
+  if (!d?.rows?.length) return null;
+  return { url: mediaUrl(d.shot), rows: structuredClone(d.rows), message: readMessage(d.rows, true) };
+}
+// What the background reader is up to, for the status line when there's no reading yet.
+function savedStatus(existing) {
+  const d = existing?.statsDraft;
+  if (d?.reading && Date.now() - (d.at ?? 0) < 3 * 60 * 1000) return '⏳ Reading the screenshot automatically… the stats table appears here when it’s done.';
+  if (d?.error) return `Automatic read didn’t work: ${friendly(d.error)}`;
+  return '';
+}
+
+// The page may have been redrawn (live updates) while reading: draw into the one on screen.
+const liveRoot = (root) => (root.isConnected ? root : document.querySelector('.admin-root') ?? root);
+
 async function readShot(root, source) {
   const status = root.querySelector('.read-status');
-  const { readEndScreen } = await import('../../ocr.js');
-  let blob = source;
+  const { b, fixture, existing } = page;
   let url = typeof source === 'string' ? source : URL.createObjectURL(source);
   try {
+    let input = source;
     if (typeof source === 'string') {
       // Older screenshots may still be on the Cloudflare Worker.
       // "Failed to fetch" = the browser wasn't allowed to download it (Storage's CORS setting,
       // see storage-cors.json): the picture still shows, so the admin can save it and pick the file.
-      const blocked = new Error('Couldn’t download that screenshot here. Open it (click the picture), save it, then use “Read a screenshot from this computer…”.');
       let res = await fetch(source).catch(() => null);
       if (!res?.ok && source.includes('/o/')) {
         url = oldMediaUrl(decodeURIComponent(source.split('/o/')[1].split('?')[0]));
         res = await fetch(url).catch(() => null);
         if (!res?.ok) url = source;
       }
-      if (!res?.ok) throw blocked;
-      blob = await res.blob();
+      if (!res?.ok) throw new Error('Couldn’t download that screenshot here. Open it (click the picture), save it, then use “Read a screenshot from this computer…”.');
+      input = await res.blob();
     }
-    const out = await readEndScreen(blob, { onProgress: (t) => { status.textContent = t; } });
-    const rows = out.panels.flatMap((panel, pi) => panel.rows.map((row) => ({ ...row, side: pi === 0 ? 'left' : 'right' })));
-    const candidates = candidatePlayers().map((p) => ({ id: p.id, names: [p.displayName, ...(p.gameNames ?? [])] }));
-    const matched = matchNames(rows.map((r) => r.name), candidates);
-    rows.forEach((r, i) => { r.playerId = matched[i].playerId; });
-    const found = rows.filter((r) => r.playerId).length;
-    page.reading = { url, rows, message: `Read ${rows.length} players; ${found} matched by name automatically. Check every name and number against the screenshot.` };
+    const rows = await readMatchShot(b, fixture, input, { result: existing, onProgress: (t) => { liveRoot(root).querySelector('.read-status').textContent = t; } });
+    // Also match anyone added to this form by hand.
+    const extra = candidatePlayers().map((p) => ({ id: p.id, names: [p.displayName, ...(p.gameNames ?? [])] }));
+    const again = matchNames(rows.map((r) => r.name), extra);
+    rows.forEach((r, i) => { r.playerId = r.playerId ?? again[i].playerId ?? null; });
+    page.reading = { url, rows, message: readMessage(rows) };
   } catch (err) {
     console.error(err);
-    status.textContent = /^Couldn’t (find|download|open)/.test(err.message ?? '') ? err.message : 'Couldn’t read that screenshot. Try a full-screen PNG of the end-of-match screen.';
+    (liveRoot(root).querySelector('.read-status') ?? status).textContent = friendly(err.message);
     return;
   }
-  redraw(root);
-  root.querySelector('.read-view')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const now = liveRoot(root);
+  redraw(now);
+  now.querySelector('.read-view')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 // Copies the checked reading into the result form (and remembers new in-game names).
@@ -313,6 +336,7 @@ function useReading(root) {
   const read = new Set(r.rows.map((x) => x.playerId).filter(Boolean));
   for (const teamId of [s.homeId, s.awayId]) for (const x of s.players[teamId]) if (!read.has(x.pid)) x.played = false;
   page.reading = null;
+  page.readingDone = true;
   redraw(root);
   if (unplaced.length) showError(root, `${unplaced.join(', ')} isn’t on either team for this match. Add them under the right team below.`);
   const check = checkResult(draftResult().result.sets, page.format);
@@ -504,8 +528,16 @@ export async function render({ eventId, fixtureId }) {
 
   const existing = b.results[fixtureId] ?? null;
   const format = formatFor(b.season, fixture);
+  // The same match redrawn (live updates, e.g. another vote came in): keep what's been entered or
+  // read so far. A reading saved by the background reader fills in when there's none yet.
+  const same = page && page.eventId === eventId && page.fixture.id === fixtureId && page.user?.uid === gate.user.uid;
+  const kept = same ? { state: page.state, reading: page.reading, aliases: page.aliases, readingDone: page.readingDone } : {};
   page = { eventId, b, fixture, existing, user: gate.user, format, teamSize: b.event.teamSize ?? format.teamSize ?? 4 };
-  page.state = initialState(fixture, existing, b);
+  page.state = kept.state ?? initialState(fixture, existing, b);
+  // readingDone: the admin used or discarded a reading, so don't bring the saved one back.
+  page.readingDone = kept.readingDone ?? false;
+  page.reading = kept.reading ?? (existing?.statsStatus === 'pending' && !page.readingDone ? savedReading(existing) : null);
+  page.aliases = kept.aliases ?? [];
 
   const home = b.teamsById[fixture.homeTeamId]?.shortName ?? 'TBC';
   const away = b.teamsById[fixture.awayTeamId]?.shortName ?? 'TBC';
@@ -572,6 +604,7 @@ export function mount(el) {
     if (button.dataset.act === 'use-reading') return useReading(root);
     if (button.dataset.act === 'clear-reading') {
       page.reading = null;
+      page.readingDone = true;
       redraw(root);
       return;
     }
