@@ -4,7 +4,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Current state (2026-10-24)
 
-- **Live site:** https://i-love-jvo.web.app, includes the typed CONFIRM safeguard for Clear fixtures. Service worker cache `jvo-shell-v50`.
+- **Live site:** https://i-love-jvo.web.app, includes the typed CONFIRM safeguard for Clear fixtures. Service worker cache `jvo-shell-v51`.
 - **Repository:** https://github.com/changeman11/ilovejvo (`main`). Pull before working, push after each commit. It's public right now; the owner may switch it to private.
 - **Tests:** 179 passing (`npm test`).
 - **Bot:** running on AWS (`jvo-bot`): pickup, 1v1 ranked, club roles and welcomes are on.
@@ -20,14 +20,15 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
-### 2026-10-24 · Claude (partner's PC) · NOT deployed
+### 2026-10-24 · Claude (partner's PC) · site + rules DEPLOYED, bot NOT uploaded
 - **Whole site live:** every read in `data.js` is now a Firestore listener; `app.js` redraws the page, bell, bars, reel and featured card when data changes (waits with a "New changes" button if someone is typing). Team chat is kept across redraws (`data-keep`, `live.js`). Pickup page lost its own watchers (now global).
 - **Admin bell:** Clear (one / all, per device), "show cleared", pop-up alerts for new admin to-dos, count in the tab title. Chat check is a live listener (no more 150 reads per bell update).
 - **Discord match threads** (`bot/src/matches.js`, `match-views.js`, `site-watch.js`, `logic/matches.js`, `MATCH_THREADS=1`): thread per match when it opens, pings both squads, Report score form (set scores + screenshots), captain Confirm, reminders every 10 min (max 6, then admins), final score, closes after 15 min. Votes saved as the site does (`via: 'discord'`). Site rules copied to `bot/src/site-rules/` (`node scripts/sync-bot-rules.mjs`, test keeps them in step).
 - **Captain Discord role** (`CAPTAIN_ROLE`, default "Captain", needs `CLUB_ROLES=1`).
 - **Rules changed (need deploying):** firestore.rules (bot may vote for a player, `matchThreads`), storage.rules (bot screenshots up to 10 MB). Match page links the thread; votes show 👑 / "via Discord".
-- Tests: 189 pass. Checked the site loads live data in a browser (read-only); not tested with a real Discord server or emulator.
-- **To do:** deploy rules + hosting (bump `CACHE` in sw.js), then bot (`MATCH_THREADS=1`, Manage Threads permission). Don't deploy during a live event. CLAUDE.md feature notes not updated yet.
+- Tests: 188 pass (3 emulator tests skipped). Checked the site loads live data in a browser (read-only); not tested with a real Discord server or emulator.
+- **Deployed** 2026-10-24 during DEMO EXHIBITION NIGHT: firestore.rules, storage.rules, hosting (cache `jvo-shell-v51`). Live site checked: loads, no errors.
+- **To do:** upload the bot (`npm run upload` from bot/, needs the server key) with `MATCH_THREADS=1` and the Manage Threads permission. CLAUDE.md feature notes not updated yet.
 
 ### 2026-10-24 · ChatGPT
 - Clear fixtures now requires exact `CONFIRM` and warns about permanent deletion of unfinished fixtures and votes, schedule rebuilding and disruption during a live event.
