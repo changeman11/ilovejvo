@@ -19,6 +19,20 @@ export function slugId(name, taken) {
 
 // ---------- Events ----------
 
+// Match flow settings (rules/flow.js): its times are saved as timestamps so the rules can compare them.
+export function flowToSave(flow) {
+  const out = { ...flow };
+  for (const k of ['openAt', 'finalsOpenAt']) out[k] = flow[k] ? ts(flow[k]) : null;
+  return out;
+}
+
+// Changes some match flow settings now (pause, open early, open the finals...). changes: { key: value }
+export async function saveFlow({ eventId, uid, event, changes }) {
+  await commit(uid, [{ type: 'update', path: `events/${eventId}`, before: event, data: { flow: flowToSave({ ...(event.flow ?? {}), ...changes }) } }]);
+  invalidate(`event:${eventId}`);
+  invalidate('events');
+}
+
 export async function saveEvent({ id, uid, event, existing }) {
   const eventId = id ?? newId('events');
   await commit(uid, [{
@@ -29,6 +43,7 @@ export async function saveEvent({ id, uid, event, existing }) {
       ...event,
       date: ts(event.date),
       fixturesLockedAt: event.fixturesLockedAt ? ts(event.fixturesLockedAt) : null,
+      ...(event.flow ? { flow: flowToSave(event.flow) } : {}),
       createdAt: existing?.createdAt ? ts(existing.createdAt) : serverTimestamp(),
       createdBy: existing?.createdBy ?? uid,
     },

@@ -9,6 +9,9 @@ import { loadAllBundles } from './data.js';
 import { esc, urls, fmtDay, fmtTime } from './ui.js';
 import { signupsOpen } from './rules/autofix.js';
 import { zoneLabel, countdownParts } from './rules/events.js';
+import { liveSummary } from './rules/flow.js';
+import { phaseText } from './pages/live-parts.js';
+import { watchLiveEvent } from './live.js';
 
 const FOLD_KEY = 'jvo.featuredHidden'; // id of the event folded away on this device
 const LIVE_FOR = 3 * 3600000; // shown as "live now" for 3 hours after the start
@@ -19,6 +22,9 @@ const foldedFor = () => { try { return localStorage.getItem(FOLD_KEY) ?? ''; } c
 const setFolded = (id) => { try { id ? localStorage.setItem(FOLD_KEY, id) : localStorage.removeItem(FOLD_KEY); } catch { /* fine */ } };
 
 function pick(bundles, now) {
+  // An event that's running (rules/flow.js) comes first: the card becomes its live board.
+  const running = bundles.filter((b) => b.event.published && liveSummary(b, now));
+  if (running.length) return running.find((b) => b.event.featured) ?? running[0];
   const upcoming = bundles.filter((b) => b.event.published && b.event.status === 'upcoming' && (!b.event.date || b.event.date > now - LIVE_FOR));
   const pinned = upcoming.find((b) => b.event.featured);
   if (pinned) return pinned;
@@ -81,18 +87,23 @@ export async function updateFeatured() {
     return;
   }
   const e = b.event;
+  const live = liveSummary(b, now);
+  // Watch it live from 2 hours before the start, so scores show up as they're confirmed.
+  if (live || (e.date && e.date - now < 2 * 3600000)) watchLiveEvent(e.id, updateFeatured);
   el ??= document.body.appendChild(Object.assign(document.createElement('aside'), { className: 'featured' }));
   el.setAttribute('aria-label', 'Featured event');
 
   // Folded: a small ★ tab with the time left; pressing it opens the card again.
   if (foldedFor() === e.id) {
     el.className = 'featured folded';
-    const mini = e.date && !e.timeTbd ? countdownParts(e.date, now).short : '';
+    const mini = live ? 'live' : e.date && !e.timeTbd ? countdownParts(e.date, now).short : '';
     el.innerHTML = `<button class="featured-open" type="button" title="Show the featured event: ${esc(e.title)}" aria-label="Show the featured event">★${mini ? ` <span class="fc-mini num" data-at="${e.date}">${esc(mini)}</span>` : ''}</button>`;
     el.querySelector('.featured-open').addEventListener('click', () => { setFolded(''); updateFeatured(); });
-    if (mini) timer = setInterval(tick, 1000);
+    if (mini && !live) timer = setInterval(tick, 1000);
     return;
   }
+
+  if (live) return drawLive(b, live, now);
 
   el.className = 'featured';
   const teams = b.plan.teamIds.length;
@@ -116,4 +127,33 @@ export async function updateFeatured() {
     <a class="btn btn-sm featured-btn" href="${urls.event(e.id)}" data-link>${open ? 'Sign up' : 'See event'}</a>`;
   el.querySelector('.featured-close').addEventListener('click', () => { setFolded(e.id); updateFeatured(); });
   if (e.date && !e.timeTbd) timer = setInterval(tick, 1000);
+}
+
+// The live board: stage, matches on now, latest scores (and the break countdown).
+function drawLive(b, live, now) {
+  const e = b.event;
+  const sn = (id) => esc(b.teamsById[id]?.shortName ?? b.teamsById[id]?.name ?? 'TBC');
+  const sets = (f) => {
+    const r = b.results[f.id];
+    const won = (side) => (r?.sets ?? []).filter((x) => (side === 'home' ? x.home > x.away : x.away > x.home)).length;
+    return `${won('home')}–${won('away')}`;
+  };
+  el.className = 'featured is-live';
+  el.innerHTML = `
+    <button class="featured-close" type="button" aria-label="Fold the live board away" title="Fold away">×</button>
+    <span class="featured-tag live-tag"><i class="live-dot"></i> live</span>
+    <a class="featured-body" href="${urls.event(e.id)}" data-link>
+      <b class="featured-title">${esc(e.title)}</b>
+      <span class="featured-info">
+        <span class="featured-when">${esc(phaseText(live))}</span>
+        ${live.phase === 'break' && live.breakEndsAt ? countdownHtml({ date: live.breakEndsAt }, now) : ''}
+      </span>
+      <span class="featured-live">
+        ${live.open.length ? `<span class="fl-h">On now</span>${live.open.slice(0, 4).map((f) => `<span class="fl-row">${sn(f.homeTeamId)} <i>v</i> ${sn(f.awayTeamId)}</span>`).join('')}` : ''}
+        ${live.recent.length ? `<span class="fl-h">Just in</span>${live.recent.slice(0, 3).map((f) => `<span class="fl-row">${sn(f.homeTeamId)} <b class="num">${sets(f)}</b> ${sn(f.awayTeamId)}</span>`).join('')}` : ''}
+      </span>
+    </a>
+    <a class="btn btn-sm featured-btn" href="${urls.event(e.id)}" data-link>Follow live</a>`;
+  el.querySelector('.featured-close').addEventListener('click', () => { setFolded(e.id); updateFeatured(); });
+  if (live.phase === 'break' && live.breakEndsAt) timer = setInterval(tick, 1000);
 }

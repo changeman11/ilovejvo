@@ -5,6 +5,7 @@ import { esc, fmtDay, fmtTime, teamDot, teamLink, urls } from '../ui.js';
 import { checkResult } from '../rules/match.js';
 import { formatFor } from '../rules/season.js';
 import { byTime } from '../rules/standings.js';
+import { flowOf, matchState } from '../rules/flow.js';
 
 export { byTime };
 
@@ -55,9 +56,14 @@ export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = n
   const nameOf = (team, cls) => team?.name ?? (cls.includes('away') ? f.awayPlaceholder : f.homePlaceholder) ?? 'TBC';
   const side = (team, cls) => `<div class="side ${cls}${team ? '' : ' tbc'}">${cls.includes('away') ? `<span>${esc(nameOf(team, cls))}</span>${teamDot(team)}` : `${teamDot(team)}<span>${esc(nameOf(team, cls))}</span>`}</div>`;
 
+  // Match flow: "on now" while a match is open for reporting, "up next" while its teams finish
+  // an earlier one (only once the event has started).
+  const st = !result && !f.virtual && flowOf(b.event) ? matchState(b, f, Date.now()) : null;
   let mid;
   if (played) mid = `<span class="score num">${check.homeSets}<i>–</i>${check.awaySets}</span>`;
   else if (result) mid = '<span class="when">Under<br>review</span>';
+  else if (st?.state === 'open') mid = '<span class="when on-now"><i class="live-dot"></i>on now</span>';
+  else if (st?.state === 'waiting') mid = '<span class="when up-next">up<br>next</span>';
   else if (!f.scheduledAt) mid = '<span class="when tbd">TBD</span>';
   else mid = `<span class="when">${timeOnly ? '' : `${fmtDay(f.scheduledAt)}<br>`}${f.timeTbd ? 'Time TBD' : fmtTime(f.scheduledAt)}</span>`;
 

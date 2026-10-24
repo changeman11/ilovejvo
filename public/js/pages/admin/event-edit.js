@@ -10,8 +10,10 @@ import {
 } from '../../rules/events.js';
 import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, isLocked, schedulePlan, drawToSave, matchCount, groupCount, suggestSetup, suggestionText } from '../../rules/autofix.js';
 import { syncSchedules } from '../../admin-sync.js';
+import { FLOW_DEFAULTS, flowOf, eventPhase, liveSummary } from '../../rules/flow.js';
+import { zoneLabel } from '../../rules/events.js';
 import { watchEvent } from '../../live.js';
-import { saveEvent, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures, makeMixTeams, breakUpMixTeam } from '../../admin-data.js';
+import { saveEvent, saveFlow, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures, makeMixTeams, breakUpMixTeam } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
 import { resultOf, stageOrder } from '../parts.js';
@@ -101,6 +103,7 @@ function detailsHtml(e) {
         <label class="check"><input type="checkbox" name="solos" ${e.solos ? 'checked' : ''}> Players can sign up solo (you group them into teams on the Teams tab)</label>
         <label class="check"><input type="checkbox" name="signups" ${e.signups ? 'checked' : ''}> Clubs can sign themselves up on the event page (closes 10 minutes before the start)</label>
         <label class="check"><input type="checkbox" name="showTable" ${e.showTable ? 'checked' : ''}> Show a table (wins, sets, points) on the event page</label>
+        ${flowConfigHtml(e)}
         ${isTournament ? `
         <label class="field"><span>Format note (shown on the event page)</span><input type="text" name="formatNote" maxlength="120" value="${esc(e.formatNote ?? '')}" placeholder="e.g. Round robin, then a best-of-5 final"></label>
         <label class="field"><span>Prize</span><input type="text" name="prize" maxlength="120" value="${esc(e.prize ?? '')}"></label>` : ''}
@@ -120,6 +123,24 @@ function detailsHtml(e) {
         <p class="form-error" role="alert" hidden></p>
       </div>
     </form>`;
+}
+
+// Match night (rules/flow.js): how matches open on the night. Runs by itself; admins only step in
+// for stuck matches, or to pause / open early on the Fixtures tab.
+function flowConfigHtml(e) {
+  const flow = { ...FLOW_DEFAULTS, ...(e.flow ?? {}) };
+  const mins = (list, current, extra = '') => list.map((n) => opt(n, `${n} minutes`, current)).join('') + extra;
+  return `
+        <div class="flow-config">
+          <h4>Match night</h4>
+          <label class="check"><input type="checkbox" name="flowOn" ${flow.on !== false ? 'checked' : ''}> Run matches by themselves: reporting opens at the start time, each team’s next match opens once its last score is confirmed, then a break before the finals</label>
+          <div class="field-row">
+            <label class="field"><span>Break before the finals</span><select name="breakMinutes">${mins([5, 10, 15, 20, 30, 45, 60], flow.breakMinutes ?? '', opt('', 'Until an admin opens them', flow.breakMinutes ?? ''))}</select></label>
+            <label class="field"><span>Ping admins about a stuck match after</span><select name="stuckMinutes">${mins([5, 10, 15, 20, 30], flow.stuckMinutes)}</select></label>
+            <label class="field"><span>Usual match length</span><select name="matchMinutes">${mins([10, 15, 20, 25, 30, 40], flow.matchMinutes)}</select></label>
+          </div>
+          <p class="muted small" style="margin:0">A match is stuck when the teams’ scores don’t match, or only one team has reported, for that long; or nobody has reported a usual match length plus that long after it opened. Captains (club managers) can confirm the other team’s score with one tap. Pause, open early and open the finals on the Fixtures tab.</p>
+        </div>`;
 }
 
 function readDetails(form) {
@@ -149,6 +170,14 @@ function readDetails(form) {
     status: val('status'),
     published: form.querySelector('[name=published]').checked,
     featured: form.querySelector('[name=featured]')?.checked ?? false,
+    // Keeps the live parts (paused, opened early, finals opening) as they are.
+    flow: {
+      ...(page.existing?.flow ?? {}),
+      on: form.querySelector('[name=flowOn]')?.checked ?? true,
+      breakMinutes: val('breakMinutes') === '' ? null : Number(val('breakMinutes')),
+      stuckMinutes: Number(val('stuckMinutes')) || FLOW_DEFAULTS.stuckMinutes,
+      matchMinutes: Number(val('matchMinutes')) || FLOW_DEFAULTS.matchMinutes,
+    },
   };
 }
 
@@ -297,6 +326,41 @@ function fixtureForm(f) {
     </form>`;
 }
 
+// Match night controls (rules/flow.js): where the event is, stuck matches, pause / open early.
+const STUCK_WHY = { disputed: 'the teams’ scores don’t match', waiting: 'only one team has reported', 'no-votes': 'nobody has reported yet' };
+function flowControlsHtml() {
+  const b = page.b;
+  const e = b.event;
+  if (!flowOf(e)) return `<section class="panel"><div class="section-head"><h3>Match night</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Rule config</a></div><p class="small" style="margin:0">Off: every saved match takes results at any time. Switch it on in Rule config.</p></section>`;
+  const now = Date.now();
+  const p = eventPhase(b, now);
+  const live = liveSummary(b, now);
+  const at = (ms) => `${fmtDay(ms)} ${fmtTime(ms)} ${zoneLabel(ms)}`;
+  const line = {
+    before: p.startsAt ? `Reporting opens at the start: <b>${esc(at(p.startsAt))}</b>.` : 'Waiting for the start.',
+    paused: '<b>⏸ Paused.</b> No match takes results until you resume.',
+    groups: `<b><span class="live-dot"></span> Live: group stage.</b> ${live?.open.length ?? 0} on now, ${live?.left ?? 0} to play.`,
+    break: p.breakEndsAt ? `<b>☕ Break.</b> Finals open by themselves at ${esc(fmtTime(p.breakEndsAt))} ${esc(zoneLabel(p.breakEndsAt))}.` : '<b>☕ Break.</b> The finals wait for you: press Open finals now.',
+    finals: `<b><span class="live-dot"></span> Live: finals.</b> ${live?.open.length ?? 0} on now.`,
+    done: 'Finished: every match has a score.',
+  }[p.phase] ?? '';
+  const stuck = live?.stuck ?? [];
+  const name = (id) => esc(b.teamsById[id]?.name ?? 'TBC');
+  const btn = (act, label, cls = 'btn') => `<button class="btn-sm ${cls}" type="button" data-act="${act}">${label}</button>`;
+  return `
+    <section class="panel flow-panel">
+      <div class="section-head"><h3>Match night</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Change in Rule config</a></div>
+      <p class="small" style="margin-top:0">${line}</p>
+      ${stuck.length ? `<div class="flow-stuck"><b>⚠ Needs you</b>${stuck.map(({ f, why }) => `<a class="row" href="${urls.adminResult(e.id, f.id)}" data-link><span class="row-main">${name(f.homeTeamId)} v ${name(f.awayTeamId)}<span class="muted small">${esc(STUCK_WHY[why] ?? why)}</span></span><span class="row-side">Enter result →</span></a>`).join('')}</div>` : ''}
+      <div class="actions">
+        ${p.phase === 'before' ? btn('flow-open-now', 'Open matches now', 'btn btn-primary') : ''}
+        ${['groups', 'break', 'finals'].includes(p.phase) ? btn('flow-pause', '⏸ Pause') : ''}
+        ${p.phase === 'paused' ? btn('flow-resume', '▶ Resume', 'btn btn-primary') : ''}
+        ${p.phase === 'break' ? btn('flow-open-finals', 'Open finals now', 'btn btn-primary') : ''}
+      </div>
+    </section>`;
+}
+
 // Sign-ups, self-adjusting fixtures and finals (rules/autofix.js).
 function scheduleSettingsHtml() {
   const e = page.b.event;
@@ -368,6 +432,7 @@ function fixturesHtml(editId) {
 
   return `
     <div class="stack">
+      ${flowControlsHtml()}
       ${scheduleSettingsHtml()}
       ${b.plan.finalsNote ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
       <div class="event-links">
@@ -565,6 +630,16 @@ export function mount(el) {
         if (!window.confirm(result ? 'Delete this fixture and its result?' : 'Delete this fixture?')) return;
         button.disabled = true;
         await deleteFixture({ eventId: page.id, uid, fixture, result });
+        refresh();
+      }
+
+      if (act.startsWith('flow-')) {
+        const changes = { 'flow-open-now': { openAt: Date.now() }, 'flow-pause': { paused: true }, 'flow-resume': { paused: false }, 'flow-open-finals': { finalsOpenAt: Date.now() } }[act];
+        if (!changes) return;
+        if (act === 'flow-open-now' && !window.confirm('Open every team’s first match for reporting now, before the start time?')) return;
+        button.disabled = true;
+        await saveFlow({ eventId: page.id, uid, event: page.b.event, changes });
+        if (act === 'flow-open-finals') await syncSchedules({ force: true }).catch(() => 0);
         refresh();
       }
 

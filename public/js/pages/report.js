@@ -4,13 +4,15 @@
 
 import { currentUser } from '../auth.js';
 import { isApprovedTeam } from '../data.js';
-import { esc, teamDot, playerLink } from '../ui.js';
+import { esc, teamDot, playerLink, fmtDay, fmtTime } from '../ui.js';
 import { formatFor } from '../rules/season.js';
 import { checkResult } from '../rules/match.js';
 import { cleanStatLine } from '../rules/results.js';
 import { tallyVotes, resultFromVotes, sameSets, voteLabel } from '../rules/votes.js';
 import { submitVote } from '../player-data.js';
 import { refresh } from '../nav.js';
+import { matchState } from '../rules/flow.js';
+import { zoneLabel } from '../rules/events.js';
 import { mediaUrl, prepareImage, uploadImage, deleteImage, FriendlyError } from '../media.js';
 
 let ctx = null; // { b, f, player, team, mine, format }
@@ -54,9 +56,25 @@ export function matchesToReport(bundles, player) {
   return bundles
     .filter((b) => b.event.status !== 'cancelled')
     .flatMap((b) => b.fixtures
-      .filter((f) => !f.virtual && (f.homeTeamId === player.teamId || f.awayTeamId === player.teamId) && !b.results[f.id])
+      .filter((f) => !f.virtual && (f.homeTeamId === player.teamId || f.awayTeamId === player.teamId) && !b.results[f.id]
+        && matchState(b, f, Date.now()).state === 'open') // not before the start, during a break, or while they're still playing an earlier match
       .map((f) => ({ b, f, voted: (b.submissions ?? []).some((s) => s.id === `${f.id}__${player.id}`) })))
     .sort((x, y) => (x.f.scheduledAt ?? Infinity) - (y.f.scheduledAt ?? Infinity) || (x.f.order ?? 0) - (y.f.order ?? 0));
+}
+
+// Why a match can't take votes yet (rules/flow.js matchState).
+const at = (ms) => `${fmtDay(ms)} at ${fmtTime(ms)} ${zoneLabel(ms)}`;
+export function closedText(b, st) {
+  if (st.state === 'before') return st.opensAt ? `Reporting opens when the event starts: <b>${esc(at(st.opensAt))}</b>.` : 'Reporting opens when the event starts.';
+  if (st.state === 'paused') return '⏸ Admins have paused the event. Reporting opens again when they restart it.';
+  if (st.state === 'break') return st.opensAt ? `☕ Break before the finals. Finals open at <b>${esc(fmtTime(st.opensAt))} ${esc(zoneLabel(st.opensAt))}</b>.` : '☕ Break before the finals. An admin will open them shortly.';
+  if (st.state === 'waiting') {
+    return `Opens when ${st.waitingOn.map(({ teamId, fixture }) => {
+      const opp = b.teamsById[fixture.homeTeamId === teamId ? fixture.awayTeamId : fixture.homeTeamId];
+      return `<b>${esc(b.teamsById[teamId]?.name ?? 'a team')}</b> finish their match against ${esc(opp?.name ?? 'TBC')}`;
+    }).join(' and ')}.`;
+  }
+  return 'Reporting isn’t open for this match.';
 }
 
 // The form, for a signed-in player on one of the two teams. Returns '' for everyone else.
@@ -72,9 +90,13 @@ export async function reportBlock(b, f) {
   if (f.virtual) {
     return '<section class="panel"><p class="muted small" style="margin:0">Result reporting opens when the fixtures lock, 10 minutes before the start.</p></section>';
   }
+  // Match flow (rules/flow.js): only open matches take votes.
+  const st = matchState(b, f, Date.now());
+  if (st.state !== 'open') return `<section class="panel match-closed"><p style="margin:0">${closedText(b, st)}</p></section>`;
 
   const format = formatFor(b.season, f);
   const mine = (b.submissions ?? []).find((s) => s.id === `${f.id}__${player.id}`) ?? null;
+  const captain = Boolean(team.managerUid && team.managerUid === user.uid);
   ctx = { b, f, player, team, mine, format, user };
 
   const home = b.teamsById[f.homeTeamId];
@@ -87,10 +109,24 @@ export async function reportBlock(b, f) {
       <input type="number" inputmode="numeric" min="0" name="set-${i}-away" value="${esc(s?.away ?? '')}" aria-label="Set ${i + 1} ${esc(away?.name)}"></div>`;
   }).join('');
 
+  // Captain's one tap: agree with a score the other team voted (confirms it straight away).
+  const theirs = (b.submissions ?? []).filter((s) => s.fixtureId === f.id && s.teamId === other?.id);
+  const ourSets = (b.submissions ?? []).filter((s) => s.fixtureId === f.id && s.teamId === team.id).map((s) => s.sets);
+  const toConfirm = captain ? theirs.filter((s, i) => !ourSets.some((o) => sameSets(o, s.sets)) && theirs.findIndex((x) => sameSets(x.sets, s.sets)) === i) : [];
+  ctx.confirmable = toConfirm;
+  const confirmBox = toConfirm.length ? `
+      <div class="captain-confirm">
+        <b>Captain: ${esc(other?.name ?? 'the other team')} says</b>
+        ${toConfirm.map((s, i) => `<div class="cc-row"><span class="num">${esc(voteLabel(s.sets))}</span>
+          <button class="btn btn-sm btn-primary" type="button" data-confirm-vote="${i}">✓ Confirm this score</button></div>`).join('')}
+        <p class="muted small" style="margin:0">Confirming puts the score live straight away. Wrong? Enter the right scores below instead.</p>
+      </div>` : '';
+
   return `
     <form class="panel report" data-form="vote" novalidate>
       <h2 class="pro-h">${mine ? 'Your vote' : 'Report the result'}</h2>
       ${flash ? `<p class="report-flash">${esc(flash)}</p>` : ''}
+      ${confirmBox}
       <ol class="report-steps muted small">
         <li><b>Set scores:</b> when a player from <b>${esc(other?.name ?? 'the other team')}</b> enters the same, the score goes live straight away.</li>
         <li><b>Screenshot</b> of the end-of-match stats screen: an admin reads everyone’s stats from it, so nobody has to type them.</li>
@@ -137,8 +173,25 @@ export function mountReport(root) {
         ? `Only the first ${MAX_SHOTS} will be used.` : n ? `${n} picked.` : '';
     }
   });
+  // Captain confirms the other team's score: fill in those sets and send (no screenshot needed:
+  // the other team's vote has one).
+  let confirming = false;
+  form.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-confirm-vote]');
+    const vote = btn && ctx.confirmable?.[Number(btn.dataset.confirmVote)];
+    if (!vote) return;
+    for (let i = 0; i < ctx.format.bestOf; i++) {
+      form.querySelector(`[name="set-${i}-home"]`).value = vote.sets[i]?.home ?? '';
+      form.querySelector(`[name="set-${i}-away"]`).value = vote.sets[i]?.away ?? '';
+    }
+    confirming = true;
+    btn.disabled = true;
+    form.requestSubmit();
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const wasConfirm = confirming;
+    confirming = false;
     const { b, f, player, team, mine, format, user } = ctx;
     const error = form.querySelector('.form-error');
     const showError = (msg) => { error.textContent = msg; error.hidden = false; };
@@ -148,7 +201,7 @@ export function mountReport(root) {
     const check = checkResult(sets, format);
     if (!check.ok) return showError(`Check the scores: ${check.errors[0]}.`);
     const files = [...(form.querySelector('[name=shots]')?.files ?? [])].slice(0, MAX_SHOTS);
-    if (!files.length && !mine?.screenshotPaths?.length) {
+    if (!wasConfirm && !files.length && !mine?.screenshotPaths?.length) {
       if (!window.confirm('No screenshot? The score can still go live, but this match’s stats can’t be counted until someone uploads one. Send without it?')) return;
     }
     const playerStats = {}; // stats come from the screenshot, read by an admin

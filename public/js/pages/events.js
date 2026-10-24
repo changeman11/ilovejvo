@@ -10,6 +10,7 @@ import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } f
 import { computeStandings } from '../rules/standings.js';
 import { formatFor } from '../rules/season.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag, staffTag } from '../ui.js';
+import { livePanelsHtml } from './live-parts.js';
 import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupTablesHtml, groupFixturesHtml, bracketHtml, stageOrder } from './parts.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
@@ -90,6 +91,7 @@ export const home = {
     return `
       ${gameMenu(state, hasClub)}
       <div class="stack home-rest">
+        ${livePanelsHtml(bundles)}
         ${prompt ? `<div class="mobile-only">${prompt}</div>` : ''}
         <section class="panel hero mobile-only">
           <div>

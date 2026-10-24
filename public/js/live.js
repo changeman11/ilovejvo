@@ -25,6 +25,35 @@ function typing() {
   return Boolean(el && el.closest('main') && el.matches('input, textarea, select'));
 }
 
+// The event that's on right now (rules/flow.js), watched on every page while the site is open, so
+// the FEATURED! live board and Home show scores as they're confirmed. Listeners only cost a read when
+// something changes. onChange runs after the cached copy is dropped.
+const siteWatches = new Map(); // eventId -> stop()
+export function watchLiveEvent(eventId, onChange) {
+  if (siteWatches.has(eventId)) return;
+  let timer = null;
+  const stopsHere = [];
+  const changed = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      invalidate(`event:${eventId}`);
+      onChange();
+      if (location.pathname === '/' && !typing()) refreshQuietly(); // Home's Live now panel
+    }, 600);
+  };
+  const watch = (ref) => {
+    let first = true;
+    stopsHere.push(onSnapshot(ref, () => { if (first) { first = false; return; } changed(); }, () => {}));
+  };
+  watch(doc(db, `events/${eventId}`));
+  for (const sub of ['fixtures', 'results', 'submissions']) watch(collection(db, `events/${eventId}/${sub}`));
+  siteWatches.set(eventId, () => { clearTimeout(timer); stopsHere.forEach((s) => s()); });
+}
+export function stopLiveEvent(eventId) {
+  siteWatches.get(eventId)?.();
+  siteWatches.delete(eventId);
+}
+
 export function watchEvent(eventId, { admin = false } = {}) {
   const database = admin ? adminDatabase() : db;
   let timer = null;

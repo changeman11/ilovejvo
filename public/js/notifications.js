@@ -5,6 +5,7 @@
 import { currentUser, currentAdmin } from './auth.js';
 import { loadMe, isApprovedTeam, loadAllBundles, loadRequests } from './data.js';
 import { tallyVotes } from './rules/votes.js';
+import { flowOf, matchState, eventPhase } from './rules/flow.js';
 import { checkText } from './rules/profanity.js';
 import { getDocs, query, collection, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
@@ -117,6 +118,11 @@ async function gatherAdmin() {
       const match = `<b>${name(f.homeTeamId)}</b> v <b>${name(f.awayTeamId)}</b>`;
       if (res?.statsStatus === 'pending') {
         out.push({ id: `a-stats-${b.event.id}-${f.id}`, at: res.updatedAt ?? 0, icon: '📸', text: `Stats to check: ${match}`, href: urls.adminResult(b.event.id, f.id) });
+      } else if (!res && flowOf(b.event)) {
+        // Match flow: admins are pinged once a match has been stuck for a while (rules/flow.js).
+        const st = matchState(b, f, now);
+        const why = { disputed: 'the scores don’t match', waiting: 'only one team has reported', 'no-votes': 'nobody has reported' }[st.stuck];
+        if (why) out.push({ id: `a-stuck-${b.event.id}-${f.id}-${st.stuck}`, at: now, icon: '⚠️', text: `Stuck match (${why}): ${match}`, href: urls.adminResult(b.event.id, f.id) });
       } else if (!res) {
         const tally = tallyVotes((b.submissions ?? []).filter((s) => s.fixtureId === f.id), f);
         if (tally.status === 'disputed') {
@@ -125,6 +131,11 @@ async function gatherAdmin() {
           out.push({ id: `a-missing-${b.event.id}-${f.id}`, at: f.scheduledAt, icon: '⏳', text: `No result yet: ${match}`, href: urls.adminResult(b.event.id, f.id) });
         }
       }
+    }
+    // A break that waits for an admin to open the finals.
+    const phase = eventPhase(b, now);
+    if (phase.phase === 'break' && !phase.breakEndsAt) {
+      out.push({ id: `a-finals-${b.event.id}`, at: now, icon: '🏆', text: `<b>${esc(b.event.title)}</b>: the group stage is done. Open the finals when you're ready`, href: urls.adminEvent(b.event.id, 'fixtures') });
     }
     // An event starting within a day whose fixtures will need an admin online to lock them.
     const e = b.event;

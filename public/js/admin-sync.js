@@ -1,11 +1,13 @@
 // Saves worked-out schedules (rules/autofix.js) whenever an admin is signed in:
 // - the round robin, once its event reaches the lock (10 minutes before the start)
 // - finals, as soon as both teams are known (group table finished, or semi-finals played)
+// - when the finals open after the break (rules/flow.js), so the rules can check it too
 // There's no server doing this, so any admin browser that's open does it (at most once a minute).
 
 import { currentAdmin } from './auth.js';
 import { loadAllBundles } from './data.js';
-import { saveSchedule } from './admin-data.js';
+import { saveSchedule, saveFlow } from './admin-data.js';
+import { finalsOpenToSave } from './rules/flow.js';
 import { drawToSave } from './rules/autofix.js';
 
 let lastRun = 0;
@@ -22,6 +24,11 @@ export function syncSchedules({ force = false } = {}) {
     const bundles = await loadAllBundles({ includeDrafts: true, fresh: true });
     let saved = 0;
     for (const b of bundles) {
+      const opensAt = finalsOpenToSave(b, Date.now());
+      if (opensAt) {
+        await saveFlow({ eventId: b.event.id, uid: user.uid, event: b.event, changes: { finalsOpenAt: opensAt } })
+          .catch((err) => console.warn('Saving the finals time for', b.event.id, err));
+      }
       const { toSave, lockGroup } = b.plan;
       if (!toSave.length) continue;
       try {

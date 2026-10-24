@@ -68,6 +68,14 @@
     - sign-ups closing within 24 hours
     - fixtures set
     - your event starts within 24 hours
+- **Match night flow (added 2026-10-24):** events run themselves on the night. The logic is in `rules/flow.js` (tested), worked out the same way in every browser.
+  - **Opening:** reporting opens at the start time (or `flow.openAt`, set by "Open matches now"). Per team, a match opens once both teams have confirmed scores for all their earlier matches. Match rows show "● on now" and "up next".
+  - **Confirming:** a score is confirmed when a home vote and an away vote agree (as before), or when a captain (club manager) taps "✓ Confirm this score" on the other team's vote. That saves their own matching vote, so no rule change was needed. Stats stay with admins (photo → approve).
+  - **Break:** when every group match has a score, the event goes on a break. Finals open `flow.breakMinutes` (default 15) after the last group score, saved as `flow.finalsOpenAt` by an admin browser (`admin-sync.js`), or wait for "Open finals now" if the break is set to "Until an admin opens them".
+  - **Stuck matches:** disputed or one-sided for `stuckMinutes` (10), or no votes for `matchMinutes + stuckMinutes` (20 + 10). They go on the admin bell and the admin Fixtures tab.
+  - **Settings:** `event.flow = { on, breakMinutes, stuckMinutes, matchMinutes, paused, openAt, finalsOpenAt }`, all optional (missing = defaults, flow on). Set in Rule config → Match night. Pause / Resume / Open matches now / Open finals now are on the admin Fixtures tab. `on: false` = the old way.
+  - **Rules:** `votingOpen()` in firestore.rules refuses votes before the start, while paused, and on finals before `finalsOpenAt`. The per-team order is checked by the app only.
+  - **Live:** the FEATURED! card becomes a live board while an event runs (stage, on now, just in, break countdown). Home has a "Live now" panel (`pages/live-parts.js`). `watchLiveEvent()` in live.js listens to the live event on every page from 2 hours before the start.
 - **Club hub, chat, admins, back button (added 2026-10-23):**
   - **Club hub tabs:** Club (squad, the team chat, next matches, leaving), Manager (managers only: a to-do summary, join requests, event sign-ups, results to report, squad tools to release a player or hand over the club, and invites), and Club page.
   - **Hand-over rule:** a manager can pass the club to another squad member who has a Discord sign-in (`managerUid`/`managerPlayerId` rule branch).

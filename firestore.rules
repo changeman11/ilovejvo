@@ -133,12 +133,27 @@ service cloud.firestore {
     // A vote as it will be after this save (so a vote and the result it completes can be saved together).
     function voteAfter(eventId, voteId) { return getAfter(/databases/$(database)/documents/events/$(eventId)/submissions/$(voteId)).data; }
 
+    // Match flow (public/js/rules/flow.js): votes only once the event has started (event.date, or
+    // flow.openAt if an admin opened it early), not while admins have paused it, and finals not before
+    // the saved finals opening (flow.finalsOpenAt). flow.on == false = the old way (always open).
+    // Playing matches in order per team is checked by the app, not here.
+    function votingOpen(eventId, f) {
+      let e = get(/databases/$(database)/documents/events/$(eventId)).data;
+      let flow = e.get('flow', {});
+      return flow.get('on', true) == false || (
+        flow.get('paused', false) != true
+        && (flow.get('openAt', null) != null
+            ? request.time >= flow.openAt
+            : (e.get('date', null) == null || e.get('timeTbd', false) == true || request.time >= e.date))
+        && (f.get('stage', '') != 'playoffs' || flow.get('finalsOpenAt', null) == null || request.time >= flow.finalsOpenAt));
+    }
+
     // A player's vote: they're signed in as that player, the player is on one of the two teams,
-    // the event is public and the match has no result yet.
+    // the event is public, the match is open (votingOpen) and has no result yet.
     function validVote(eventId, subId) {
       let d = request.resource.data;
       let f = fixtureDoc(eventId, d.fixtureId);
-      return signedIn() && stampedByMe() && eventPublished(eventId)
+      return signedIn() && stampedByMe() && eventPublished(eventId) && votingOpen(eventId, f)
           && subId == d.fixtureId + '__' + d.playerId
           && d.uid == uid() && ownsPlayer(d.playerId)
           && d.teamId == playerDoc(d.playerId).get('teamId', '')
