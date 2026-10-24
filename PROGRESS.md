@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (partner's PC) · bot UPLOADED: who's who drop-downs
+- Uploaded from the partner's PC at 08:18 UTC (key `~/.ssh/jvo-bot-partner`, `npm run upload -- -Server ubuntu@54.252.252.126 -Key <key>`), no `.env` changes. Bot tests 70 pass.
+- Log: welcomes, site queue, 1v1, `[matches] match threads in <#…> (26 open)`, club roles all started; no warnings or errors.
+- Checked in Discord (read-only, from the server): all 18 open "❓ Who's who?" questions now have the drop-downs (0 old buttons left), 1 is "all sorted".
+
 ### 2026-10-24 · Claude (owner's PC) · partner PC key added to the bot server
 - Added the public key `jvo-bot partner PC` (ed25519) to `~/.ssh/authorized_keys` on the bot server (owner authorised; old list backed up as `authorized_keys.backup-<time>`). Server: `ubuntu@54.252.252.126`. The original `jvo-bot` key still works. The partner PC can now `npm run upload` (save its own server + key in `bot/deploy/upload.local.json`).
 
