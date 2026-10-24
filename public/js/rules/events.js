@@ -111,3 +111,15 @@ export function inputsFromDate(date, timeTbd) {
     timeStr: timeTbd ? '' : `${pad(d.getHours())}:${pad(d.getMinutes())}`,
   };
 }
+
+// Club moves (leaving, accepting a join) pause while any event is running (owner's call,
+// 2026-10-24): from 10 minutes before its start (the fixture lock) until it's marked finished,
+// its match flow says it's done, or 12 hours have passed (in case nobody marks it finished).
+// Only dated, published, upcoming events count. `phaseOf(event)`: optional, the match flow phase.
+// Returns the running event, or null.
+export const MOVES_PAUSE = { beforeMs: 10 * 60000, maxMs: 12 * 3600000 };
+export function eventBlockingMoves(events, now, phaseOf = () => null) {
+  return events.find((e) => e?.published && (e.status ?? 'upcoming') === 'upcoming' && e.date && !e.timeTbd
+    && now >= e.date - MOVES_PAUSE.beforeMs && now < e.date + MOVES_PAUSE.maxMs
+    && phaseOf(e) !== 'done') ?? null;
+}

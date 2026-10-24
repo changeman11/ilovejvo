@@ -8,7 +8,7 @@ import { currentUser } from '../auth.js';
 import { loadMe, isApprovedTeam, loadAllBundles } from '../data.js';
 import {
   updateTeam, sendOffer, withdrawOffer, releasePlayer, answerOffer, registerTeam,
-  requestLeave, cancelLeave, withdrawJoinRequest, answerJoinRequest, requestToJoin,
+  requestLeave, cancelLeave, leaveClub, withdrawJoinRequest, answerJoinRequest, requestToJoin,
 } from '../player-data.js';
 import { refresh, navigate } from '../nav.js';
 import { esc, skeleton, notice, teamDot, teamLink, avatarImg, playerLink, urls, fmtDay, fmtTime, managerTag, frameStyle, isLft, lftTag, staffTag } from '../ui.js';
@@ -205,15 +205,14 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
         </section>` : `
         <section>
           <div class="section-head"><h2>Leaving the club</h2></div>
-          ${isManager && !pendingLeave ? '<p class="small" style="margin:0 0 8px"><b>You’re the only player left.</b> If you leave, the club disbands (its results are kept).</p>' : ''}
           ${pendingLeave
-            ? `<div class="panel"><p><b>You’ve asked to leave.</b> An admin will decide soon.</p>
-                <button class="btn btn-sm" data-act="cancel-leave" data-id="${esc(pendingLeave.id)}" style="margin-top:10px">Cancel request</button></div>`
-            : `<form class="panel" data-form="leave" novalidate>
-                <label class="field"><span>Reason (optional, admins see it)</span><textarea name="reason" rows="2" maxlength="500"></textarea></label>
-                <button class="btn" type="submit">Ask to leave ${esc(team.name)}</button>
-                <p class="form-error" role="alert" hidden></p>
-              </form>`}
+            ? `<div class="panel"><p><b>You asked an admin to let you leave.</b> You don’t need to wait any more: leave straight away below, or cancel the request.</p>
+                <button class="btn btn-sm" data-act="cancel-leave" data-id="${esc(pendingLeave.id)}" style="margin-top:10px">Cancel request</button></div>` : ''}
+          <section class="panel">
+            ${isManager ? '<p class="small" style="margin:0 0 8px"><b>You’re the only player left.</b> If you leave, the club disbands (its results are kept).</p>' : '<p class="small" style="margin:0 0 8px">You can leave any time, except while an event is on. You become a free agent straight away.</p>'}
+            <button class="btn" type="button" data-act="leave-now">${isManager ? `Leave and disband ${esc(team.name)}` : `Leave ${esc(team.name)}`}</button>
+            <p class="form-error" role="alert" hidden></p>
+          </section>
         </section>`}
       </div>
     </div>`;
@@ -461,6 +460,7 @@ export function mount(el) {
         const p = me.playersById[id];
         if (!window.confirm(`Make ${p.displayName} the manager of ${team.name}? You’ll stay in the squad but lose the manager tools.`)) return;
       }
+      if (act === 'leave-now' && !window.confirm(team.managerUid === user.uid ? `Leave ${team.name}? You’re the last player, so the club disbands.` : `Leave ${team.name}? You become a free agent straight away.`)) return;
       const ev = page.events?.find((x) => x.b.event.id === id);
       if (act === 'event-out' && !window.confirm(`Pull ${team.name} out of ${ev?.b.event.title}?`)) return;
       b.disabled = true;
@@ -486,6 +486,10 @@ export function mount(el) {
       if (act === 'accept-request' || act === 'decline-request') {
         const request = me.teamJoinRequests.find((r) => r.id === id);
         await answerJoinRequest({ uid: user.uid, request, player: me.playersById[request.playerId], accept: act === 'accept-request' });
+      }
+      if (act === 'leave-now') {
+        const squad = me.players.filter((p) => p.teamId === team.id);
+        await leaveClub({ uid: user.uid, player: me.player, team, alone: squad.length === 1 });
       }
       if (act === 'cancel-leave') await cancelLeave({ uid: user.uid, request: me.leaves.find((l) => l.id === id) });
       refresh();

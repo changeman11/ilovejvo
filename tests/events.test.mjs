@@ -70,3 +70,17 @@ test('countdown: h:mm:ss under a day, days when further out, live once started',
   assert.equal(countdownParts(start, start - 86400000).parts[0][1], 'day');
   assert.deepEqual(countdownParts(start, start + 1000), { live: true, parts: [], short: 'live now' });
 });
+
+test('club moves pause while an event is running: from the lock until it is done (12 h at most)', async () => {
+  const { eventBlockingMoves } = await import('../public/js/rules/events.js');
+  const start = Date.UTC(2026, 9, 24, 7, 0);
+  const e = { id: 'n', published: true, status: 'upcoming', date: start };
+  assert.equal(eventBlockingMoves([e], start - 11 * 60000), null, 'free until 10 minutes before');
+  assert.equal(eventBlockingMoves([e], start - 9 * 60000), e);
+  assert.equal(eventBlockingMoves([e], start + 3 * 3600000), e);
+  assert.equal(eventBlockingMoves([e], start + 3 * 3600000, () => 'done'), null, 'free once every match is played');
+  assert.equal(eventBlockingMoves([{ ...e, status: 'finished' }], start + 60000), null);
+  assert.equal(eventBlockingMoves([e], start + 13 * 3600000), null, 'never stuck for more than 12 hours');
+  assert.equal(eventBlockingMoves([{ ...e, published: false }], start), null);
+  assert.equal(eventBlockingMoves([{ ...e, timeTbd: true }], start), null);
+});

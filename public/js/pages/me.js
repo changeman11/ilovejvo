@@ -162,7 +162,6 @@ function teamBlock(me) {
   const t = me.team;
   const isManager = t.managerUid === page.user.uid;
   const pendingLeave = me.leaves.find((l) => l.status === 'pending' && l.teamId === t.id);
-  const lastLeave = [...me.leaves].filter((l) => l.teamId === t.id && l.status === 'declined').pop();
   return `
     <section>
       <div class="section-head"><h2>Your team</h2></div>
@@ -181,12 +180,7 @@ function teamBlock(me) {
         ? `<div class="panel"><p><b>You’ve asked to leave.</b> An admin will decide soon.</p>
             <button class="btn btn-sm" data-act="cancel-leave" data-id="${esc(pendingLeave.id)}" style="margin-top:10px">Cancel request</button>
             <p class="form-error" role="alert" hidden></p></div>`
-        : `<form class="panel" data-form="leave" novalidate>
-            ${lastLeave ? '<p class="small" style="margin-bottom:8px">Your last leave request was declined.</p>' : ''}
-            <label class="field"><span>Reason (optional, admins see it)</span><textarea name="reason" rows="2" maxlength="500"></textarea></label>
-            <button class="btn" type="submit">Ask to leave ${esc(t.name)}</button>
-            <p class="form-error" role="alert" hidden></p>
-          </form>`}
+        : `<div class="panel"><p class="small" style="margin:0">You can leave straight away (except while an event is on): <a href="/club" data-link>Club hub → Leaving the club</a>.</p></div>`}
     </section>`;
 }
 
@@ -292,6 +286,7 @@ function showError(el, message) {
 
 const fail = (err) => {
   console.error(err);
+  if (err.friendly) return err.friendly; // e.g. club moves paused during an event
   if (err instanceof FriendlyError) return err.message;
   return err.code === 'permission-denied'
     ? 'That isn’t allowed right now. Refresh the page and try again.'

@@ -4,7 +4,9 @@
 import { commit, newId, serverTimestamp, ts } from './writes.js';
 import { doc, collection, setDoc, deleteDoc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
-import { invalidate } from './data.js';
+import { invalidate, loadAllBundles } from './data.js';
+import { eventBlockingMoves } from './rules/events.js';
+import { eventPhase } from './rules/flow.js';
 import { slugId } from './admin-data.js';
 import { transferOp } from './transfers.js';
 
@@ -120,8 +122,42 @@ export async function withdrawJoinRequest({ uid, request }) {
   await commit(uid, [{ type: 'update', path: `joinRequests/${request.id}`, before: request, data: { status: 'withdrawn' } }]);
 }
 
+// Club moves pause while any event is running (rules/events.js eventBlockingMoves). The site
+// checks this; the database rules can't (no server to say an event is on). Admins can still move
+// players. Throws an error with a friendly message when paused.
+export async function checkMovesOpen() {
+  const bundles = await loadAllBundles().catch(() => []);
+  const byId = new Map(bundles.map((b) => [b.event.id, b]));
+  const e = eventBlockingMoves(bundles.map((b) => b.event), Date.now(), (ev) => eventPhase(byId.get(ev.id), Date.now()).phase);
+  if (e) throw Object.assign(new Error('moves paused'), { friendly: `Club moves are paused while ${e.title} is on. Try again once it's finished.` });
+}
+
+// A player leaves their club straight away (no admin needed). A manager who's the only player can
+// leave too: the club disbands (it isn't deleted, so results keep its name). A manager with
+// teammates hands the club over first (the app stops them; see club.js).
+export async function leaveClub({ uid, player, team, alone }) {
+  await checkMovesOpen();
+  const disband = alone && team?.managerPlayerId === player.id;
+  const ops = [
+    { type: 'update', path: `players/${player.id}`, before: player, data: { teamId: null } },
+    transferOp({ playerId: player.id, from: player.teamId, to: null, kind: disband ? 'disbanded' : 'left' }),
+  ];
+  if (disband) ops.push({ type: 'update', path: `teams/${team.id}`, before: team, data: { status: 'disbanded', managerUid: null, managerPlayerId: null, disbandedAt: serverTimestamp() } });
+  if (disband) {
+    // Its sign-ups to events that haven't locked yet go too.
+    for (const b of await loadAllBundles().catch(() => [])) {
+      if (b.event.status !== 'upcoming' || b.event.fixturesLockedAt) continue;
+      const entry = b.entries.find((x) => x.teamId === team.id);
+      if (entry) ops.push({ type: 'delete', path: `events/${b.event.id}/entries/${entry.id}`, before: entry });
+    }
+  }
+  await commit(uid, ops);
+  invalidate();
+}
+
 // Manager answers a join request. Accepting puts the player on the team in the same save.
 export async function answerJoinRequest({ uid, request, player, accept }) {
+  if (accept) await checkMovesOpen();
   const ops = [{ type: 'update', path: `joinRequests/${request.id}`, before: request, data: { status: accept ? 'accepted' : 'declined' } }];
   if (accept) {
     ops.push({ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: request.teamId, joinRequestId: request.id } });
@@ -146,6 +182,7 @@ export async function withdrawOffer({ uid, offer }) {
 
 // Player answers an offer. Accepting joins the team in the same save (the rules check both).
 export async function answerOffer({ uid, offer, player, accept }) {
+  if (accept) await checkMovesOpen();
   const ops = [{ type: 'update', path: `offers/${offer.id}`, before: offer, data: { status: accept ? 'accepted' : 'declined' } }];
   if (accept) {
     ops.push({ type: 'update', path: `players/${player.id}`, before: player, data: { teamId: offer.teamId, joinOfferId: offer.id } });

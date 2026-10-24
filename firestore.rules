@@ -319,7 +319,16 @@ service cloud.firestore {
             && managesTeam(resource.data.teamId)
             && resource.data.get('uid', null) != uid()
             && request.resource.data.teamId == null
-            && changedOnly(['teamId', 'updatedBy', 'updatedAt']));
+            && changedOnly(['teamId', 'updatedBy', 'updatedAt']))
+        // A player leaves their club straight away (no admin; since 2026-10-24). Its manager only by
+        // disbanding it in the same save (they're the last player; the app checks that). The pause
+        // while an event is running is checked by the app.
+        || (signedIn() && resource.data.get('uid', null) == uid() && stampedByMe()
+            && resource.data.get('teamId', null) != null
+            && request.resource.data.get('teamId', null) == null
+            && changedOnly(['teamId', 'updatedBy', 'updatedAt'])
+            && (teamDoc(resource.data.teamId).get('managerPlayerId', '') != playerId
+                || getAfter(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.get('status', '') == 'disbanded'));
 
       allow delete: if isAdmin();
     }
@@ -358,6 +367,13 @@ service cloud.firestore {
             && request.resource.data.managerUid is string
             && playerDoc(request.resource.data.managerPlayerId).get('teamId', '') == teamId
             && playerDoc(request.resource.data.managerPlayerId).get('uid', '') == request.resource.data.managerUid)
+        // The manager disbands it while leaving it as its last player (same save as their leaving).
+        || (managesTeam(teamId) && stampedByMe()
+            && request.resource.data.status == 'disbanded'
+            && request.resource.data.get('managerUid', null) == null
+            && request.resource.data.get('managerPlayerId', null) == null
+            && changedOnly(['status', 'managerUid', 'managerPlayerId', 'disbandedAt', 'updatedBy', 'updatedAt'])
+            && getAfter(/databases/$(database)/documents/players/$(resource.data.managerPlayerId)).data.get('teamId', null) == null)
         // While waiting for approval, the person who registered it can add a logo and profile.
         || (signedIn() && resource.data.status == 'pending' && resource.data.managerUid == uid()
             && stampedByMe() && validTeamProfile(teamId) && validInvites()
@@ -377,7 +393,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['playerId', 'fromTeamId', 'toTeamId', 'kind', 'at', 'updatedBy', 'updatedAt'])
         && request.resource.data.at == request.time
         && (isAdmin()
-            || (request.resource.data.kind in ['joined', 'released']
+            || (request.resource.data.kind in ['joined', 'released', 'left', 'disbanded']
                 && exists(/databases/$(database)/documents/players/$(request.resource.data.playerId))
                 && playerDoc(request.resource.data.playerId).get('teamId', null) == request.resource.data.fromTeamId
                 && getAfter(/databases/$(database)/documents/players/$(request.resource.data.playerId)).data.get('teamId', null) == request.resource.data.toTeamId
