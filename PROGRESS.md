@@ -11,7 +11,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ### Needs testing for real
 - Match night flow (opening per team, captain confirm, break, live board): first real run is DEMO EXHIBITION NIGHT, 2026-10-24 6 pm AEDT. An admin must have the site open around 5:50 pm (fixture lock) and when the group stage ends (finals).
-- Welcome message: no real join yet. (1v1 ranked worked with real players on 2026-10-24.)
+- (Bot: 1v1 ranked and welcome messages both worked for real on 2026-10-24.)
 
 ### Open / unfinished
 - Event page fixtures "clean format" tidy-up: asked by the owner, interrupted, not done; confirm what they want.
