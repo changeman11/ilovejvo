@@ -4,7 +4,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Current state (2026-10-24)
 
-- **Live site:** https://i-love-jvo.web.app, includes the typed CONFIRM safeguard for Clear fixtures. Service worker cache `jvo-shell-v51`.
+- **Live site:** https://i-love-jvo.web.app, includes the typed CONFIRM safeguard for Clear fixtures. Service worker cache `jvo-shell-v52`.
 - **Repository:** https://github.com/changeman11/ilovejvo (`main`). Pull before working, push after each commit. It's public right now; the owner may switch it to private.
 - **Tests:** 179 passing (`npm test`).
 - **Bot:** running on AWS (`jvo-bot`): pickup, 1v1 ranked, club roles and welcomes are on.
@@ -22,7 +22,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ### 2026-10-24 · Claude (partner's PC) · Storage CORS fixed
 - "Read stats" failed on players' screenshots because Firebase Storage had no CORS setting: pictures showed, but the browser couldn't download them for the reader. The owner set it in Cloud Shell from `storage-cors.json`; checked from the live site: screenshots now download and open (1920×1079 WebP).
-- Committed, NOT deployed: `ocr.js` turns any picture it can't open directly into a PNG first; `admin/result.js` explains a blocked download (save it, then "Read a screenshot from this computer…"). Cache `jvo-shell-v52`.
+- Deployed (hosting, cache v52, checked live): `ocr.js` turns any picture it can't open directly into a PNG first; `admin/result.js` explains a blocked download (save it, then "Read a screenshot from this computer…"). Cache `jvo-shell-v52`.
 
 ### 2026-10-24 · Claude (owner's PC) · bot UPLOADED with match threads
 - Bot tests pass (65, 3 emulator tests skipped). Server `.env` backed up (`~/jvo-bot/.env.backup-<time>`), `MATCH_THREADS=1` added, bot uploaded and restarted at 07:08 UTC.
