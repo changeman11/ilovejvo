@@ -20,6 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (owner's PC) · bot UPLOADED with stat roles (site + rules still NOT deployed)
+- Bot tests pass (70, 3 emulator tests skipped). Uploaded 07:56 UTC; server `.env` backed up, `STAT_ROLES=1` added (`MATCH_THREADS=1` kept).
+- Log: `[stat roles] 8 roles made, 28 given, 0 taken away`. Welcomes, site queue, 1v1, match threads (13 open, new threads starting), club roles all started normally; no errors, no crash restarts.
+- **Still to do:** deploy hosting + firestore rules from the entry below. Until the rules are live, the bot's "That's me" (who's who) answers will be refused.
+- Tip: run the `ssh` edits from Git Bash; PowerShell 5.1 strips the quotes in remote commands.
+
 ### 2026-10-24 · Claude (partner's PC) · edit stats, who's who, stat roles · site + rules DEPLOYED (cache v54), bot NOT uploaded
 - **Edit stats:** "✏️ Edit result & stats" on every match page for admins; each stat line on the admin result page has a player picker to move it to the right person (swaps if they already have one).
 - **Who's who** (bot, match threads): when the site's automatic reading has in-game names it couldn't match (short all-zero names skipped), the bot posts "❓ Who's who?" in the match thread, pings the players the reading didn't place, and "That's me" buttons fill `statsDraft.rows[i].playerId` (+ `claimedBy`). Threads stay open (or reopen) until names are sorted. Admin result page picks up claims live. **firestore.rules:** bot may update only `statsDraft` on a pending result.
