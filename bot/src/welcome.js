@@ -43,6 +43,7 @@ export async function welcomeMember(member, { io, config, log = console }) {
   if (!message) return false;
   try {
     await io.post(message, config.welcomeChannelId);
+    log.info?.(`[welcome] welcomed ${member.name}`);
     return true;
   } catch (err) {
     log.warn(`[welcome] could not welcome ${member.name}: ${err.message}`);
