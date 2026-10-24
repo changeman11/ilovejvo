@@ -200,3 +200,17 @@ test('/rp and /rpleaderboard', async () => {
   assert.match(board.embeds[0].description, /Nobody has finished placements/);
   assert.match(board.embeds[0].fields[0].value, /Alice · 1\/5/);
 });
+
+test('a cancelled fixture still uses up its number, even after a restart', async () => {
+  const store = new FileStore();
+  const env = setup(store);
+  await env.ranked.start();
+  await env.ranked.button('rq:join', A);
+  await env.ranked.button('rq:join', B);
+  await env.ranked.shutdown(); // the bot restarts mid-fixture: game 1 is cancelled
+  const again = setup(store);
+  await again.ranked.start();
+  await again.ranked.button('rq:join', A);
+  await again.ranked.button('rq:join', B);
+  assert.equal([...again.ranked.fixtures.values()][0].number, 2);
+});

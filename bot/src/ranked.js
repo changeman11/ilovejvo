@@ -141,6 +141,8 @@ export class Ranked {
   async createFixture(a, b) {
     const number = Math.max(this.store.nextGameNumber(), this.lastNumber + 1);
     this.lastNumber = number;
+    // Save the number now, so a cancelled fixture's number isn't used again after a restart.
+    this.store.setMeta('lastGame', number).catch((err) => this.log.warn('[1v1] could not save the game number:', err.message));
     const f = {
       id: `r${number}`,
       number,
