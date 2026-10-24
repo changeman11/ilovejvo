@@ -20,6 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (partner's PC) · stats reader lab (not deployed, nothing on the site changed yet)
+- `scripts/ocr-lab/` tests readers on every match with screenshots + saved stats (40 matches, 50 screenshots; downloads go to `/ocr-lab/`, git-ignored). Saved stats aren't fully trusted (confirmed in a hurry), so differences were checked by eye (`checked.json`).
+- **Numbers:** new `rules/glyphs.js` matches each digit against the game's own digits (learned only where the old reader AND the saved stats agree, outliers dropped). On 3040 cells: 0 silent mistakes, 4 marked unsure (2 under the "hide" overlay). The old Tesseract reader got at least 7 wrong (6/9 read as 0), and those mistakes are in some saved results.
+- **Names:** `rules/namepics.js` finds just the name (top line, stops before badges, above the title pill) and keeps a "picture" of it; `rules/whois.js` combines side (each table is one team), text, picture and elimination. 346/354 lines (97.7%) placed automatically, 0 wrong, 8 left to ask (in-game names unlike site names).
+- Next: move this into the bot (reads thread screenshots, fills the stats draft, asks who's who only for the rest).
+
 ### 2026-10-25 · Claude (partner's PC) · Zapdis's character
 - Why it never showed: Zapdis's picture (posted twice) is on a near-black background (12,12,14), so it was set aside by hand (`skipped.json` / `skipped.txt`) and the bot's cut-out refused dark backgrounds.
 - `logic/cutout.js` now handles a **flat** near-black background: only pixels within 5 of it are cut (the outlines are 13,13,20, 8 away), pockets between the legs too, dark clothes kept; uneven dark backgrounds are still refused. Loose specks under 0.3% of the picture are dropped (a stray mark had stretched the box). Tested (`cutout.test.mjs`) and checked on the real picture.

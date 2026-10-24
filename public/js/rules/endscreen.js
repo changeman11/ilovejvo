@@ -59,6 +59,17 @@ export function nameRect(layout, panel, row) {
   return { left, top: cy - 0.42 * g, width: Math.max(g, panel.cols.pts - 0.6 * g - left), height: 0.4 * g };
 }
 
+// Where to look for the name (rules/namepics.js nameArea finds it in here): right of the avatar,
+// up to the first stat column, from just below the row above down to the middle of this row's
+// title pill. Taller than nameRect, because the name's height varies between screens; nameArea
+// takes only the top line, so the title pill below is never read as the name.
+export function nameSearchRect(layout, panel, row) {
+  const g = layout.colGap;
+  const cy = rowCentre(layout, panel, row);
+  const left = panel.playerX + 0.4 * g;
+  return { left, top: cy - 0.72 * g, width: Math.max(g, panel.cols.pts - 0.6 * g - left), height: 0.95 * g };
+}
+
 // What the reader saw in a stat cell -> a number. Blank = 0 (the game draws zeros faintly).
 // Returns { value, sure } where sure=false means "check this one".
 export function parseCell(text, confidence = 100) {

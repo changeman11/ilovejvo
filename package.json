@@ -18,6 +18,7 @@
   },
   "devDependencies": {
     "jimp": "^0.22.12",
-    "sharp": "^0.34.4"
+    "sharp": "^0.34.4",
+    "tesseract.js": "5.1.1"
   }
 }

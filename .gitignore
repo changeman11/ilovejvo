@@ -26,5 +26,10 @@ bot/deploy/upload.local.json
 # Handover ZIPs (made from a commit with git archive)
 exports/
 
+# Stats reader lab: downloaded end-of-match screenshots and working files (scripts/ocr-lab/)
+/ocr-lab/
+# Tesseract's language data (tesseract.js downloads it on first run)
+*.traineddata
+
 # Character pictures looked at and set aside (screenshots, cards, repeats): only their names are kept (skipped.txt)
 art-src/community/skipped/
