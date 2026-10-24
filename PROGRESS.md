@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (partner's PC) · stats badges on results
+- Every played match row (Fixtures → Results, event pages, Home) shows where its stats are up to: ✅ Stats confirmed (staff checked / stats saved), 📸 Stats submitted (screenshot in, waiting for staff), ⏳ No stats yet. Forfeits show none. `statsState()` / `statsBadge()` in `pages/parts.js`. Cache `jvo-shell-v55`.
+
 ### 2026-10-24 · Claude (partner's PC) · who's who: answers can be changed · bot UPLOADED
 - Every drop-down lists everyone on both squads (anyone already down for a line says "has: <name>"); picking them moves them and the other line goes back to "who is?". Names answered in Discord keep their drop-down showing the answer (default), so a mistake can be fixed until staff check the stats. Lines the reading matched by itself are left to staff (`answerRow`, `askRows`).
 - When every name has an answer the message turns green ("✅ Who's who") but keeps the drop-downs.

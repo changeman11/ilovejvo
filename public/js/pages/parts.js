@@ -45,6 +45,28 @@ function shortLabel(f, hideRound) {
   return esc(label);
 }
 
+// Where a played match's player stats are up to (forfeits have none):
+//   'confirmed' = staff have checked them (they're on the match page)
+//   'submitted' = an end-of-match screenshot is in, waiting for staff
+//   'missing'   = no screenshot yet
+export function statsState(b, f, result) {
+  if (!result || result.forfeit) return null;
+  if (result.statsStatus === 'reviewed' || Object.keys(result.playerStats ?? {}).length) return 'confirmed';
+  const shot = (b.submissions ?? []).some((s) => s.fixtureId === f.id && s.screenshotPaths?.length)
+    || (result.screenshots ?? []).length || result.statsDraft?.shot;
+  return shot ? 'submitted' : 'missing';
+}
+const STATS_BADGE = {
+  confirmed: ['✅', 'Stats confirmed', 'Staff have checked the stats'],
+  submitted: ['📸', 'Stats submitted', 'Screenshot in: staff are checking the stats'],
+  missing: ['⏳', 'No stats yet', 'Nobody has sent the end-of-match screenshot yet'],
+};
+export function statsBadge(state) {
+  if (!state) return '';
+  const [icon, text, title] = STATS_BADGE[state];
+  return `<span class="stats-badge ${state}" title="${title}"><span aria-hidden="true">${icon}</span> ${text}</span>`;
+}
+
 // compact: inside a group card, which already says the group and round (and that it's a draft).
 export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = null, hideRound = false, compact = false } = {}) {
   const home = b.teamsById[f.homeTeamId];
@@ -76,6 +98,7 @@ export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = n
     result?.forfeit ? 'Forfeit' : '',
     f.virtual && f.auto && !compact ? 'Draft: changes as clubs sign up' : '',
     bestOf !== 3 ? `Best of ${bestOf}` : '',
+    played ? statsBadge(statsState(b, f, result)) : '',
   ].filter(Boolean);
 
   return `
