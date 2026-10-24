@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · changelog
+- `CHANGELOG.md` started: the 2026-10-25 entry covers everything since the last Discord changelog (#i-love-jvowebapp, 2026-10-22 13:58 UTC). Discord-ready 3-part text in `exports/` (git-ignored). Next changelog: everything after this entry.
+
 ### 2026-10-25 · Claude (owner's PC) · new characters not showing for returning visitors · site DEPLOYED (cache v65)
 - Cause: `firebase.json` caches `/images/**` for 7 days, and `images/characters/list.json` is under it, so browsers kept the old 19-character list. Fix: `/images/**/*.json` is `no-cache`, and characters.js fetches the list with `cache: 'no-cache'`. Checked live in a browser that had the old list: picker now 34 (15 new), picking a new one works.
 

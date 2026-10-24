@@ -20,6 +20,7 @@ This project is worked on by **two assistants in turn** (Claude and ChatGPT). To
    - Commit with a clear message, adding a trailer naming the assistant (e.g. `Co-Authored-By: ChatGPT <noreply@openai.com>`).
    - Update `PROGRESS.md`: what changed, what was deployed, what's unfinished or needs testing.
    - Update `CLAUDE.md` when a feature or decision changes. Same commit.
+   - Player-facing changes go in the next `CHANGELOG.md` entry when the owner asks for a changelog (it lists what was last posted).
    - `git push` (to `origin main`), so the other assistant sees it.
 
 `CLAUDE.md` is named for Claude, but it is the single rulebook for **every** assistant. Don't create a second, competing one: edit that file.
