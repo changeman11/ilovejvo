@@ -82,3 +82,16 @@ test('characters: taken off when the post is deleted or a staff member reacts �
   assert.deepEqual(commits.map((w) => w.delete).sort(), [`characters/discord-${id(1)}-0`, `characters/discord-${id(2)}-0`]);
   assert.equal(removed.length, 2);
 });
+
+test('characters: only a staff ❌ stops a new picture; a joke ❌ from anyone else does not', async () => {
+  const id = (n) => `15636${String(n).padStart(14, '0')}`;
+  const posts = [post(id(2), ['staffx'], { crossedBy: ['staff1'] }), post(id(1), ['jokex'], { crossedBy: ['randomFan'] })];
+  const { ch, files, commits, store } = setup({ posts });
+  files.set('jokex', await picture());
+  files.set('staffx', await picture({ body: [40, 90, 230] }));
+  await store.setMeta('charactersSeen', { [`discord-${id(1)}-0`]: 'skipped (❌ on the post)' }); // skipped by the old rule
+  const r = await ch.sync();
+  assert.equal(r.added, 1, 'the joke-❌ picture is added (looked at again)');
+  assert.deepEqual(commits.map((w) => w.path), [`characters/discord-${id(1)}-0`]);
+  assert.match(store.getMeta('charactersSeen')[`discord-${id(2)}-0`], /staff ❌/);
+});

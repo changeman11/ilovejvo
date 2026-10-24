@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · changelog posted, character ❌ fix · bot UPLOADED
+- The bot posted the 3-part changelog in #i-love-jvowebapp (owner's go-ahead). CHANGELOG.md entry 2026-10-25 = what was posted.
+- #in-game-characters: 50 pictures. 16 from the channel on the site (+ the original 19 = 37 selectable now, 3 added by the bot), 32 set aside by hand (20 repeats, 12 not a single character), all accounted for.
+- Fix: only a **staff** ❌ stops the bot adding a new picture (it skipped chimken__'s because of a joke ❌ from a non-staff member); pictures skipped by the old rule are looked at again. Bot added chimken__'s and spoopyuwu's after the upload.
+
 ### 2026-10-25 · Claude (owner's PC) · changelog
 - `CHANGELOG.md` started: the 2026-10-25 entry covers everything since the last Discord changelog (#i-love-jvowebapp, 2026-10-22 13:58 UTC). Discord-ready 3-part text in `exports/` (git-ignored). Next changelog: everything after this entry.
 

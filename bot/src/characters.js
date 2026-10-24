@@ -101,14 +101,17 @@ export class Characters {
       }
     }
 
-    // New pictures, oldest first.
+    // New pictures, oldest first. Only a staff member's ❌ counts (anyone can react ❌ as a joke).
+    const staffCrossed = async (post) => { for (const u of post.crossedBy) if (await this.io.isStaff(u)) return true; return false; };
     for (const post of [...posts].reverse()) {
       if (post.bot) continue;
-      const crossed = post.crossedBy.length > 0;
+      const crossed = post.crossedBy.length > 0 && await staffCrossed(post);
       for (const [i, img] of post.images.entries()) {
         const key = `discord-${post.id}-${i}`;
-        if (!IMAGE.test(img.contentType) || added.has(key) || seen[key] || lists.list.has(key) || lists.skipped.has(key)) continue;
-        if (crossed) { seen[key] = 'skipped (❌ on the post)'; continue; }
+        // (Before 2026-10-25 anyone's ❌ skipped a picture: those are looked at again.)
+        const retry = /❌ on the post/.test(seen[key] ?? '') && !crossed;
+        if (!IMAGE.test(img.contentType) || added.has(key) || (seen[key] && !retry) || lists.list.has(key) || lists.skipped.has(key)) continue;
+        if (crossed) { seen[key] = 'skipped (staff ❌ on the post)'; continue; }
         try {
           const raw = await this.io.download(img.url);
           const { data, info } = await sharp(raw).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
