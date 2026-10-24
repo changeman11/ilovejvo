@@ -259,12 +259,16 @@ async function readShot(root, source) {
   try {
     if (typeof source === 'string') {
       // Older screenshots may still be on the Cloudflare Worker.
-      let res = await fetch(source);
-      if (!res.ok && source.includes('/o/')) {
+      // "Failed to fetch" = the browser wasn't allowed to download it (Storage's CORS setting,
+      // see storage-cors.json): the picture still shows, so the admin can save it and pick the file.
+      const blocked = new Error('Couldn’t download that screenshot here. Open it (click the picture), save it, then use “Read a screenshot from this computer…”.');
+      let res = await fetch(source).catch(() => null);
+      if (!res?.ok && source.includes('/o/')) {
         url = oldMediaUrl(decodeURIComponent(source.split('/o/')[1].split('?')[0]));
-        res = await fetch(url);
+        res = await fetch(url).catch(() => null);
+        if (!res?.ok) url = source;
       }
-      if (!res.ok) throw new Error('Couldn’t load that screenshot.');
+      if (!res?.ok) throw blocked;
       blob = await res.blob();
     }
     const out = await readEndScreen(blob, { onProgress: (t) => { status.textContent = t; } });
@@ -276,7 +280,7 @@ async function readShot(root, source) {
     page.reading = { url, rows, message: `Read ${rows.length} players; ${found} matched by name automatically. Check every name and number against the screenshot.` };
   } catch (err) {
     console.error(err);
-    status.textContent = err.message?.startsWith('Couldn’t find') ? err.message : 'Couldn’t read that screenshot. Try a full-screen PNG of the end-of-match screen.';
+    status.textContent = /^Couldn’t (find|download|open)/.test(err.message ?? '') ? err.message : 'Couldn’t read that screenshot. Try a full-screen PNG of the end-of-match screen.';
     return;
   }
   redraw(root);

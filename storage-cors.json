@@ -1,0 +1,7 @@
+[
+  {
+    "origin": ["https://i-love-jvo.web.app", "https://i-love-jvo.firebaseapp.com", "https://ilovejvo.com", "https://www.ilovejvo.com"],
+    "method": ["GET", "HEAD"],
+    "maxAgeSeconds": 3600
+  }
+]

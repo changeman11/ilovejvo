@@ -30,6 +30,32 @@ function inkCanvas(bitmap, scale, keep) {
   return c;
 }
 
+// Opens any picture the browser can show (PNG, JPG, WebP, GIF, BMP, AVIF, phone photos...).
+// If it can't be opened directly, the browser draws it once and it's turned into a PNG first.
+async function toBitmap(blob) {
+  try {
+    return await createImageBitmap(blob);
+  } catch { /* try the PNG route */ }
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Couldn’t open that picture. Save it as a PNG or JPG and try again.'));
+      i.src = url;
+    });
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+    const png = await new Promise((resolve) => c.toBlob(resolve, 'image/png'));
+    if (!png) throw new Error('Couldn’t open that picture. Save it as a PNG or JPG and try again.');
+    return await createImageBitmap(png);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 const lum = (r, g, b) => 0.3 * r + 0.59 * g + 0.11 * b;
 const scaled = (rect, s) => ({ left: Math.max(0, Math.round(rect.left * s)), top: Math.max(0, Math.round(rect.top * s)), width: Math.round(rect.width * s), height: Math.round(rect.height * s) });
 
@@ -39,7 +65,7 @@ const scaled = (rect, s) => ({ left: Math.max(0, Math.round(rect.left * s)), top
 export async function readEndScreen(image, { onProgress = () => {} } = {}) {
   onProgress('Loading the screenshot…');
   const blob = image instanceof Blob ? image : await (await fetch(image)).blob();
-  const bitmap = await createImageBitmap(blob);
+  const bitmap = await toBitmap(blob);
 
   onProgress('Loading the text reader (first time takes a few seconds)…');
   const mod = await import(TESSERACT);
