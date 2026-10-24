@@ -88,6 +88,25 @@ test('semis: 1v4 and 2v3, then the winners meet', () => {
   assert.equal(plan.virtual.filter((f) => f.id.startsWith('finals-sf')).length, 0);
 });
 
+test('3rd place match: the semi-final losers, only when switched on', () => {
+  const event = ev({ finals: { type: 'semis', thirdPlace: true }, fixturesLockedAt: start });
+  const teams = ['a', 'b', 'c', 'd'];
+  const group = groupFixtures(event, teams);
+  const rank = { a: 1, b: 2, c: 3, d: 4 };
+  const results = Object.fromEntries(group.map((f) => [f.id, rank[f.homeTeamId] < rank[f.awayTeamId] ? win : lose]));
+  const entries = teams.map((t, i) => entry(t, i));
+  let plan = schedulePlan({ event, season, entries, fixtures: group, results, now: start });
+  const third = plan.virtual.find((f) => f.id === 'finals-3rd');
+  assert.equal(third.label, '3rd place match');
+  assert.deepEqual([third.homePlaceholder, third.awayPlaceholder], ['Loser SF1', 'Loser SF2']);
+  // d upsets a, b beats c: a and c play for 3rd, d and b in the final.
+  plan = schedulePlan({ event, season, entries, fixtures: [...group, ...plan.toSave], results: { ...results, 'finals-sf1': lose, 'finals-sf2': win }, now: start });
+  assert.deepEqual(plan.toSave.map((f) => [f.id, f.homeTeamId, f.awayTeamId]), [['finals-3rd', 'a', 'c'], ['finals-final', 'd', 'b']]);
+  // Off by default.
+  const off = schedulePlan({ event: ev({ finals: { type: 'semis' }, fixturesLockedAt: start }), season, entries, fixtures: group, results, now: start });
+  assert.equal(off.virtual.some((f) => f.id === 'finals-3rd'), false);
+});
+
 test('semis need 4 teams', () => {
   const plan = schedulePlan({ event: ev({ finals: { type: 'semis' } }), season, entries: [entry('a', 1), entry('b', 2), entry('c', 3)], now: 0 });
   assert.match(plan.finalsNote, /at least 4/);

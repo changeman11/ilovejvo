@@ -99,6 +99,7 @@ function detailsHtml(e) {
           <label class="field"><span>Quarter / semi-finals best of</span><select name="semiBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.semiBestOf ?? 3)).join('')}</select></label>
           <label class="field"><span>Final best of</span><select name="finalBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.finalBestOf ?? 5)).join('')}</select></label>
         </div>
+        <label class="check"><input type="checkbox" name="thirdPlace" ${e.finals?.thirdPlace ? 'checked' : ''}> 🥉 3rd place match: the semi-final losers play for 3rd (semi-finals or quarter-finals only; same best-of as the semis)</label>
         <label class="check"><input type="checkbox" name="solos" ${e.solos ? 'checked' : ''}> Players can sign up solo (you group them into teams on the Teams tab)</label>
         <label class="check"><input type="checkbox" name="signups" ${e.signups ? 'checked' : ''}> Clubs can sign themselves up on the event page (closes 10 minutes before the start)</label>
         <label class="check"><input type="checkbox" name="showTable" ${e.showTable ? 'checked' : ''}> Show a table (wins, sets, points) on the event page</label>
@@ -133,6 +134,7 @@ function flowConfigHtml(e) {
         <div class="flow-config">
           <h4>Match night</h4>
           <label class="check"><input type="checkbox" name="flowOn" ${flow.on !== false ? 'checked' : ''}> Run matches by themselves: reporting opens at the start time, each team’s next match opens once its last score is confirmed, then a break before the finals</label>
+          <label class="check"><input type="checkbox" name="readyUp" ${flow.readyUp === true ? 'checked' : ''}> Ready-up: before each match, players press Ready on its match page; it starts (reporting + Discord thread) once ${Number(e.teamSize) || 4} from each team are ready</label>
           <div class="field-row">
             <label class="field"><span>Break before the finals</span><select name="breakMinutes">${mins([5, 10, 15, 20, 30, 45, 60], flow.breakMinutes ?? '', opt('', 'Until an admin opens them', flow.breakMinutes ?? ''))}</select></label>
             <label class="field"><span>Ping admins about a stuck match after</span><select name="stuckMinutes">${mins([5, 10, 15, 20, 30], flow.stuckMinutes)}</select></label>
@@ -159,7 +161,7 @@ function readDetails(form) {
     prize: type === 'tournament' ? val('prize').trim() || null : null,
     showTable: form.querySelector('[name=showTable]').checked,
     autoFixtures: val('autoFixtures') || 'off',
-    finals: { type: val('finalsType') || 'none', semiBestOf: Number(val('semiBestOf')) || 3, finalBestOf: Number(val('finalBestOf')) || 5 },
+    finals: { type: val('finalsType') || 'none', semiBestOf: Number(val('semiBestOf')) || 3, finalBestOf: Number(val('finalBestOf')) || 5, thirdPlace: form.querySelector('[name=thirdPlace]')?.checked ?? false },
     signups: form.querySelector('[name=signups]').checked,
     solos: form.querySelector('[name=solos]')?.checked ?? false,
     // Groups: count and how teams are drawn. Teams already placed (Teams tab, or saved at the lock) stay placed.
@@ -173,6 +175,7 @@ function readDetails(form) {
     flow: {
       ...(page.existing?.flow ?? {}),
       on: form.querySelector('[name=flowOn]')?.checked ?? true,
+      readyUp: form.querySelector('[name=readyUp]')?.checked ?? false,
       breakMinutes: val('breakMinutes') === '' ? null : Number(val('breakMinutes')),
       stuckMinutes: Number(val('stuckMinutes')) || FLOW_DEFAULTS.stuckMinutes,
       matchMinutes: Number(val('matchMinutes')) || FLOW_DEFAULTS.matchMinutes,
@@ -460,7 +463,7 @@ export async function render({ eventId }) {
   if (!isNew && !b) throw new NotFoundError('That event doesn’t exist');
   const people = await loadPeople({ fresh: true, admin: true });
   const askedType = params.get('type');
-  const draft = b?.event ?? { type: EVENT_TYPES[askedType] ? askedType : 'exhibition', status: 'upcoming', published: false, date: null, timeTbd: true, teamSize: 4, teamIds: [], autoFixtures: 'once', signups: true, finals: { type: 'none', semiBestOf: 3, finalBestOf: 5 } };
+  const draft = b?.event ?? { type: EVENT_TYPES[askedType] ? askedType : 'exhibition', status: 'upcoming', published: false, date: null, timeTbd: true, teamSize: 4, teamIds: [], autoFixtures: 'once', signups: true, finals: { type: 'none', semiBestOf: 3, finalBestOf: 5 }, flow: { readyUp: true } };
   const tab = isNew ? 'details' : ['teams', 'fixtures'].includes(params.get('tab')) ? params.get('tab') : 'details';
   page = { id: isNew ? null : eventId, existing: b?.event ?? null, b, people, user: gate.user, tab };
 

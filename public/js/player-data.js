@@ -253,3 +253,17 @@ export async function pickupVote(discordId, size) {
 export async function pickupWithdraw(discordId) {
   await deleteDoc(doc(db, 'pickupSignups', String(discordId)));
 }
+
+// ---------- Ready-up (rules/flow.js): "I'm ready" for a match, on its match page ----------
+// Saved as events/{e}/ready/{fixtureId}__{playerId}; the rules check it's your own player and club.
+export async function readyUp({ uid, eventId, fixtureId, player }) {
+  await setDoc(doc(db, `events/${eventId}/ready/${fixtureId}__${player.id}`), {
+    fixtureId, playerId: player.id, teamId: player.teamId, uid, at: serverTimestamp(),
+  });
+  invalidate(`event:${eventId}`);
+}
+export async function unReady({ eventId, ready }) {
+  if (!ready) return;
+  await deleteDoc(doc(db, `events/${eventId}/ready/${ready.id}`));
+  invalidate(`event:${eventId}`);
+}

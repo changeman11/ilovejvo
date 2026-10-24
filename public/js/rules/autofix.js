@@ -184,14 +184,17 @@ function qualifiers(groups, size) {
   return seeds.length === size ? seeds : null;
 }
 
-// Knockout matches: [{ slot, label, home: seed index | {from}, away, bestOf }]
-function bracket(size, semiBestOf, finalBestOf) {
+// Knockout matches: [{ slot, label, home: seed index | {from} (winner of) | {loser} (loser of), away, bestOf }]
+// thirdPlace (finals.thirdPlace, top 4 or more): the semi-final losers play for 3rd ("finals-3rd").
+function bracket(size, semiBestOf, finalBestOf, thirdPlace = false) {
   if (size === 2) return [{ slot: 'final', label: 'Final', home: 0, away: 1, bestOf: finalBestOf }];
   const final = { slot: 'final', label: 'Grand final', home: { from: 'sf1' }, away: { from: 'sf2' }, bestOf: finalBestOf };
+  const third = thirdPlace ? [{ slot: '3rd', label: '3rd place match', home: { loser: 'sf1' }, away: { loser: 'sf2' }, bestOf: semiBestOf }] : [];
   if (size === 4) {
     return [
       { slot: 'sf1', label: 'Semi-final 1', home: 0, away: 3, bestOf: semiBestOf },
       { slot: 'sf2', label: 'Semi-final 2', home: 1, away: 2, bestOf: semiBestOf },
+      ...third,
       final,
     ];
   }
@@ -202,6 +205,7 @@ function bracket(size, semiBestOf, finalBestOf) {
     { slot: 'qf4', label: 'Quarter-final 4', home: 2, away: 5, bestOf: semiBestOf },
     { slot: 'sf1', label: 'Semi-final 1', home: { from: 'qf1' }, away: { from: 'qf2' }, bestOf: semiBestOf },
     { slot: 'sf2', label: 'Semi-final 2', home: { from: 'qf3' }, away: { from: 'qf4' }, bestOf: semiBestOf },
+    ...third,
     final,
   ];
 }
@@ -210,17 +214,17 @@ function bracket(size, semiBestOf, finalBestOf) {
 export function finalsSlots(event) {
   const f = event?.finals ?? {};
   const size = KO_SIZE[f.type] ?? 0;
-  return size ? bracket(size, f.semiBestOf ?? 3, f.finalBestOf ?? 5) : [];
+  return size ? bracket(size, f.semiBestOf ?? 3, f.finalBestOf ?? 5, f.thirdPlace === true) : [];
 }
 
 const slotName = (slot) => slot.toUpperCase().replace('FINAL', 'Final');
 
-function winnerOf(fixture, results, season) {
+function winnerOf(fixture, results, season, loser = false) {
   const r = fixture && results[fixture.id];
   if (!r || !fixture.homeTeamId || !fixture.awayTeamId) return null;
   const check = checkResult(r.sets, formatFor(season, fixture));
   if (!check.ok) return null;
-  return check.winner === 'home' ? fixture.homeTeamId : fixture.awayTeamId;
+  return (check.winner === 'home') !== loser ? fixture.homeTeamId : fixture.awayTeamId;
 }
 
 // Better table row first: points, then wins, set ratio, point ratio.
@@ -328,8 +332,8 @@ export function schedulePlan({ event, season, entries = [], fixtures = [], resul
         const id = `finals-${s.slot}`;
         const existing = saved.get(id);
         if (existing) { bySlot[s.slot] = existing; continue; }
-        const side = (x) => (typeof x === 'number' ? team[x] : winnerOf(bySlot[x.from], results, season));
-        const label = (x) => (typeof x === 'number' ? seeds[x].label : `Winner ${slotName(x.from)}`);
+        const side = (x) => (typeof x === 'number' ? team[x] : x.loser ? winnerOf(bySlot[x.loser], results, season, true) : winnerOf(bySlot[x.from], results, season));
+        const label = (x) => (typeof x === 'number' ? seeds[x].label : x.loser ? `Loser ${slotName(x.loser)}` : `Winner ${slotName(x.from)}`);
         const home = side(s.home);
         const away = side(s.away);
         const fixture = {

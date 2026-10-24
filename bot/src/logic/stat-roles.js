@@ -4,7 +4,24 @@
 import { DEFAULT_STATS } from '../site-rules/defaults.js';
 
 export const STAT_ROLE_STATS = DEFAULT_STATS;
-export const statRoleName = (stat, top) => `🏆 Top ${top} · ${stat.name}`;
+// Each award's look: a title with emoji flair, a colour, and a second colour for a gradient (used
+// where the server has enhanced role colours). The emoji is also the role icon where the server
+// allows role icons (boost level 2).
+export const STAT_ROLE_STYLE = {
+  pts: { title: 'Point Machine', emoji: '👑', color: 0xffc533, color2: 0xff8a00 },
+  spk: { title: 'Spike Royalty', emoji: '💥', color: 0xff4f3f, color2: 0xff9a3c },
+  blk: { title: 'The Wall', emoji: '🧱', color: 0x8f9bbd, color2: 0x5865f2 },
+  rec: { title: 'Receive Master', emoji: '🛡️', color: 0x19c9b1, color2: 0x39b6ff },
+  set: { title: 'Set Wizard', emoji: '🪄', color: 0x7c5cff, color2: 0xe24a7c },
+  ast: { title: 'Playmaker', emoji: '🤝', color: 0x39b6ff, color2: 0x19c9b1 },
+  ace: { title: 'Ace Sniper', emoji: '🎯', color: 0xff6b57, color2: 0xffe200 },
+  dig: { title: 'Dig Demon', emoji: '😈', color: 0x2fd27a, color2: 0x19c9b1 },
+};
+export const statRoleStyle = (stat) => STAT_ROLE_STYLE[stat.key] ?? { title: stat.name, emoji: '🏆', color: 0xffc533, color2: 0xff8a00 };
+// "💥 Spike Royalty · Top 3 ✨"
+export const statRoleName = (stat, top) => { const s = statRoleStyle(stat); return `${s.emoji} ${s.title} · Top ${top} ✨`; };
+// Bump when the look changes, so the bot restyles roles it made before.
+export const STAT_ROLE_LOOK = 2;
 
 // results: [{ playerStats: { playerId: { pts, spk, ... } } }] -> Map playerId -> { pts: total, ... }
 export function statTotals(results) {

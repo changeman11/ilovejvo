@@ -59,8 +59,8 @@ export function matchesToReport(bundles, player) {
     .filter((b) => b.event.status !== 'cancelled')
     .flatMap((b) => b.fixtures
       .filter((f) => !f.virtual && (f.homeTeamId === player.teamId || f.awayTeamId === player.teamId) && !b.results[f.id]
-        && matchState(b, f, Date.now()).state === 'open') // not before the start, during a break, or while they're still playing an earlier match
-      .map((f) => ({ b, f, voted: (b.submissions ?? []).some((s) => s.id === `${f.id}__${player.id}`) })))
+        && ['open', 'ready'].includes(matchState(b, f, Date.now()).state)) // not before the start, during a break, or while they're still playing an earlier match
+      .map((f) => ({ b, f, ...((st) => ({ ready: st.state === 'ready', since: st.since ?? 0 }))(matchState(b, f, Date.now())), voted: (b.submissions ?? []).some((s) => s.id === `${f.id}__${player.id}`) })))
     .sort((x, y) => (x.f.scheduledAt ?? Infinity) - (y.f.scheduledAt ?? Infinity) || (x.f.order ?? 0) - (y.f.order ?? 0));
 }
 
@@ -68,6 +68,7 @@ export function matchesToReport(bundles, player) {
 const at = (ms) => `${fmtDay(ms)} at ${fmtTime(ms)} ${zoneLabel(ms)}`;
 export function closedText(b, st) {
   if (st.state === 'before') return st.opensAt ? `Reporting opens when the event starts: <b>${esc(at(st.opensAt))}</b>.` : 'Reporting opens when the event starts.';
+  if (st.state === 'ready') return '✋ Ready up first: press Ready on this page. The match starts when enough players from each team are ready.';
   if (st.state === 'paused') return '⏸ Admins have paused the event. Reporting opens again when they restart it.';
   if (st.state === 'break') return st.opensAt ? `☕ Break before the finals. Finals open at <b>${esc(fmtTime(st.opensAt))} ${esc(zoneLabel(st.opensAt))}</b>.` : '☕ Break before the finals. An admin will open them shortly.';
   if (st.state === 'waiting') {

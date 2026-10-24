@@ -59,7 +59,10 @@ test('stat roles end to end: made once, given to the top 3, taken off when overt
   const first = await roles.sync();
   assert.equal(first.made, 8, 'one role per stat');
   const pts = store.getMeta('statRoles').pts;
-  assert.equal(roleList.get(pts).name, '🏆 Top 3 · Points');
+  assert.equal(roleList.get(pts).name, '👑 Point Machine · Top 3 ✨');
+  assert.equal(roleList.get(pts).color, 0xffc533);
+  assert.equal(roleList.get(pts).color2, undefined, 'no gradient unless the server has enhanced role colours');
+  assert.equal(roleList.get(pts).emoji, undefined, 'no role icon unless the server has role icons');
   assert.ok(members.get(id(1)).has(pts) && members.get(id(2)).has(pts) && members.get(id(3)).has(pts));
   assert.ok(!members.get(id(4)).has(pts));
 
@@ -70,4 +73,29 @@ test('stat roles end to end: made once, given to the top 3, taken off when overt
   assert.ok(members.get(id(4)).has(pts));
   assert.ok(!members.get(id(3)).has(pts), 'taken off whoever drops out');
   assert.equal(roleList.size, 8, 'no extra roles');
+});
+
+test('stat roles: gradient and role icon where the server has them; old roles restyled once', async () => {
+  const roleList = new Map([['old', { name: '🏆 Top 3 · Spikes', color: 0xffc533 }]]);
+  let n = 0;
+  let edits = 0;
+  const io = {
+    async features() { return ['ROLE_ICONS', 'ENHANCED_ROLE_COLORS']; },
+    async roles() { return new Map(roleList); },
+    async createRole(r) { const rid = `r${++n}`; roleList.set(rid, r); return rid; },
+    async editRole(rid, r) { edits++; roleList.set(rid, r); },
+    async addRole() {}, async removeRole() {},
+  };
+  const site = { async query() { return []; }, async list() { return []; } };
+  const store = new FileStore();
+  await store.setMeta('statRoles', { spk: 'old' });
+  const roles = new StatRoles({ io, site, store, config: { statRolesMinutes: 30, statRolesTop: 3 }, log: { info() {}, warn() {}, error() {} } });
+  await roles.sync();
+  const spk = roleList.get('old');
+  assert.equal(spk.name, '💥 Spike Royalty · Top 3 ✨', 'the old role is renamed, not remade');
+  assert.equal(spk.color2, 0xff9a3c);
+  assert.equal(spk.emoji, '💥');
+  assert.equal(edits, 1);
+  await roles.sync();
+  assert.equal(edits, 1, 'restyled once, not every check');
 });

@@ -1,4 +1,5 @@
-// Stat roles (STAT_ROLES=1, needs Manage Roles): "🏆 Top 3 · Points" and one for every other stat,
+// Stat roles (STAT_ROLES=1, needs Manage Roles): "👑 Point Machine · Top 3 ✨" and one for every other stat
+// (logic/stat-roles.js STAT_ROLE_STYLE: emoji flair, colour, gradient + role icon where the server allows),
 // always held by the current top 3 (ties included) across every published event, and taken off
 // whoever drops out. Every STAT_ROLES_MINUTES (30) the bot reads the results from the site (public
 // data, no sign-in), works out the top 3s (logic/stat-roles.js) and moves the roles.
@@ -7,9 +8,7 @@
 // statRoleHolders = { statKey: [discordIds] } (who had each last time, so it knows whom to take
 // them from). It never touches any other role.
 // roleIo: the same as club roles (discord-io.js).
-import { STAT_ROLE_STATS, statRoleName, statTotals, wantedHolders, planHolders } from './logic/stat-roles.js';
-
-const GOLD = 0xffc533;
+import { STAT_ROLE_STATS, STAT_ROLE_LOOK, statRoleName, statRoleStyle, statTotals, wantedHolders, planHolders } from './logic/stat-roles.js';
 
 export class StatRoles {
   constructor({ io, site, store, config, log = console }) {
@@ -45,18 +44,32 @@ export class StatRoles {
     // Make sure each role exists (and has the right name).
     const roleMap = { ...(this.store.getMeta('statRoles') ?? {}) };
     const existing = await this.io.roles();
+    // Gradient colours and role icons only where the server has them (boosts).
+    const features = new Set((await this.io.features?.().catch(() => [])) ?? []);
+    const look = (stat) => {
+      const s = statRoleStyle(stat);
+      return {
+        name: statRoleName(stat, top), color: s.color, hoist: false,
+        ...(features.has('ENHANCED_ROLE_COLORS') ? { color2: s.color2 } : {}),
+        ...(features.has('ROLE_ICONS') ? { emoji: s.emoji } : {}),
+      };
+    };
+    const restyle = (this.store.getMeta('statRoleLook') ?? 0) !== STAT_ROLE_LOOK;
     let made = 0;
     for (const stat of STAT_ROLE_STATS) {
-      const name = statRoleName(stat, top);
       const id = roleMap[stat.key];
       if (id && existing.has(id)) {
-        if (existing.get(id).name !== name) await this.io.editRole(id, { name, color: existing.get(id).color || GOLD, hoist: false }).catch((err) => this.log.warn('[stat roles]', err.message));
+        if (restyle || existing.get(id).name !== statRoleName(stat, top)) await this.io.editRole(id, look(stat)).catch((err) => this.log.warn('[stat roles]', err.message));
         continue;
       }
-      roleMap[stat.key] = await this.io.createRole({ name, color: GOLD, hoist: false });
+      roleMap[stat.key] = await this.io.createRole(look(stat));
       made++;
     }
     if (made) await this.store.setMeta('statRoles', roleMap);
+    if (restyle) {
+      await this.store.setMeta('statRoleLook', STAT_ROLE_LOOK);
+      this.log.info?.(`[stat roles] new look${features.has('ENHANCED_ROLE_COLORS') ? ' with gradients' : ''}${features.has('ROLE_ICONS') ? ' and role icons' : ''}`);
+    }
 
     // A role made just now has nobody yet, whatever was saved before.
     const before = { ...(this.store.getMeta('statRoleHolders') ?? {}) };

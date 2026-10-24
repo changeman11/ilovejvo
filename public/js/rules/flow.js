@@ -20,6 +20,18 @@
 import { tallyVotes } from './votes.js';
 
 export const FLOW_DEFAULTS = { on: true, breakMinutes: 15, stuckMinutes: 10, matchMinutes: 20 };
+
+// Ready-up (flow.readyUp, added 2026-10-24; off unless switched on, so events already running
+// aren't affected): a match whose teams are free waits until enough players from each team have
+// pressed Ready on its match page (events/{e}/ready/{fixtureId}__{playerId}), then opens (reporting,
+// Discord thread). flow.readyCount, else the event's team size, else 4. An admin can start it
+// anyway (fixture.startedAt). A match that already has a score vote counts as started.
+export const readyNeeded = (event) => Number(event?.flow?.readyCount) || Number(event?.teamSize) || 4;
+export function readyState(b, f) {
+  const ready = (b.ready ?? []).filter((r) => r.fixtureId === f.id);
+  const side = (teamId) => ready.filter((r) => r.teamId === teamId).sort((x, y) => (x.at ?? 0) - (y.at ?? 0));
+  return { need: readyNeeded(b.event), home: side(f.homeTeamId), away: side(f.awayTeamId) };
+}
 const MIN = 60000;
 
 export function flowOf(event) {
@@ -120,6 +132,13 @@ export function matchState(b, f, now) {
   if (waitingOn.length) return { state: 'waiting', waitingOn };
 
   const subs = (b.submissions ?? []).filter((s) => s.fixtureId === f.id);
+  if (flow.readyUp === true && !f.startedAt && !subs.length) {
+    const r = readyState(b, f);
+    if (r.home.length < r.need || r.away.length < r.need) return { state: 'ready', since, ...r };
+    // Open since the last player needed pressed Ready.
+    since = Math.max(since, r.home[r.need - 1].at ?? 0, r.away[r.need - 1].at ?? 0);
+  }
+  if (f.startedAt) since = Math.max(since, f.startedAt);
   const votes = tallyVotes(subs, f);
   const lastVote = Math.max(0, ...subs.map((s) => s.updatedAt ?? s.createdAt ?? 0));
   const stuckAfter = flow.stuckMinutes * MIN;
@@ -139,6 +158,7 @@ export function liveSummary(b, now) {
   return {
     ...phase,
     open: states.filter(({ s }) => s.state === 'open').map(({ f }) => f),
+    readying: states.filter(({ s }) => s.state === 'ready').map(({ f }) => f),
     stuck: states.filter(({ s }) => s.stuck).map(({ f, s }) => ({ f, why: s.stuck })),
     recent: fixtures.filter((f) => hasResult(b, f)).sort((x, y) => resultAt(b, y) - resultAt(b, x)),
     left: fixtures.filter((f) => !hasResult(b, f)).length,

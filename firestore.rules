@@ -221,6 +221,23 @@ service cloud.firestore {
           || (signedIn() && resource.data.uid == uid()
               && !exists(/databases/$(database)/documents/events/$(eventId)/results/$(resource.data.fixtureId)));
       }
+      // ---------- Ready-up (id "<fixtureId>__<playerId>", public/js/rules/flow.js) ----------
+      // A player presses Ready for a match their club is in, before it has a score; they can take it
+      // back (delete). Admins can clear any.
+      match /ready/{readyId} {
+        allow read: if eventPublished(eventId) || isAdmin();
+        allow create: if signedIn() && eventPublished(eventId)
+          && readyId == request.resource.data.fixtureId + '__' + request.resource.data.playerId
+          && request.resource.data.uid == uid() && ownsPlayer(request.resource.data.playerId)
+          && request.resource.data.teamId == playerDoc(request.resource.data.playerId).get('teamId', '')
+          && (request.resource.data.teamId == fixtureDoc(eventId, request.resource.data.fixtureId).homeTeamId
+              || request.resource.data.teamId == fixtureDoc(eventId, request.resource.data.fixtureId).awayTeamId)
+          && !exists(/databases/$(database)/documents/events/$(eventId)/results/$(request.resource.data.fixtureId))
+          && request.resource.data.at == request.time
+          && request.resource.data.keys().hasOnly(['fixtureId', 'playerId', 'teamId', 'uid', 'at']);
+        allow delete: if isAdmin() || (signedIn() && resource.data.uid == uid());
+      }
+
       // ---------- Club sign-ups (id = teamId) ----------
       // A club's manager signs it up or pulls it out while sign-ups are open: the event is public and
       // upcoming, sign-ups are switched on, the fixtures aren't locked, and it's more than 10 minutes

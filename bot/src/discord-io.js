@@ -121,14 +121,19 @@ export async function setupDiscord(client, config, log = console) {
       const all = await guild.roles.fetch();
       return new Map(all.map((r) => [r.id, { name: r.name, color: r.colors?.primaryColor ?? r.color ?? 0, hoist: r.hoist }]));
     },
-    async createRole({ name, color, hoist }) {
-      const role = await guild.roles.create({ name, colors: { primaryColor: color }, hoist, mentionable: false, permissions: [], reason: 'I<3JVO club role' });
+    // The server's boost features (ROLE_ICONS, ENHANCED_ROLE_COLORS...).
+    async features() {
+      return [...(guild.features ?? [])];
+    },
+    // color2: a gradient (needs ENHANCED_ROLE_COLORS); emoji: a role icon (needs ROLE_ICONS).
+    async createRole({ name, color, color2, emoji, hoist }) {
+      const role = await guild.roles.create({ name, colors: { primaryColor: color, ...(color2 ? { secondaryColor: color2 } : {}) }, ...(emoji ? { unicodeEmoji: emoji } : {}), hoist, mentionable: false, permissions: [], reason: 'I<3JVO role' });
       const top = (await guild.members.fetchMe({ force: true })).roles.highest;
       await guild.roles.setPosition(role, Math.max(1, top.position - 1)).catch((err) => log.warn(`Couldn't move the ${name} role up: ${err.message}`));
       return role.id;
     },
-    async editRole(roleId, { name, color, hoist }) {
-      await guild.roles.edit(roleId, { name, colors: { primaryColor: color }, hoist, reason: 'I<3JVO club changed' });
+    async editRole(roleId, { name, color, color2, emoji, hoist }) {
+      await guild.roles.edit(roleId, { name, colors: { primaryColor: color, ...(color2 ? { secondaryColor: color2 } : {}) }, ...(emoji ? { unicodeEmoji: emoji } : {}), hoist, reason: 'I<3JVO role changed' });
     },
     async deleteRole(roleId) {
       await guild.roles.delete(roleId, 'I<3JVO club no longer active');

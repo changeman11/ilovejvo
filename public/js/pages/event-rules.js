@@ -45,6 +45,7 @@ export function eventRulesSections(e, { teams = 0 } = {}) {
     sections.push(['Knockout', [
       `The top ${ko.n} go through to ${ko.rounds}.`,
       groups > 1 ? 'Group winners first, then runners-up (the best runners-up on points if not all fit). The bracket is crossed (A1 v B2) so group mates don’t meet in the first knockout round.' : (ko.n === 2 ? 'Seeded by the final table: 1st plays 2nd.' : 'Seeded by the final table: 1st plays the lowest seed.') + ' The higher seed is the home team.',
+      e.finals?.thirdPlace && ko.n >= 4 ? `The semi-final losers play a 3rd place match (best of ${e.finals?.semiBestOf ?? 3}).` : '',
       'Knockout matches don’t count in the tables.',
     ]]);
   }
@@ -52,6 +53,7 @@ export function eventRulesSections(e, { teams = 0 } = {}) {
     sections.push(['On the night', [
       `Reporting opens at the start time${e.date && !e.timeTbd ? ` (${esc(at(e.date))})` : ''}.`,
       'Each team plays one match at a time: your next match opens as soon as both teams have finished their previous one and its score is confirmed.',
+      flow.readyUp === true ? `Ready up: when your next match comes up, go to its match page and press Ready. It starts (score reporting and the Discord match thread) once ${Number(e.flow?.readyCount) || size} players from each team are ready.` : '',
       ko ? (flow.breakMinutes != null ? `When the ${groups > 1 ? 'group stage' : 'round robin'} is done there’s a ${flow.breakMinutes}-minute break, then the knockout opens by itself.` : `When the ${groups > 1 ? 'group stage' : 'round robin'} is done there’s a break until an admin opens the knockout.`) : '',
       'Admins can pause the event, open matches early, or step in on any match.',
     ]]);

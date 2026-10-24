@@ -4,7 +4,7 @@
 // only what changes, so it stays inside the free allowance.
 //
 //   const site = new SiteWatch({ firebase, onChange, log }); site.start()
-//   site.bundles() -> [{ event, fixtures, results: { fixtureId: result }, submissions }]
+//   site.bundles() -> [{ event, fixtures, results: { fixtureId: result }, submissions, ready }]
 //   site.teams / site.players -> Map id -> doc
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator, collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -81,7 +81,7 @@ export class SiteWatch {
     const now = this.now();
     for (const [id, e] of this.events) {
       if (!activeEvent(e, now) || this.perEvent.has(id)) continue;
-      const per = { fixtures: [], results: {}, submissions: [], stops: [], loaded: new Set() };
+      const per = { fixtures: [], results: {}, submissions: [], ready: [], stops: [], loaded: new Set() };
       this.perEvent.set(id, per);
       const watch = (sub, set) => per.stops.push(onSnapshot(collection(this.db, `events/${id}/${sub}`), (snap) => {
         set(snap.docs.map(asObj));
@@ -94,6 +94,7 @@ export class SiteWatch {
       watch('fixtures', (docs) => { per.fixtures = docs.map((f) => ({ ...f, round: f.order ?? 0 })); });
       watch('results', (docs) => { per.results = Object.fromEntries(docs.map((r) => [r.id, r])); });
       watch('submissions', (docs) => { per.submissions = docs; });
+      watch('ready', (docs) => { per.ready = docs; }); // ready-up (site-rules/flow.js)
     }
     for (const [id, per] of [...this.perEvent]) {
       if (activeEvent(this.events.get(id), now)) continue;
@@ -114,8 +115,8 @@ export class SiteWatch {
     const out = [];
     for (const [id, per] of this.perEvent) {
       const event = this.events.get(id);
-      if (!event || per.loaded.size < 3) continue;
-      out.push({ event, fixtures: per.fixtures, results: per.results, submissions: per.submissions });
+      if (!event || per.loaded.size < 4) continue;
+      out.push({ event, fixtures: per.fixtures, results: per.results, submissions: per.submissions, ready: per.ready });
     }
     return out;
   }

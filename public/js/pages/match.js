@@ -5,6 +5,8 @@ import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, teamLink, pla
 import { formatFor } from '../rules/season.js';
 import { resultOf, statHeads, statCells } from './parts.js';
 import { votesSummary, reportBlock, mountReport } from './report.js';
+import { readyPanel, mountReady } from './ready-up.js';
+import { matchState } from '../rules/flow.js';
 import { mediaUrl } from '../media.js';
 import { currentAdmin } from '../auth.js';
 
@@ -67,8 +69,9 @@ export async function render({ eventId, fixtureId }) {
   } else if (result) {
     body = notice('Result under review', ' An admin is checking this score.');
   } else {
-    // Not played yet (or not reported): players vote on the result here.
-    body = `${votesSummary(b, f)}${await reportBlock(b, f)}`;
+    // Not played yet: ready up first (if the event uses it), then players vote on the result here.
+    const st = matchState(b, f, Date.now());
+    body = st.state === 'ready' ? await readyPanel(b, f, st) : `${votesSummary(b, f)}${await reportBlock(b, f)}`;
   }
   const confirmed = played && result.source === 'votes'
     ? `<p class="muted small" style="margin-top:8px">✓ Confirmed by both teams’ votes${result.confirmedBy?.length ? `: ${result.confirmedBy.map((id) => {
@@ -113,4 +116,5 @@ export async function render({ eventId, fixtureId }) {
 
 export function mount(el) {
   mountReport(el);
+  mountReady(el);
 }

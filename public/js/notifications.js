@@ -104,9 +104,13 @@ async function gather(uid) {
   const bundles = await loadAllBundles().catch(() => []);
   items.push(...eventReminders(bundles, me, now));
   if (isApprovedTeam(me.team)) {
-    for (const { b, f } of matchesToReport(bundles, me.player).filter((x) => !x.voted)) {
-      if (!f.scheduledAt || f.scheduledAt > now) continue; // only matches that should have been played
-      items.push({ id: `vote-${b.event.id}-${f.id}`, at: f.scheduledAt, icon: '🏐', text: `Report the result: <b>${team(f.homeTeamId)}</b> v <b>${team(f.awayTeamId)}</b>`, href: urls.match(b.event.id, f.id) });
+    // Only matches open now (rules/flow.js): ready-ups first, then results to report.
+    for (const { b, f, ready, since } of matchesToReport(bundles, me.player).filter((x) => !x.voted)) {
+      if (f.scheduledAt && f.scheduledAt > now) continue;
+      const vs = `<b>${team(f.homeTeamId)}</b> v <b>${team(f.awayTeamId)}</b>`;
+      items.push(ready
+        ? { id: `ready-${b.event.id}-${f.id}`, at: since || now, icon: '✋', text: `Ready up for your match: ${vs}`, href: urls.match(b.event.id, f.id) }
+        : { id: `vote-${b.event.id}-${f.id}`, at: f.scheduledAt ?? (since || now), icon: '🏐', text: `Report the result: ${vs}`, href: urls.match(b.event.id, f.id) });
     }
   }
   return items.sort((x, y) => (y.at ?? 0) - (x.at ?? 0));

@@ -33,6 +33,12 @@ export async function saveFlow({ eventId, uid, event, changes }) {
   invalidate('events');
 }
 
+// Starts a match without waiting for the ready-up (rules/flow.js): fixture.startedAt.
+export async function startMatchNow({ uid, eventId, fixture }) {
+  await commit(uid, [{ type: 'update', path: `events/${eventId}/fixtures/${fixture.id}`, before: fixture, data: { startedAt: serverTimestamp() } }]);
+  invalidate(`event:${eventId}`);
+}
+
 export async function saveEvent({ id, uid, event, existing }) {
   const eventId = id ?? newId('events');
   await commit(uid, [{

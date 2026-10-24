@@ -85,6 +85,7 @@ export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = n
   if (played) mid = `<span class="score num">${check.homeSets}<i>–</i>${check.awaySets}</span>`;
   else if (result) mid = '<span class="when">Under<br>review</span>';
   else if (st?.state === 'open') mid = '<span class="when on-now"><i class="live-dot"></i>on now</span>';
+  else if (st?.state === 'ready') mid = '<span class="when ready-now">ready<br>up ✋</span>';
   else if (st?.state === 'waiting') mid = '<span class="when up-next">up<br>next</span>';
   else if (!f.scheduledAt) mid = '<span class="when tbd">TBD</span>';
   else mid = `<span class="when">${timeOnly ? '' : `${fmtDay(f.scheduledAt)}<br>`}${f.timeTbd ? 'Time TBD' : fmtTime(f.scheduledAt)}</span>`;
@@ -284,7 +285,8 @@ export function bracketHtml(b) {
   if (['sf1', 'sf2'].some((s) => bySlot[s])) rounds.push({ name: 'Semi-finals', slots: ['sf1', 'sf2'] });
   const final = bySlot.final;
   // Knockout matches outside the usual slots (added by hand) are listed after the bracket.
-  const known = new Set(['qf1', 'qf2', 'qf3', 'qf4', 'sf1', 'sf2', 'final']);
+  const known = new Set(['qf1', 'qf2', 'qf3', 'qf4', 'sf1', 'sf2', 'final', '3rd']);
+  const third = bySlot['3rd'];
   const extra = ko.filter((f) => !known.has(slotOf(f)));
   const { check } = final ? resultOf(b, final) : {};
   const champion = check?.ok ? b.teamsById[check.winner === 'home' ? final.homeTeamId : final.awayTeamId] : null;
@@ -302,6 +304,7 @@ export function bracketHtml(b) {
             <div class="br-trophy" aria-hidden="true">🏆</div>
             ${bracketMatch(b, final, { big: true })}
             ${champion ? `<div class="br-champion">Champions<b>${teamDot(champion, 'lg')}${esc(champion.name)}</b></div>` : ''}
+            ${third ? `<h3 class="br-round br-third">🥉 3rd place</h3>${bracketMatch(b, third)}` : ''}
           </div>
         </div>` : ''}
     </div>

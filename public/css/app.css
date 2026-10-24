@@ -1542,3 +1542,15 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .er-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 22px; margin-top: 14px; }
 .er-grid h3 { margin: 0 0 6px; font: 600 16px var(--font-head); }
 .er-grid ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 14px; }
+
+/* Ready-up panel (pages/ready-up.js) */
+.ready-up { border-color: var(--teal); }
+.ru-sides { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.ru-side { padding: 10px 12px; border: 2px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.ru-side > b { display: flex; align-items: center; gap: 6px; }
+.ru-count { display: inline-block; margin: 6px 0; padding: 0 8px; border-radius: 999px; background: var(--tint-yellow); border: 2px solid var(--ink); font: 16px var(--font-num); }
+.ru-count.full { background: var(--tint-teal); }
+.ru-side ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 14px; }
+.fx .when.ready-now { color: #0f8f7d; font-weight: 800; font-size: 11px; text-transform: uppercase; }
+
+.br-third { margin-top: 18px; }

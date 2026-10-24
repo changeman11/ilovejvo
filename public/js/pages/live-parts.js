@@ -16,8 +16,9 @@ export function phaseText(live) {
       ? `☕ Break · finals start ${fmtTime(live.breakEndsAt)} ${zoneLabel(live.breakEndsAt)}`
       : '☕ Break · finals start soon';
   }
-  if (live.phase === 'finals') return `🏆 Finals · ${onNow}`;
-  return `🏐 Group stage · ${onNow} · ${live.left} to play`;
+  if (live.phase === 'finals') return `🏆 Finals · ${onNow}${live.readying?.length ? ` · ${live.readying.length} readying up` : ''}`;
+  const readying = live.readying?.length ? ` · ${live.readying.length} readying up` : '';
+  return `🏐 Group stage · ${onNow}${readying} · ${live.left} to play`;
 }
 
 // Every event running now: [{ b, live }]

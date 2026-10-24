@@ -20,6 +20,13 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-24 · Claude (owner's PC) · award looks, ready-up, 3rd place match · site + rules + bot DEPLOYED (cache v58)
+- **Award roles:** each stat role has its own name, emoji flair and colour (`STAT_ROLE_STYLE` in `bot/src/logic/stat-roles.js`, e.g. "💥 Spike Royalty · Top 3 ✨"). Gradient colours / role icons are used only if the server has `ENHANCED_ROLE_COLORS` / `ROLE_ICONS` (it doesn't yet). Existing roles restyled once (`statRoleLook` meta). Log: `[stat roles] new look`.
+- **Ready-up** (`event.flow.readyUp`, **off** for existing events, **on** for new ones; Rule config → Match night): a free match waits on its match page (`pages/ready-up.js`) until `readyCount` (default team size) players per team press Ready (`events/{e}/ready/{fixtureId}__{playerId}`, new rules branch). Then it opens (reporting + bot thread). Admin "Start now" sets `fixture.startedAt`; a match with a score vote counts as started. Bell: "Ready up for your match". Bot reads `ready` (site-watch); rules copied to the bot.
+- **3rd place match** (`finals.thirdPlace`, Rule config checkbox under Knockout): `finals-3rd` between the semi-final losers ("Loser SF1 / SF2"), shown under the Grand final with 🥉. Saved by an admin browser once both semis have results. Tick it on tonight's event to record the 3rd place game.
+- Tests 203 pass. Checked on the local emulators (ready-up, start now, 3rd place, rules accept the ready doc).
+- **Next (in progress):** free club moves: leave instantly (no admin), join still needs one yes; all moves paused while any event is running.
+
 ### 2026-10-24 · Claude (partner's PC) · stats: players confirm, staff tick to submit
 - **Discord** (match threads): once a screenshot is read, the bot posts "📊 Check your stats": each team's squad with their read numbers (✅ confirmed, ✏️ fixed, ⏳ to check, ⚠️ not on the screenshot). Buttons: ✅ My line is right, ✏️ Fix a line (form: whose line + the 8 numbers; players their own, 👑 captains anyone in their club, staff anyone), 👑 Confirm my team. Saved on `statsDraft.rows[i]` as `confirmedBy` / `editedBy` (existing bot rule). Threads stay open until staff submit; then the message says "Stats submitted".
 - **Site**: new `/admin/stats` ("Stats" in the admin bar; the bell's stats to-dos go there): every match waiting for stats, per team a plain table of the squad with numbers and ✅/✏️/⏳, problems in words (no screenshot, names nobody claimed, unsure numbers), the screenshot. Tick → "Submit selected" saves playerStats + suggested MVP, marks reviewed, remembers on-screen names. "✏️ Edit" = the full result page. Logic in `rules/stats-draft.js` (tested).
