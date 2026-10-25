@@ -625,3 +625,73 @@ test('the queue card points to #pickup-chat when there is one', () => {
   assert.match(queueView(env.pickup.snapshot(), env.pickup.config).embeds[0].description, /💬 Chat with other players in <#888888888888888888>/);
   assert.doesNotMatch(queueView(env.pickup.snapshot(), config).embeds[0].description, /💬/);
 });
+
+test('two ready checks at once: each one starts its own draft when its players are all in', async () => {
+  const env = setup({ seed: 7 });
+  // 4 sign up and vote 2v2: it pops after the countdown.
+  await joinAll(env, 4);
+  for (const id of ['u1', 'u2']) await env.pickup.select('mode', '2', { id, name: id });
+  await env.clock.advance(30_000, env.pickup);
+  const first = matchIn(env, 'check');
+  assert.ok(first, 'first check');
+  // 6 more sign up while the first check runs and vote 3v3: a second check pops.
+  await joinAll(env, 6, 5);
+  for (const id of ['u5', 'u6']) await env.pickup.select('mode', '3', { id, name: id });
+  await env.clock.advance(30_000, env.pickup);
+  const checks = [...env.pickup.matches.values()].filter((m) => m.phase === 'check');
+  assert.equal(checks.length, 2, 'two ready checks at once');
+  const second = checks.find((m) => m.id !== first.id);
+  assert.equal(second.size, 3);
+  // Everyone in the second joins first, then the first.
+  const enter = async (match) => {
+    for (const p of match.players) {
+      env.io.voice.set(p.id, match.lobbyId);
+      await env.pickup.joined(match.lobbyId, p.id);
+    }
+    await env.pickup.idle();
+  };
+  await enter(second);
+  assert.equal(env.pickup.matches.get(second.id)?.phase, 'draft', 'second: draft started');
+  await enter(first);
+  assert.equal(env.pickup.matches.get(first.id)?.phase, 'draft', 'first: draft started');
+});
+
+test('a join Discord never reported still counts: the bot looks in the channel (sweep and time-up)', async () => {
+  const io = new FakeIo();
+  io.membersIn = async (channelId) => [...io.voice.entries()].filter(([, c]) => c === channelId).map(([u]) => u);
+  const env = setup({ seed: 8, io });
+  await joinAll(env, 4);
+  for (const id of ['u1', 'u2']) await env.pickup.select('mode', '2', { id, name: id });
+  await env.clock.advance(30_000, env.pickup);
+  const match = matchIn(env, 'check');
+  // Everyone sits in the channel but no voice events arrive.
+  for (const p of match.players) io.voice.set(p.id, match.lobbyId);
+  await env.clock.advance(5_000, env.pickup);
+  assert.equal(env.pickup.matches.get(match.id)?.phase, 'draft', 'the 5-second look starts the draft');
+
+  // Same at time-up, with the sweep not getting there first.
+  const io2 = new FakeIo();
+  const env2 = setup({ seed: 9, io: io2 });
+  await joinAll(env2, 4);
+  for (const id of ['u1', 'u2']) await env2.pickup.select('mode', '2', { id, name: id });
+  await env2.clock.advance(30_000, env2.pickup);
+  const m2 = matchIn(env2, 'check');
+  io2.membersIn = async (channelId) => [...io2.voice.entries()].filter(([, c]) => c === channelId).map(([u]) => u);
+  for (const p of m2.players) io2.voice.set(p.id, m2.lobbyId);
+  await env2.clock.advance(60_000, env2.pickup);
+  assert.equal(env2.pickup.matches.get(m2.id)?.phase, 'draft', 'time-up looks in the channel before dropping anyone');
+});
+
+test('two ready checks of the same mode get numbered channels', async () => {
+  const env = setup({ seed: 10 });
+  await joinAll(env, 4);
+  await env.pickup.command('pickup', { sub: 'start', mode: 2 }, { id: 'admin', name: 'A', isAdmin: true });
+  await env.pickup.idle();
+  await joinAll(env, 4, 5);
+  await env.pickup.command('pickup', { sub: 'start', mode: 2 }, { id: 'admin', name: 'A', isAdmin: true });
+  await env.pickup.idle();
+  const names = [...env.io.channels.values()].filter((c) => !c.text).map((c) => c.name).sort();
+  assert.deepEqual(names, ['🏐 ready up · 2v2', '🏐 ready up · 2v2 #2']);
+  const chats = [...env.io.channels.values()].filter((c) => c.text).map((c) => c.name).sort();
+  assert.deepEqual(chats, ['ready-up-2v2', 'ready-up-2v2-2']);
+});

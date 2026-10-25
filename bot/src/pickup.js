@@ -484,6 +484,8 @@ export class Pickup {
       deadline: 0,
       timer: null,
       round: 0,
+      // Two ready checks of the same mode at once get numbered channels ("ready up · 2v2 #2").
+      tag: (() => { const n = [...this.matches.values()].filter((m) => m.size === size).length; return n ? n + 1 : null; })(),
     };
     this.matches.set(match.id, match);
     for (const p of players) this.busy.set(p.id, match.id);
@@ -517,8 +519,23 @@ export class Pickup {
     return match.players.every((p) => match.confirmed.has(p.id));
   }
 
+  // While the check runs, look at who's in the ready-up channel every few seconds (a join Discord
+  // didn't report still counts).
+  armSweep(match) {
+    if (match.sweep) this.clock.clearTimeout(match.sweep);
+    match.sweep = this.clock.setTimeout(() => this.event(async () => {
+      if (this.matches.get(match.id) !== match || match.phase !== 'check') return;
+      const before = match.confirmed.size;
+      await this.syncLobby(match);
+      if (this.allConfirmed(match)) return this.beginDraft(match);
+      if (match.confirmed.size !== before) await this.safeEdit(match.messageId, views.checkView(match, this.config), match.chatId);
+      this.armSweep(match);
+    }), 5000);
+  }
+
   armCheckTimer(match) {
     if (match.timer) this.clock.clearTimeout(match.timer);
+    if (this.io.membersIn) this.armSweep(match);
     const ms = this.config.readySeconds * 1000;
     const round = ++match.round;
     match.deadline = this.clock.now() + ms;
@@ -528,6 +545,10 @@ export class Pickup {
   async onLobbyJoin(match, id) {
     if (match.phase !== 'check' || !match.players.some((p) => p.id === id) || match.confirmed.has(id)) return;
     match.confirmed.add(id);
+    // Discord sometimes doesn't tell the bot about a join (busy moments, several channels at once),
+    // so whenever anyone joins, look at who's really in the channel too.
+    await this.syncLobby(match);
+    this.log.info?.(`[pickup] ${modeLabel(match.size)} ready check: ${match.players.find((p) => p.id === id)?.name} joined (${match.confirmed.size}/${match.players.length})`);
     if (this.allConfirmed(match)) return this.beginDraft(match);
     await this.safeEdit(match.messageId, views.checkView(match, this.config), match.chatId);
   }
@@ -544,10 +565,25 @@ export class Pickup {
     await this.queueChanged();
   }
 
+  // Counts everyone who's really in the ready-up channel as ready (in case Discord didn't send a
+  // join). io.membersIn is optional (older fakes in tests don't have it).
+  async syncLobby(match) {
+    if (!this.io.membersIn || !match.lobbyId) return;
+    const inside = await this.io.membersIn(match.lobbyId).catch(() => null);
+    if (!inside) return;
+    for (const p of match.players) if (inside.includes(p.id)) match.confirmed.add(p.id);
+  }
+
   // Time's up: drop whoever isn't in the ready-up channel and pull in the next players in the queue.
   async checkTimeout(matchId, round) {
     const match = this.matches.get(matchId);
     if (!match || match.phase !== 'check' || match.round !== round) return;
+    // Last look at who's actually in the channel before dropping anyone.
+    await this.syncLobby(match);
+    if (this.allConfirmed(match)) {
+      this.log.info?.(`[pickup] ${modeLabel(match.size)} ready check: everyone was in the channel (a join wasn't reported)`);
+      return this.beginDraft(match);
+    }
     const missing = match.players.filter((p) => !match.confirmed.has(p.id));
     for (const p of missing) await this.dropPlayer(match, p);
     const replacements = this.readyList().slice(0, missing.length);
@@ -618,6 +654,7 @@ export class Pickup {
   // `exclude`, who left mid-draft). The ready-up channel is deleted once it's empty.
   async cancelMatch(match, reason, { exclude = null } = {}) {
     if (match.timer) this.clock.clearTimeout(match.timer);
+    if (match.sweep) this.clock.clearTimeout(match.sweep);
     this.matches.delete(match.id);
     if (match.lobbyId) this.lobbies.delete(match.lobbyId);
     for (const p of match.players) {
@@ -639,6 +676,7 @@ export class Pickup {
   // ---------- draft ----------
   async beginDraft(match) {
     if (match.timer) this.clock.clearTimeout(match.timer);
+    if (match.sweep) this.clock.clearTimeout(match.sweep);
     const players = match.players;
     const state = createDraft({ players: players.map((p) => p.id), size: match.size, rng: this.rng, style: this.config.draftOrder });
     Object.assign(match, {

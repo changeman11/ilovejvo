@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · pickup: ready checks that run at the same time · bot UPLOADED
+- Live log 12:47–12:48: a 4v4 check and a 2v2 check overlapped; the 2v2 drafted, the 4v4 was cancelled with all 8 marked "didn't join". Couldn't prove from logs whether joins were missed; the fake-Discord test of two overlapping checks passes.
+- Fix: the bot no longer relies only on Discord's join events. Every 5 s during a check, on each join, and before dropping anyone at time-up, it looks at who is really in the ready-up channel (`io.membersIn`, `syncLobby`, `armSweep`). Each join is logged ("4v4 ready check: X joined (5/8)") so a next failure shows what happened. Two checks of the same mode get numbered channels ("ready up · 2v2 #2", "#ready-up-2v2-2").
+
 ### 2026-10-25 · Claude (owner's PC) · #pickup-chat · bot UPLOADED
 - The bot made **#pickup-chat** just under #pickup (same category, same permissions as the category) where players can talk; #pickup stays bot-only. The queue card says "💬 Chat with other players in #pickup-chat". `PICKUP_CHAT_CHANNEL_ID` picks another channel, `PICKUP_CHAT=0` turns it off. Discord only (the owner chose no site chat).
 

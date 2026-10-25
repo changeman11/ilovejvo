@@ -52,10 +52,10 @@ export const teamChannelName = (game, side) => `🏐 #${game.number} ${teamName(
 // Ready-up channel names. The bot tidies up leftover ones (names starting with LOBBY_PREFIX)
 // when it starts.
 export const LOBBY_PREFIX = '🏐 ready up · ';
-export const lobbyChannelName = (match) => `${LOBBY_PREFIX}${modeLabel(match.size)}`;
+export const lobbyChannelName = (match) => `${LOBBY_PREFIX}${modeLabel(match.size)}${match.tag ? ` #${match.tag}` : ''}`;
 // The locked match chat: "ready-up-4v4" during the ready check and draft, then "game-12".
 export const CHAT_PREFIX = 'ready-up-';
-export const chatChannelName = (match) => `${CHAT_PREFIX}${modeLabel(match.size)}`;
+export const chatChannelName = (match) => `${CHAT_PREFIX}${modeLabel(match.size)}${match.tag ? `-${match.tag}` : ''}`;
 export const gameChatName = (game) => `game-${game.number}`;
 
 // ---------- queue ----------

@@ -149,6 +149,10 @@ export async function setupDiscord(client, config, log = console) {
     async deleteChannel(channelId) {
       await guild.channels.delete(channelId, 'Pickup game finished');
     },
+    // Who's in a voice channel right now (user ids).
+    async membersIn(channelId) {
+      return [...guild.voiceStates.cache.filter((s) => s.channelId === channelId).keys()];
+    },
     async channelSize(channelId) {
       if (!guild.channels.cache.has(channelId)) return -1;
       return guild.voiceStates.cache.filter((s) => s.channelId === channelId).size;
