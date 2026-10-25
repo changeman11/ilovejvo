@@ -603,3 +603,19 @@ test('random teams: players in a draft can vote mid-draft; captains stay captain
   assert.equal(game.teams.b.captain, captains.b);
   assert.equal(game.teams.a.players.length + game.teams.b.players.length, 6);
 });
+
+test('results go to #pickup-results when it is set up, and #pickup stays quiet', async () => {
+  const env = setup({ seed: 4, cfg: { ...config, pickupResultsChannelId: 'results' } });
+  await joinAll(env, 4);
+  await toDraft(env);
+  await runDraft(env);
+  const game = [...env.pickup.games.values()][0];
+  const pickupPosts = env.io.posted.filter((id) => env.io.where.get(id) === 'pickup').length;
+  await env.pickup.button(`res:${game.id}:a`, { id: game.teams.a.captain, name: 'A', isAdmin: false });
+  await env.pickup.button(`res:${game.id}:a`, { id: game.teams.b.captain, name: 'B', isAdmin: false });
+  const summaries = env.io.posted.filter((id) => /Game #1/.test(env.io.messages.get(id)?.embeds?.[0]?.title ?? ''));
+  const inResults = summaries.filter((id) => env.io.where.get(id) === 'results');
+  assert.equal(inResults.length, 1, 'posted in #pickup-results');
+  assert.match(env.io.messages.get(inResults[0]).embeds[0].description, /won/);
+  assert.equal(env.io.posted.filter((id) => env.io.where.get(id) === 'pickup').length, pickupPosts, 'nothing new in #pickup');
+});

@@ -53,6 +53,37 @@ export async function setupDiscord(client, config, log = console) {
     ...roles.map((id) => ({ id, type: OverwriteType.Role, allow: TALK })),
     ...allow.map((id) => ({ id, type: OverwriteType.Member, allow: TALK })),
   ];
+  // Pickup results: a read-only channel next to #pickup (everyone reads, only the bot posts).
+  if (config.pickupResults) {
+    let results = config.pickupResultsChannelId ? await guild.channels.fetch(config.pickupResultsChannelId).catch(() => null) : null;
+    if (config.pickupResultsChannelId && !results?.isTextBased()) log.warn(`⚠️  PICKUP_RESULTS_CHANNEL_ID (${config.pickupResultsChannelId}) wasn't found; using #pickup-results.`);
+    if (!results?.isTextBased()) {
+      results = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === 'pickup-results' && c.parentId === (text.parentId ?? null)) ?? null;
+    }
+    if (!results) {
+      try {
+        results = await guild.channels.create({
+          name: 'pickup-results',
+          type: ChannelType.GuildText,
+          parent: text.parentId ?? undefined,
+          topic: 'Every pickup game result: teams, winner and Elo changes. Posted by the bot.',
+          permissionOverwrites: [
+            { id: guild.roles.everyone.id, type: OverwriteType.Role, deny: [P.SendMessages, P.CreatePublicThreads, P.CreatePrivateThreads] },
+            { id: me.id, type: OverwriteType.Member, allow: [P.ViewChannel, P.SendMessages, P.EmbedLinks, P.ReadMessageHistory] },
+          ],
+          reason: 'Pickup results',
+        });
+        log.info?.(`Made #pickup-results (id ${results.id}).`);
+      } catch (err) {
+        log.warn(`⚠️  Couldn't make #pickup-results (${err.message}); results stay in #${text.name}.`);
+      }
+    }
+    if (results) {
+      check(results, ['ViewChannel', 'SendMessages', 'EmbedLinks'], `#${results.name}`);
+      config.pickupResultsChannelId = results.id;
+    } else config.pickupResultsChannelId = '';
+  } else config.pickupResultsChannelId = '';
+
   const channelFor = async (channelId) => (channelId ? guild.channels.cache.get(channelId) ?? (await client.channels.fetch(channelId)) : text);
 
   const io = {

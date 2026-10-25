@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · #pickup-results · bot UPLOADED
+- Pickup result summaries (teams, winner, Elo changes, admin corrections) now go to a read-only **#pickup-results** (made by the bot next to #pickup on 2026-10-25, id 1563892932707090456; found again by name after restarts). #pickup no longer gets a result post or a re-posted queue card after each game. `PICKUP_RESULTS_CHANNEL_ID` picks another channel; `PICKUP_RESULTS=0` puts them back in #pickup.
+
 ### 2026-10-25 · Claude (owner's PC) · pickup: vote for random teams · site (v72) + rules DEPLOYED, bot UPLOADED
 - Queue card has a third menu "How should teams be made?" (🧢 captains draft / 🎲 random teams); the site's /pickup has the same toggle (`pickupSignups.random`, bool; rules allow the player to change `vote` and `random` only). If more than half of a popped game's players voted random, there's no draft: teams are shuffled (`logic/random-teams.js`, tested) and the game card says 🎲 Random teams.
 - Draft card has a "🎲 Random teams (x/need)" button for players in the draft; reaching more than half ends the draft and shuffles everyone except the two captains (they stay captains to report the result).

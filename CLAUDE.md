@@ -115,7 +115,7 @@
     - **Ready check (2026-10-23):** the bot makes a locked `🏐 ready up · NvN` voice channel, plus a locked match chat `#ready-up-NvN`.
       - The chat is hidden from everyone but the players, admins and the bot (added 2026-10-24). The ready-check card pings the players there and ticks them off as they join the voice channel.
       - The draft card is posted in the match chat and becomes the game card there (`game.messageChannel`); admin dispute pings go there too (moved from `#pickup` 2026-10-24).
-      - At draft end the chat is renamed `#game-N` and stored as `game.channels.chat`. It's deleted when the result is in, and a result summary (`resultView`) is posted in `#pickup`, so `#pickup` keeps the record. Cancel notices always go to `#pickup`.
+      - At draft end the chat is renamed `#game-N` and stored as `game.channels.chat`. It's deleted when the result is in, and a result summary (`resultView`) is posted in the read-only `#pickup-results` (bot finds or makes it next to #pickup; `PICKUP_RESULTS_CHANNEL_ID`, `PICKUP_RESULTS=0` = back in #pickup; 2026-10-25). Cancel notices always go to `#pickup`.
       - **Locked** means everyone can see it; only those players, `ADMIN_ROLE_IDS` and the bot can connect.
       - Players confirm by joining it within `READY_SECONDS` (60).
       - No-shows are dropped from the sign-up list and replaced from the queue. A new locked channel is made for the new line-up, because editing who can join would need Manage Roles.

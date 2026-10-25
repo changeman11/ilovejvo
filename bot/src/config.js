@@ -74,6 +74,10 @@ export function loadConfig(env = process.env) {
     guildId: discordId('GUILD_ID', 'your Discord server ID (right-click the server icon -> Copy Server ID)'),
     pickupChannelId: discordId('PICKUP_CHANNEL_ID', 'the text channel where the bot posts drafts and results'),
     teamCategoryId: discordId('TEAM_CATEGORY_ID', '', false),
+    // Pickup results go to their own read-only channel (2026-10-25). Empty = the bot finds or makes
+    // #pickup-results next to #pickup; PICKUP_RESULTS=0 keeps them in #pickup.
+    pickupResults: text('PICKUP_RESULTS') !== '0',
+    pickupResultsChannelId: discordId('PICKUP_RESULTS_CHANNEL_ID', '', false),
     adminRoleIds: text('ADMIN_ROLE_IDS')
       .split(/[\s,]+/)
       .filter(Boolean),

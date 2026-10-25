@@ -910,10 +910,13 @@ export class Pickup {
     this.track(next);
     this.log.info?.(`[pickup] game #${next.number}: ${outcome === 'cancel' ? 'cancelled' : `${views.teamName(next, outcome)} won`} (${decidedBy.by})`);
     await this.safeEdit(next.messageId, views.gameView(next), next.messageChannel);
-    // The match chat is deleted with the team channels, so #pickup keeps the record.
-    await this.io.post(views.resultView(next, { corrected: wasDecided, config: this.config })).catch((err) => this.log.warn('[pickup] could not post the result:', err.message));
+    // The match chat is deleted with the team channels, so the record is posted in #pickup-results
+    // (or #pickup when that's switched off).
+    const resultsChannel = this.config.pickupResultsChannelId || undefined;
+    await this.io.post(views.resultView(next, { corrected: wasDecided, config: this.config }), resultsChannel).catch((err) => this.log.warn('[pickup] could not post the result:', err.message));
     await this.cleanupChannels(next);
-    await this.renderQueue({ repost: true }); // keep the queue card at the bottom of #pickup
+    // In #pickup itself, keep the queue card at the bottom (only needed when the result went there).
+    await this.renderQueue({ repost: !resultsChannel });
     return next;
   }
 
