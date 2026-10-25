@@ -310,6 +310,11 @@ export async function pickupVote(discordId, size) {
   await updateDoc(doc(db, 'pickupSignups', String(discordId)), { vote: size ?? null });
 }
 
+// Random teams instead of a draft (the bot counts it when a game pops).
+export async function pickupRandomVote(discordId, on) {
+  await updateDoc(doc(db, 'pickupSignups', String(discordId)), { random: Boolean(on) });
+}
+
 export async function pickupWithdraw(discordId) {
   await deleteDoc(doc(db, 'pickupSignups', String(discordId)));
 }

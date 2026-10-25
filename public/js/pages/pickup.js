@@ -6,7 +6,7 @@
 // The page redraws itself when the live state or your sign-up changes.
 
 import { loadPickupLive, loadPickupRatings, loadPickupGames, loadPickupSignup, loadPlayers, loadRankedLive, loadRankedRatings, loadRankedSignup } from '../data.js';
-import { pickupSignUp, pickupWithdraw, pickupVote, rankedJoin, rankedLeave } from '../player-data.js';
+import { pickupSignUp, pickupWithdraw, pickupVote, pickupRandomVote, rankedJoin, rankedLeave } from '../player-data.js';
 import { currentUser, discordOf, currentAdmin } from '../auth.js';
 import { commit } from '../writes.js';
 import { esc, skeleton, pageTitle, urls } from '../ui.js';
@@ -118,6 +118,16 @@ function liveBlock(live, me, isAdmin) {
       ${modes.map((n) => `<button class="chip-link" type="button" ${me ? `data-vote="${n}"` : 'data-discord-signin'}${me?.vote === n ? ' aria-current="true"' : ''}>${mode(n)}${votes[n] ? ` · ${votes[n]}` : ''}</button>`).join('')}
       ${signedUp ? `<button class="chip-link" type="button" data-vote=""${!me.vote ? ' aria-current="true"' : ''}>any</button>` : ''}
     </div>` : '';
+  // Random teams instead of the captains' draft: more than half of a game's players = no draft.
+  const randomCount = live?.randomVotes ?? 0;
+  const teamsVote = !inMatch && (signedUp || randomCount) ? `
+    <div class="pk-votes" role="group" aria-label="How teams are made">
+      <span class="small muted">${signedUp ? 'Teams:' : 'Teams vote:'}</span>
+      ${signedUp ? `<button class="chip-link" type="button" data-random="0"${!me.random ? ' aria-current="true"' : ''}>🧢 captains draft</button>
+      <button class="chip-link" type="button" data-random="1"${me.random ? ' aria-current="true"' : ''}>🎲 random teams${randomCount ? ` · ${randomCount}` : ''}</button>`
+        : `<span class="small">🎲 ${randomCount} want random teams</span>`}
+      <span class="small muted">More than half of a game’s players voting random = no draft.</span>
+    </div>` : '';
   const adminBox = isAdmin ? `
     <form class="pk-admin" data-pickup-admin>
       <label>Admin: mode <select name="size">
@@ -138,7 +148,7 @@ function liveBlock(live, me, isAdmin) {
       return `<div class="pk-match"><b>${mode(m.size)} ready check</b> <span class="muted">${ready}/${m.players.length} in the voice channel</span>
         <p class="small">${m.players.map((p) => `${p.ready ? '✅' : '⏳'} ${esc(p.name)}`).join(' &nbsp; ')}</p></div>`;
     }
-    return `<div class="pk-match"><b>${mode(m.size)} draft</b> <span class="muted">captains picking</span>
+    return `<div class="pk-match"><b>${mode(m.size)} draft</b> <span class="muted">captains picking${m.randomVotes ? ` · 🎲 ${m.randomVotes}/${m.randomNeeded} want random teams (vote on the Discord draft card)` : ''}</span>
       <p class="small">${esc((m.teams?.a ?? []).join(', '))} <b>vs</b> ${esc((m.teams?.b ?? []).join(', '))}</p></div>`;
   }).join('');
   const gameHtml = games.map((g) => `<div class="pk-match"><b>Game #${g.number}</b> <span class="muted">${mode(g.size)}${g.status === 'disputed' ? ' · waiting for an admin' : ' · playing'}</span>
@@ -155,6 +165,7 @@ function liveBlock(live, me, isAdmin) {
       </div>
       ${modeLine}
       ${voteButtons}
+      ${teamsVote}
       ${adminBox}
       ${list}
       ${matchHtml || gameHtml ? `<h3 class="pk-sub">Right now</h3>${matchHtml}${gameHtml}` : ''}
@@ -268,7 +279,7 @@ export async function render() {
     discord ? loadRankedSignup(discord.discordId) : null,
   ]);
   const byDiscord = new Map(players.filter((p) => p.discordId).map((p) => [String(p.discordId), p]));
-  const me = discord ? { discordId: String(discord.discordId), signedUp: Boolean(signup), inRanked: Boolean(rankedSignup), vote: Number.isInteger(signup?.vote) ? signup.vote : null, name: byDiscord.get(String(discord.discordId))?.displayName ?? discord.discordName ?? 'Player' } : null;
+  const me = discord ? { discordId: String(discord.discordId), signedUp: Boolean(signup), inRanked: Boolean(rankedSignup), vote: Number.isInteger(signup?.vote) ? signup.vote : null, random: signup?.random === true, name: byDiscord.get(String(discord.discordId))?.displayName ?? discord.discordName ?? 'Player' } : null;
 
   return `
     <div class="page-head">${pageTitle('Pickup', 'Random 2v2 to 6v6 games and 1v1 ranked on the JVO Discord, with drafts, Elo and RP.', 'green')}</div>
@@ -342,6 +353,17 @@ export function mount(el) {
       } catch (err) {
         console.error(err);
         vote.disabled = false;
+      }
+      return;
+    }
+    const rnd = e.target.closest('[data-random]');
+    if (rnd && me) {
+      rnd.disabled = true;
+      try {
+        await pickupRandomVote(me.discordId, rnd.dataset.random === '1');
+      } catch (err) {
+        console.error(err);
+        rnd.disabled = false;
       }
       return;
     }

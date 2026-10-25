@@ -7,6 +7,7 @@ import { Pickup } from '../src/pickup.js';
 import { FileStore } from '../src/store/file-store.js';
 import { seeded } from '../src/logic/random.js';
 import { currentSide } from '../src/logic/draft.js';
+import { queueView } from '../src/views.js';
 
 const quiet = { info() {}, warn() {}, error(...a) { throw new Error(a.join(' ')); } };
 
@@ -551,4 +552,54 @@ test('mode votes on the queue card pick the next mode; an admin-set mode overrid
   assert.equal(env2.pickup.fixedMode, null, 'next game only: back to votes');
   assert.equal(env2.store.getMeta('fixedMode'), null);
   assert.match((await env2.pickup.command('pickup', { sub: 'setmode', choice: '4' }, { id: 'u1', name: 'x', isAdmin: false })).content, /Only admins/);
+});
+
+test('random teams: more than half voting on the queue card skips the draft; fewer still drafts', async () => {
+  const env = setup();
+  await joinAll(env, 4);
+  for (const id of ['u1', 'u2', 'u3']) {
+    const reply = await env.pickup.select('teams', 'random', { id, name: id });
+    assert.match(reply.ephemeral, /random teams/i);
+  }
+  assert.match(queueView(env.pickup.snapshot(), config).embeds[0].description, /3\*\* want random teams/);
+  await env.clock.advance(30_000, env.pickup);
+  await confirm(env, realIds(matchIn(env, 'check')));
+  assert.equal(env.pickup.matches.size, 0, 'no draft');
+  const game = [...env.pickup.games.values()][0];
+  assert.ok(game?.random, 'random teams game');
+  assert.equal(game.teams.a.players.length, 2);
+  assert.equal(game.teams.b.players.length, 2);
+  assert.ok(game.teams.a.captain && game.teams.b.captain, 'each team still has a captain to report');
+  assert.match(env.io.messages.get(game.messageId).embeds[0].description, /Random teams/);
+
+  // 2 of 4 is not more than half: a normal draft.
+  const env2 = setup({ seed: 2 });
+  await joinAll(env2, 4);
+  for (const id of ['u1', 'u2']) await env2.pickup.select('teams', 'random', { id, name: id });
+  await env2.pickup.select('teams', 'draft', { id: 'u2', name: 'u2' });
+  assert.ok(await toDraft(env2));
+});
+
+test('random teams: players in a draft can vote mid-draft; captains stay captains', async () => {
+  const env = setup({ seed: 3 });
+  await joinAll(env, 6);
+  await env.pickup.select('mode', '3', { id: 'u1', name: 'u1' });
+  await env.pickup.select('mode', '3', { id: 'u2', name: 'u2' });
+  const match = await toDraft(env);
+  const captains = { ...match.state.captains };
+  const voters = match.players.map((p) => p.id);
+  assert.equal((await env.pickup.button(`rnd:${match.id}`, { id: 'outsider', name: 'x' })).ephemeral, 'Only players in this draft can vote.');
+  for (const id of voters.slice(0, 3)) {
+    const reply = await env.pickup.button(`rnd:${match.id}`, { id, name: id });
+    assert.match(reply.ephemeral, /\(\d\/4\)/);
+  }
+  const card = env.io.messages.get(match.messageId);
+  assert.match(JSON.stringify(card.components), /Random teams \(3\/4\)/);
+  assert.equal(await env.pickup.button(`rnd:${match.id}`, { id: voters[3], name: voters[3] }), null, 'the 4th vote ends the draft');
+  assert.equal(env.pickup.matches.size, 0);
+  const game = [...env.pickup.games.values()][0];
+  assert.ok(game.random);
+  assert.equal(game.teams.a.captain, captains.a);
+  assert.equal(game.teams.b.captain, captains.b);
+  assert.equal(game.teams.a.players.length + game.teams.b.players.length, 6);
 });

@@ -5,8 +5,8 @@
 //   collection live: a new doc signs that player up, a deleted doc withdraws them. The bot also
 //   writes a doc for Discord sign-ups (so the site can withdraw those too) and deletes the doc
 //   whenever someone leaves the queue (withdrew, picked, dropped).
-//   A player's mode vote is the doc's `vote` field (they can change it on the site; the bot copies
-//   Discord votes there too).
+//   A player's mode vote is the doc's `vote` field, and `random: true` is a vote for random teams
+//   instead of a draft (they can change both on the site; the bot copies Discord votes there too).
 // - pickupControl/mode = { size, once }: the admin-set mode (null size = community votes). Admins
 //   set it on the site; /pickup setmode on Discord writes it too.
 // - pickupMeta/live = the queue, ready checks, drafts and games on (Pickup.liveState()), for the
@@ -23,7 +23,7 @@ let apps = 0;
 export class SiteQueue {
   constructor({ rest, firebase, log = console }) {
     Object.assign(this, { rest, firebase, log });
-    this.docs = new Map(); // discord id -> { vote } for everyone with a pickupSignups doc
+    this.docs = new Map(); // discord id -> { vote, random } for everyone with a pickupSignups doc
     this.control = undefined; // the admin-set mode as last seen/written (JSON), undefined = not read yet
     this.pickup = null;
     this.unsubscribe = null;
@@ -48,15 +48,18 @@ export class SiteQueue {
           const id = change.doc.id;
           const d = change.doc.data();
           const vote = Number.isInteger(d.vote) ? d.vote : null;
+          const random = d.random === true;
           if (change.type === 'added') {
-            this.docs.set(id, { vote });
+            this.docs.set(id, { vote, random });
             if (!this.pickup.queue.has(id)) this.pickup.siteJoin(id, String(d.name ?? id).slice(0, 60), d.signedUpAt?.toMillis?.() ?? Date.now());
             if (vote) this.pickup.siteVote(id, vote);
+            if (random) this.pickup.siteRandom?.(id, true);
           } else if (change.type === 'modified') {
             const known = this.docs.get(id);
-            if (known && known.vote === vote) continue; // our own write coming back
-            this.docs.set(id, { vote });
-            this.pickup.siteVote(id, vote);
+            if (known && known.vote === vote && known.random === random) continue; // our own write coming back
+            this.docs.set(id, { vote, random });
+            if (!known || known.vote !== vote) this.pickup.siteVote(id, vote);
+            if (!known || known.random !== random) this.pickup.siteRandom?.(id, random);
           } else if (change.type === 'removed') {
             this.docs.delete(id);
             this.pickup.siteLeave(id);
@@ -97,7 +100,7 @@ export class SiteQueue {
   // Someone signed up. From Discord: add their doc so the site shows them and can withdraw them.
   joined(entry) {
     if (entry.from !== 'discord' || entry.fake || this.docs.has(entry.id)) return;
-    this.docs.set(entry.id, { vote: null });
+    this.docs.set(entry.id, { vote: null, random: false });
     this.write([{ path: `pickupSignups/${entry.id}`, data: { discordId: entry.id, name: entry.name, signedUpAt: entry.joinedAt } }]);
   }
 
@@ -114,6 +117,14 @@ export class SiteQueue {
     if (!known || known.vote === (size ?? null)) return;
     known.vote = size ?? null;
     this.write([{ path: `pickupSignups/${id}`, data: { vote: size ?? null }, mask: ['vote'] }]);
+  }
+
+  // A random-teams vote changed in the bot: copy it to the player's sign-up doc.
+  votedRandom(id, on) {
+    const known = this.docs.get(id);
+    if (!known || known.random === Boolean(on)) return;
+    known.random = Boolean(on);
+    this.write([{ path: `pickupSignups/${id}`, data: { random: Boolean(on) }, mask: ['random'] }]);
   }
 
   // The admin-set mode changed in the bot (/pickup setmode, or used up after one game).

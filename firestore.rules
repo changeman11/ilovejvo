@@ -727,7 +727,8 @@ service cloud.firestore {
     match /pickupSignups/{signupId} {
       allow read: if true;
       allow create: if (discordId() != '' && signupId == discordId()
-                        && request.resource.data.keys().hasOnly(['discordId', 'name', 'signedUpAt', 'vote'])
+                        && request.resource.data.keys().hasOnly(['discordId', 'name', 'signedUpAt', 'vote', 'random'])
+                        && (!('random' in request.resource.data) || request.resource.data.random is bool)
                         && (!('vote' in request.resource.data) || request.resource.data.vote == null
                             || (request.resource.data.vote is int && request.resource.data.vote >= 1 && request.resource.data.vote <= 10))
                         && request.resource.data.discordId == signupId
@@ -735,11 +736,13 @@ service cloud.firestore {
                         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
                         && request.resource.data.signedUpAt == request.time)
                     || (isPickupBot() && request.resource.data.discordId == signupId);
-      // The player may change only their mode vote (a team size, or null = no preference).
+      // The player may change only their mode vote (a team size, or null = no preference) and
+      // their random-teams vote (bool).
       allow update: if isPickupBot()
                     || (discordId() != '' && signupId == discordId()
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vote'])
-                        && (request.resource.data.vote == null
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vote', 'random'])
+                        && (!('random' in request.resource.data) || request.resource.data.random is bool)
+                        && (request.resource.data.get('vote', null) == null
                             || (request.resource.data.vote is int && request.resource.data.vote >= 1 && request.resource.data.vote <= 10)));
       allow delete: if (discordId() != '' && signupId == discordId()) || isPickupBot();
     }

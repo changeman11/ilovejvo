@@ -21,6 +21,7 @@
 // so two clicks at the same moment can't trip over each other.
 import { fittingModes, minPlayers, maxPlayers, modeLabel, pickMode, projectedMode } from './logic/modes.js';
 import { createDraft, applyPick, currentSide, isComplete } from './logic/draft.js';
+import { randomTeams, randomNeeded } from './logic/random-teams.js';
 import { tallyVotes, OUTCOMES } from './logic/votes.js';
 import { gameChanges, applyChange, revertChange } from './logic/ratings.js';
 import * as views from './views.js';
@@ -39,6 +40,7 @@ export class Pickup {
     this.publishTimer = null;
     this.lastPublished = '';
     this.votes = new Map(); // userId -> team size they voted for (signed-up players only)
+    this.randomVotes = new Set(); // userIds who voted for random teams instead of a draft
     this.fixedMode = null; // { size, once } when an admin set the mode (/pickup setmode)
     this.queue = new Map(); // userId -> { id, name, joinedAt, fake }  (everyone signed up)
     this.busy = new Map(); // userId -> matchId  (in a ready check or draft, so not counted as ready)
@@ -95,12 +97,15 @@ export class Pickup {
         deadline: m.deadline,
         players: m.players.map((p) => ({ id: p.id, name: p.name, ready: m.confirmed.has(p.id) })),
         teams: m.phase === 'draft' ? { a: names(m.state.teams.a, m), b: names(m.state.teams.b, m) } : null,
+        randomVotes: m.randomVotes?.size ?? m.players.filter((p) => this.randomVotes.has(p.id)).length,
+        randomNeeded: randomNeeded(m.players.length),
       })),
       games: [...this.games.values()]
         .filter((g) => LIVE.includes(g.status))
         .map((g) => ({ number: g.number, size: g.size, status: g.status, a: side(g, 'a'), b: side(g, 'b') })),
       modes: this.config.modes,
       modeVotes: this.voteTally(),
+      randomVotes: this.readyList().filter((p) => this.randomVotes.has(p.id)).length,
       next: projectedMode({ readyCount: this.readyList().length, modes: this.config.modes, tally: this.voteTally(), needed: this.config.modeVotesNeeded, fixed: this.fixedMode?.size ?? null }),
       modeVotesNeeded: this.config.modeVotesNeeded,
       fixedMode: this.fixedMode?.size ?? null,
@@ -113,6 +118,7 @@ export class Pickup {
   // Took someone off the sign-up list (tells the site).
   unqueue(id) {
     this.votes.delete(id);
+    this.randomVotes.delete(id);
     if (this.queue.delete(id)) this.live?.left(id);
   }
 
@@ -193,6 +199,11 @@ export class Pickup {
         this.renderQueueSoon();
         return reply;
       }
+      if (customId === 'teams') {
+        const reply = this.voteRandom(user.id, value === 'random');
+        this.renderQueueSoon();
+        return reply;
+      }
       if (customId !== 'queue') return { ephemeral: "That menu isn't used any more." };
       const reply = value === 'join' ? await this.signUp(user.id, user.name) : await this.withdraw(user.id);
       this.renderQueueSoon(); // also resets the menu on everyone's screen
@@ -219,6 +230,26 @@ export class Pickup {
     const count = this.voteTally()[size] ?? 0;
     const need = this.config.modeVotesNeeded;
     return { ephemeral: `Voted ${modeLabel(size)} (${count} vote${count === 1 ? '' : 's'}). ${count >= need ? 'That’s enough: it’s the next game’s mode if it has the most votes and enough players.' : `${need - count} more vote${need - count === 1 ? '' : 's'} and it’s picked (when there are enough players).`}` };
+  }
+
+  // "How should teams be made?" menu: random teams (on) or the captains' draft (off).
+  voteRandom(id, on) {
+    if (!this.queue.has(id) || this.busy.has(id)) return { ephemeral: 'Sign up first (the menu above), then vote.' };
+    if (on) this.randomVotes.add(id);
+    else this.randomVotes.delete(id);
+    this.live?.votedRandom?.(id, on);
+    return { ephemeral: on
+      ? '🎲 Voted for random teams. If more than half of a game’s players vote for it, there’s no draft: teams are shuffled.'
+      : '🧢 Voted for a captains’ draft.' };
+  }
+
+  // A random-teams vote changed on the website (site-queue.js).
+  siteRandom(id, on) {
+    return this.event(async () => {
+      if (this.randomVotes.has(id) === Boolean(on)) return;
+      this.voteRandom(id, Boolean(on));
+      this.renderQueueSoon();
+    });
   }
 
   // Votes and the admin-set mode, changed on the website (site-queue.js).
@@ -262,6 +293,7 @@ export class Pickup {
       const [kind, id, arg] = String(customId).split(':');
       if (kind === 'pick') return this.onPick(id, arg, user);
       if (kind === 'res') return this.onResult(id, arg, user);
+      if (kind === 'rnd') return this.onRandomVote(id, user);
       return { ephemeral: "That button isn't used any more." };
     }).catch((err) => {
       this.log.error('[pickup] button', err);
@@ -397,6 +429,7 @@ export class Pickup {
       countdownEndsAt: this.countdown?.endsAt ?? null,
       games: [...this.games.values()].sort((a, b) => a.number - b.number),
       votes: this.voteTally(),
+      randomVotes: this.readyList().filter((p) => this.randomVotes.has(p.id)).length,
       fixedMode: this.fixedMode,
     };
   }
@@ -617,6 +650,14 @@ export class Pickup {
       timer: null,
     });
     this.log.info?.(`[pickup] ${modeLabel(match.size)} draft: everyone's ready`);
+    // Random teams: votes made while signed up count here. More than half = no draft.
+    match.randomVotes = new Set(players.map((p) => p.id).filter((id) => this.randomVotes.has(id)));
+    if (match.randomVotes.size >= randomNeeded(players.length)) {
+      match.state = randomTeams({ players: players.map((p) => p.id), size: match.size, rng: this.rng });
+      match.random = true;
+      this.log.info?.(`[pickup] ${modeLabel(match.size)}: random teams (${match.randomVotes.size} votes)`);
+      return this.finishDraft(match);
+    }
     if (isComplete(state)) return this.finishDraft(match); // 1v1 if anyone ever sets MODES=1
     this.armPickTimer(match);
     // The draft happens in the match chat: a fresh card under the ready check, so the captains
@@ -650,6 +691,34 @@ export class Pickup {
     const pool = match.state.pool;
     const playerId = pool[Math.floor(this.rng() * pool.length)];
     await this.doPick(match, side, playerId, `${views.esc(match.names[match.state.captains[side]])} got ${views.esc(match.names[playerId])} (${why})`);
+  }
+
+  // "🎲 Random teams" on the draft card: a player in this draft votes; more than half = the draft
+  // stops and everyone except the two captains is shuffled onto the teams.
+  async onRandomVote(matchId, user) {
+    const match = this.matches.get(matchId);
+    if (!match || match.phase !== 'draft') return { ephemeral: 'This draft is over.' };
+    if (!match.players.some((p) => p.id === user.id)) return { ephemeral: 'Only players in this draft can vote.' };
+    match.randomVotes ??= new Set();
+    if (match.randomVotes.has(user.id)) {
+      match.randomVotes.delete(user.id);
+      await this.safeEdit(match.messageId, views.draftView(match), match.chatId);
+      return { ephemeral: 'Vote taken back: the draft carries on.' };
+    }
+    match.randomVotes.add(user.id);
+    // Test mode: pretend players agree.
+    for (const id of match.fakes) match.randomVotes.add(id);
+    const need = randomNeeded(match.players.length);
+    if (match.randomVotes.size >= need) {
+      match.state = randomTeams({ players: match.players.map((p) => p.id), size: match.size, captains: match.state.captains, rng: this.rng });
+      match.random = true;
+      match.note = '🎲 Random teams: the players voted';
+      this.log.info?.(`[pickup] ${modeLabel(match.size)}: random teams voted mid-draft`);
+      await this.finishDraft(match);
+      return null;
+    }
+    await this.safeEdit(match.messageId, views.draftView(match), match.chatId);
+    return { ephemeral: `🎲 Voted for random teams (${match.randomVotes.size}/${need}).` };
   }
 
   async onPick(matchId, playerId, user) {
@@ -704,6 +773,7 @@ export class Pickup {
       createdAt: this.clock.now(),
       endedAt: null,
       teams: { a: team('a'), b: team('b') },
+      ...(match.random ? { random: true } : {}),
       votes: {},
       winner: null,
       decidedBy: null,

@@ -242,3 +242,19 @@ test('projected next mode for the queue card', () => {
   // Everything fits: no further milestone.
   assert.equal(projectedMode({ readyCount: 12 }).target, null);
 });
+
+test('random teams: needs more than half; teams even; given captains kept apart', async () => {
+  const { randomTeams, randomNeeded } = await import('../src/logic/random-teams.js');
+  const { seeded } = await import('../src/logic/random.js');
+  assert.deepEqual([4, 6, 8, 12].map(randomNeeded), [3, 4, 5, 7]);
+  const players = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const t = randomTeams({ players, size: 3, rng: seeded(1) });
+  assert.equal(t.teams.a.length, 3);
+  assert.equal(t.teams.b.length, 3);
+  assert.deepEqual([...t.teams.a, ...t.teams.b].sort(), players);
+  assert.equal(t.captains.a, t.teams.a[0]);
+  assert.equal(t.pool.length, 0);
+  const k = randomTeams({ players, size: 3, captains: { a: 'e', b: 'f' }, rng: seeded(2) });
+  assert.ok(k.teams.a.includes('e') && k.teams.b.includes('f'));
+  assert.deepEqual(k.captains, { a: 'e', b: 'f' });
+});

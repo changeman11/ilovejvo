@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · pickup: vote for random teams · site (v72) + rules DEPLOYED, bot UPLOADED
+- Queue card has a third menu "How should teams be made?" (🧢 captains draft / 🎲 random teams); the site's /pickup has the same toggle (`pickupSignups.random`, bool; rules allow the player to change `vote` and `random` only). If more than half of a popped game's players voted random, there's no draft: teams are shuffled (`logic/random-teams.js`, tested) and the game card says 🎲 Random teams.
+- Draft card has a "🎲 Random teams (x/need)" button for players in the draft; reaching more than half ends the draft and shuffles everyone except the two captains (they stay captains to report the result).
+
 ### 2026-10-25 · Claude (owner's PC) · result fixes, My matches, 1st/2nd/3rd awards, friendlier admin home · site (v71) + rules DEPLOYED, bot UPLOADED
 - **Result fixes** (`rules/corrections.js`, tested; `pages/fix-result.js`): once a score is in, a player/captain on either team presses "🛠 Fix this result" on the match page: the right set scores, missing screenshots and/or a note. Saved as `events/{e}/corrections/{fixtureId}__{playerId}` (new, nothing to migrate). Same new score from both teams = the score changes straight away (rules `agreedCorrection`: only `sets`/`correctedBy` change, forfeits admin-only); the other team gets a bell item and a one-tap "✓ Yes, that's right". Everything else goes to admins: Requests "🛠 Result fixes from players" (Open / Done), admin bell, admin result page panel ("Use this score"; fix screenshots join "Read stats"); saving the result closes the match's fixes.
 - **/matches "My matches"** for players and managers: Report now, Needs a fix? (other team sent a fix, add screenshot), Still to play, Results in. Linked from the Club hub and Me page.

@@ -3,6 +3,7 @@
 // logic never needs discord.js and the tests can read them.
 import { modeLabel, fittingModes, minPlayers, projectedMode } from './logic/modes.js';
 import { currentSide } from './logic/draft.js';
+import { randomNeeded } from './logic/random-teams.js';
 
 // I<3JVO colours (CLAUDE.md "Look").
 const BLUE = 0x1438d8;
@@ -69,7 +70,7 @@ export function bar(have, want, full = false) {
 // The queue card in #pickup: the next mode in big letters, a player bar, every mode with whether
 // it fits and its votes, who's signed up, and what's on right now.
 export function queueView(snapshot, config) {
-  const { ready, drafting = 0, countdownEndsAt = null, games = [], votes = {}, fixedMode = null } = snapshot;
+  const { ready, drafting = 0, countdownEndsAt = null, games = [], votes = {}, fixedMode = null, randomVotes = 0 } = snapshot;
   const n = ready.length;
   const next = projectedMode({ readyCount: n, modes: config.modes, tally: votes, needed: config.modeVotesNeeded, fixed: fixedMode?.size ?? null });
   const needVotes = config.modeVotesNeeded;
@@ -93,6 +94,7 @@ export function queueView(snapshot, config) {
     headline = '## 🎲 Next up: random';
     how = `${needVotes} votes pick the mode · otherwise random from what fits`;
   }
+  if (randomVotes) how += `\n🎲 **${randomVotes}** want random teams · more than half of a game’s players = no draft`;
   if (next.waitingFor) how += `\n🗳️ ${modeLabel(next.waitingFor)} has the votes: it needs **${next.waitingFor * 2 - n}** more player${next.waitingFor * 2 - n === 1 ? '' : 's'}`;
 
   // The player bar and what's happening.
@@ -171,6 +173,20 @@ export function queueView(snapshot, config) {
             options: [
               ...config.modes.map((n) => ({ label: modeLabel(n), value: String(n), description: `${votes[n] ?? 0} vote${(votes[n] ?? 0) === 1 ? '' : 's'} · needs ${n * 2} players`, emoji: { name: '🗳️' } })),
               { label: 'No preference', value: 'none', description: 'Remove your vote' },
+            ],
+          },
+        ],
+      },
+      {
+        type: ROW,
+        components: [
+          {
+            type: SELECT,
+            custom_id: 'teams',
+            placeholder: 'How should teams be made?',
+            options: [
+              { label: 'Captains draft', value: 'draft', description: 'Two random captains pick their teams', emoji: { name: '🧢' } },
+              { label: 'Random teams', value: 'random', description: `${randomVotes} vote${randomVotes === 1 ? '' : 's'} · more than half of a game = no draft`, emoji: { name: '🎲' } },
             ],
           },
         ],
@@ -272,12 +288,13 @@ export function draftView(draft) {
           { name: label('b'), value: list('b'), inline: true },
           { name: 'Still to pick', value: state.pool.length ? state.pool.map((id) => esc(names[id])).join('\n') : '—' },
         ],
-        footer: { text: 'Only the captain whose turn it is can pick. Leaving the ready-up channel cancels the draft.' },
+        footer: { text: `Only the captain whose turn it is can pick. Anyone in the draft can vote for random teams (${randomNeeded(state.players.length)} votes ends the draft). Leaving the ready-up channel cancels it.` },
       },
     ],
-    components: rows(
-      state.pool.map((id) => ({ type: BUTTON, style: STYLE.secondary, label: short(names[id], 80), custom_id: `pick:${draft.id}:${id}` })),
-    ),
+    components: [
+      ...rows(state.pool.map((id) => ({ type: BUTTON, style: STYLE.secondary, label: short(names[id], 80), custom_id: `pick:${draft.id}:${id}` }))),
+      { type: ROW, components: [{ type: BUTTON, style: STYLE.primary, label: `Random teams (${draft.randomVotes?.size ?? 0}/${randomNeeded(state.players.length)})`, emoji: { name: '🎲' }, custom_id: `rnd:${draft.id}` }] },
+    ],
     allowedMentions: { users: [state.captains.a, state.captains.b].filter((id) => !draft.fakes.has(id)) },
   };
 }
@@ -307,6 +324,7 @@ export function gameView(game, { problems = [] } = {}) {
   let components = [];
   if (game.status === 'playing' || game.status === 'disputed') {
     const channels = ['a', 'b'].filter((s) => game.channels?.[s]).map((s) => `<#${game.channels[s]}>`);
+    if (game.random) lines.push('🎲 **Random teams:** the players voted for them instead of a draft.');
     if (channels.length) lines.push(`Team voice channels: ${channels.join(' and ')}`);
     lines.push('**Captains:** when the game is over, both press who won. If you both agree, Elo updates.');
     for (const side of ['a', 'b']) {

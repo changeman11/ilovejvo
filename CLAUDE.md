@@ -129,6 +129,7 @@
     - **At the pop:** if the most-voted mode that fits has `MODE_VOTES_NEEDED` (2) votes, it's played (ties are random); otherwise the mode is random. `pickMode()` in `logic/modes.js` (tested).
     - **Admin mode:** admins can fix the mode, for the next game or until reset, with `/pickup setmode` or the admin box on `/pickup`. It's stored in `pickupControl/mode` `{ size, once }` (rules: admin + stamp, or the bot) and also in store meta `fixedMode`. The bot watches it live.
     - **Fixed mode:** the game starts as soon as there are exactly enough for it.
+  - **Random teams (added 2026-10-25):** players vote 🧢 draft / 🎲 random on the queue card (`custom_id: 'teams'`) or the site (`pickupSignups.random`); more than half of a popped game's players = no draft, teams shuffled (`logic/random-teams.js`, `randomNeeded`). The draft card's "🎲 Random teams" button (`rnd:<matchId>`) lets the drafting players switch mid-draft (captains kept). Games get `random: true`.
   - **Elo:** start 1000, K = 32, team rating = average, the same change for the whole team.
   - **Welcomes (added 2026-10-24):** new members get a post in `WELCOME_CHANNEL_ID` (#welcome) with an @mention and link buttons to the site's `/me`, `/pickup` and `/help` (`bot/src/welcome.js`, tested).
     - **Intent:** it needs the privileged Server Members intent. `login.js` reads the app's flags before logging in and only asks for the intent when it's switched on; otherwise it logs a warning.
