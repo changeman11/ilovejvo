@@ -35,7 +35,8 @@ export const TIMINGS = {
   pickSeconds: [10, 600],
   rankedReadySeconds: [30, 3600],
 };
-export const ACTIONS = ['syncRoles', 'repostCards', 'checkThreads', 'closeThreads', 'clearEventThreads', 'restart'];
+export const ACTIONS = ['syncRoles', 'repostCards', 'checkThreads', 'closeThreads', 'clearEventThreads', 'restart',
+  'pickupStart', 'pickupCancelMatch', 'pickupResult', 'pickupRemove'];
 
 // Which features .env allows: some need things only .env can give (a channel, Firebase).
 export function availableFeatures(env) {
@@ -197,6 +198,22 @@ export class BotControl {
       }
       case 'restart':
         return 'Restarting (back in about 15 seconds).';
+      // Pickup, from the panel's Pickup section: the same as the /pickup admin commands.
+      case 'pickupStart':
+      case 'pickupCancelMatch':
+      case 'pickupResult':
+      case 'pickupRemove': {
+        if (!m.pickup) throw new Error('Pickup isn’t running.');
+        const admin = { id: 'site', name: d.adminName ? String(d.adminName).slice(0, 40) : 'an admin on the site', isAdmin: true };
+        const [sub, options] = {
+          pickupStart: ['start', { mode: d.mode ? Number(d.mode) : null }],
+          pickupCancelMatch: ['cancelmatch', { match: d.matchId }],
+          pickupResult: ['result', { game: Number(d.gameNumber), winner: d.winner }],
+          pickupRemove: ['remove', { player: d.playerId }],
+        }[d.action];
+        const reply = await m.pickup.run(() => m.pickup.adminCommand(sub, options, admin));
+        return reply?.content ?? 'Done.';
+      }
       default:
         throw new Error(`Unknown action ${d.action}.`);
     }

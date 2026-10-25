@@ -2,7 +2,7 @@
 // public Firestore docs: botControl/status (what the bot runs, sent by it every 5 minutes),
 // botControl/settings (switches and timings, written here) and botCommands (actions; the bot
 // writes the result back). Match threads can be switched on or off and cleared per event.
-import { loadBotStatus, loadBotSettings, loadBotCommands, loadAllEvents } from '../../data.js';
+import { loadBotStatus, loadBotSettings, loadBotCommands, loadAllEvents, loadPickupLive, loadPickupGames } from '../../data.js';
 import { saveBotSettings, sendBotCommand, clearBotCommands, setEventThreads } from '../../admin-data.js';
 import { eventDateLabel, sortEvents } from '../../rules/events.js';
 import { esc, skeleton, fmtDay, fmtTime } from '../../ui.js';
@@ -42,7 +42,70 @@ const ACTIONS = [
   ['closeThreads', '🔒 Close all open threads', 'Locks every match thread that’s still open. They stay readable.'],
   ['restart', '♻️ Restart the bot', 'Back in about 15 seconds. Ready checks and drafts in progress are cancelled (players stay signed up).'],
 ];
-const ACTION_NAMES = { ...Object.fromEntries(ACTIONS.map(([k, label]) => [k, label])), clearEventThreads: '🧹 Clear an event’s threads' };
+const ACTION_NAMES = {
+  ...Object.fromEntries(ACTIONS.map(([k, label]) => [k, label])),
+  clearEventThreads: '🧹 Clear an event’s threads',
+  pickupStart: '🏐 Start a pickup game',
+  pickupCancelMatch: '✋ Cancel a ready check / draft',
+  pickupResult: '🏆 Pickup result',
+  pickupRemove: '🚪 Take someone off the queue',
+};
+const mode = (n) => `${n}v${n}`;
+const teamLabel = (g, side) => {
+  const t = g.teams?.[side];
+  const cap = t?.players?.find((p) => p.id === t.captain)?.name ?? t?.players?.[0]?.name ?? '?';
+  return `Team ${side === 'a' ? 1 : 2} · ${cap}`;
+};
+
+// The pickup section: queue, ready checks and drafts, games on, recent games (change results).
+function pickupSection(live, games, online) {
+  const fresh = live?.updatedAt && Date.now() - live.updatedAt < 12 * 60 * 1000;
+  const modes = live?.modes ?? [2, 3, 4, 5, 6];
+  const queue = live?.queue ?? [];
+  const matches = live?.matches ?? [];
+  const on = (live?.games ?? []);
+  const off = !online ? ' disabled title="The bot is offline"' : '';
+  const queueRows = queue.map((p, i) => `
+    <div class="row"><span class="row-main"><b>${i + 1}. ${esc(p.name)}</b><span class="muted small">${p.from === 'site' ? 'signed up on the site' : 'signed up on Discord'}</span></span>
+      <span class="row-side"><button class="btn btn-sm" type="button" data-pk="pickupRemove" data-player="${esc(p.id)}"${off}>Take off</button></span></div>`).join('');
+  const matchRows = matches.map((m) => `
+    <div class="row"><span class="row-main"><b>${mode(m.size)} ${m.phase === 'draft' ? 'draft' : 'ready check'}</b>
+      <span class="muted small">${m.phase === 'draft'
+        ? `${esc((m.teams?.a ?? []).join(', '))} <b>vs</b> ${esc((m.teams?.b ?? []).join(', '))}`
+        : `${m.players.filter((p) => p.ready).length}/${m.players.length} in the channel: ${m.players.map((p) => `${p.ready ? '✅' : '⏳'} ${esc(p.name)}`).join(', ')}`}</span></span>
+      <span class="row-side">${m.id ? `<button class="btn btn-sm btn-danger" type="button" data-pk="pickupCancelMatch" data-match="${esc(m.id)}"${off}>Cancel</button>` : ''}</span></div>`).join('');
+  const resultButtons = (number, current) => ['a', 'b', 'cancel'].map((w) => {
+    const label = w === 'cancel' ? 'Cancel game' : `Team ${w === 'a' ? 1 : 2} won`;
+    return `<button class="btn btn-sm${w === 'cancel' ? ' btn-danger' : ''}" type="button" data-pk="pickupResult" data-game="${number}" data-winner="${w}"${current === w ? ' disabled aria-current="true"' : off}>${label}</button>`;
+  }).join(' ');
+  const gameRows = on.map((g) => `
+    <div class="row"><span class="row-main"><b>Game #${g.number} · ${mode(g.size)}</b><span class="muted small">${esc(g.a.join(', '))} <b>vs</b> ${esc(g.b.join(', '))}${g.status === 'disputed' ? ' · ⚠️ captains disagree' : ''}</span></span>
+      <span class="row-side">${resultButtons(g.number, null)}</span></div>`).join('');
+  const recent = games.filter((g) => g.status === 'done' || g.status === 'cancelled').slice(0, 10).map((g) => {
+    const result = g.status === 'cancelled' ? 'cancelled' : `🏆 ${esc(teamLabel(g, g.winner))} won`;
+    return `
+    <div class="row"><span class="row-main"><b>Game #${g.number} · ${mode(g.size)} · ${result}</b>
+      <span class="muted small">${esc((g.teams?.a?.players ?? []).map((p) => p.name).join(', '))} <b>vs</b> ${esc((g.teams?.b?.players ?? []).map((p) => p.name).join(', '))}${g.decidedBy?.by === 'admin' ? ` · set by ${esc(g.decidedBy.name ?? 'an admin')}` : ''}</span></span>
+      <span class="row-side"><details class="pk-fix"><summary class="link-btn">Change result</summary>${resultButtons(g.number, g.status === 'cancelled' ? 'cancel' : g.winner)}</details></span></div>`;
+  }).join('');
+  const empty = (t) => `<p class="muted" style="padding:12px 16px;margin:0">${t}</p>`;
+  return `
+    <section><div class="section-head"><h2>🏐 Pickup</h2><span class="muted small">${fresh ? 'live' : 'the bot hasn’t updated this for a while'}</span></div>
+      <div class="stack">
+        <div class="panel bot-action">
+          <label class="field" style="margin:0"><span class="sr-only">Mode</span><select data-pk-mode><option value="">Mode: votes / random</option>${modes.map((n) => `<option value="${n}">${mode(n)}</option>`).join('')}</select></label>
+          <button class="btn" type="button" data-pk="pickupStart"${off}>▶ Start a game now</button>
+          <span class="muted small">With whoever’s waited longest. Needs enough signed up for the mode.</span>
+        </div>
+        <div><h3 class="pk-sub">Getting ready</h3><div class="panel flush rows">${matchRows || empty('No ready checks or drafts right now.')}</div></div>
+        <div><h3 class="pk-sub">Games on</h3><div class="panel flush rows">${gameRows || empty('No games being played.')}</div>
+          <p class="muted small" style="margin-top:6px">Setting the winner updates Elo straight away, like both captains agreeing. Cancel = no Elo change.</p></div>
+        <div><h3 class="pk-sub">Queue · ${queue.length}</h3><div class="panel flush rows">${queueRows || empty('Nobody signed up.')}</div></div>
+        <div><h3 class="pk-sub">Recent games</h3><div class="panel flush rows">${recent || empty('No finished games yet.')}</div>
+          <p class="muted small" style="margin-top:6px">Change a result if the captains got it wrong: the old Elo change is undone and the new one applied.</p></div>
+      </div>
+    </section>`;
+}
 
 let page = null;
 let unwatch = null;
@@ -58,8 +121,10 @@ const ago = (ms) => {
 export async function render() {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
-  const [status, settings, commands, events] = await Promise.all([loadBotStatus(), loadBotSettings(), loadBotCommands(), loadAllEvents()]);
-  page = { user: gate.user, status, settings, commands, events };
+  const [status, settings, commands, events, live, games] = await Promise.all([
+    loadBotStatus(), loadBotSettings(), loadBotCommands(), loadAllEvents(), loadPickupLive(), loadPickupGames(25).catch(() => []),
+  ]);
+  page = { user: gate.user, adminName: gate.admin?.name ?? null, status, settings, commands, events };
 
   const online = status?.at && Date.now() - status.at < 12 * 60 * 1000;
   const restarting = status?.restarting && Date.now() - status.at < 2 * 60 * 1000;
@@ -123,9 +188,14 @@ export async function render() {
 
   const recent = [...commands].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)).slice(0, 10);
   const eventName = (id) => events.find((e) => e.id === id)?.title ?? id;
+  const pkDetail = (c) => [
+    c.gameNumber ? `game #${c.gameNumber}` : '',
+    c.winner ? (c.winner === 'cancel' ? 'cancelled' : `Team ${c.winner === 'a' ? 1 : 2} won`) : '',
+    c.mode ? mode(c.mode) : '',
+  ].filter(Boolean).join(' · ');
   const log = recent.map((c) => `
     <div class="row">
-      <span class="row-main"><b>${esc(ACTION_NAMES[c.action] ?? c.action)}${c.eventId ? `: ${esc(eventName(c.eventId))}` : ''}</b>
+      <span class="row-main"><b>${esc(ACTION_NAMES[c.action] ?? c.action)}${c.eventId ? `: ${esc(eventName(c.eventId))}` : ''}${pkDetail(c) ? `: ${esc(pkDetail(c))}` : ''}</b>
         <span class="muted small">${esc(c.createdAt ? ago(c.createdAt) : '')}${c.result ? ` · ${esc(c.result)}` : ''}</span></span>
       <span class="row-side"><span class="tag ${c.status === 'done' ? 'tag-live' : c.status === 'failed' ? 'tag-cancelled' : 'tag-draft'}">${c.status === 'pending' ? 'waiting for the bot' : esc(c.status)}</span></span>
     </div>`).join('');
@@ -138,6 +208,7 @@ export async function render() {
         <div class="page-head"><div><h1>🤖 Bot control panel</h1><p class="muted">Run the I&lt;3JVO Discord bot from here: what’s on, how long things take, and quick fixes.</p></div></div>
         <div class="stack">
           ${statusHtml}
+          ${pickupSection(live, games, online)}
           <section><div class="section-head"><h2>🧵 Match threads by event</h2><span class="muted small">Players report scores in these with a form</span></div>
             <div class="panel flush rows">${eventRows || '<p class="muted" style="padding:16px">No events yet.</p>'}</div>
             <p class="muted small" style="margin-top:6px">“Threads on” lets the bot open a thread for each match once it starts. “Clear threads” deletes that event’s threads from Discord (scores and stats on the site stay), so the channel is clean for the next event.</p></section>
@@ -156,17 +227,23 @@ export async function render() {
 // Redraw when the bot reports back (status or a command result), while this page is open.
 function watch() {
   unwatch?.();
-  let first = 2;
+  let first = 3;
   let timer = null;
   const changed = () => {
     if (location.pathname !== '/admin/bot') { unwatch?.(); unwatch = null; return; }
     if (first > 0) { first--; return; } // the first snapshot of each is what's already drawn
     clearTimeout(timer);
-    timer = setTimeout(() => refreshQuietly(), 400);
+    timer = setTimeout(() => {
+      // Not while someone's typing in a form or has a "Change result" open.
+      const busy = document.activeElement?.closest?.('form[data-form]') || document.querySelector('.pk-fix[open]');
+      if (busy) { timer = setTimeout(changed, 3000); return; }
+      refreshQuietly();
+    }, 400);
   };
   const a = onSnapshot(doc(db, 'botControl', 'status'), changed, () => {});
   const b = onSnapshot(collection(db, 'botCommands'), changed, () => {});
-  unwatch = () => { a(); b(); clearTimeout(timer); };
+  const c = onSnapshot(doc(db, 'pickupMeta', 'live'), changed, () => {});
+  unwatch = () => { a(); b(); c(); clearTimeout(timer); };
 }
 
 export function mount(el) {
@@ -222,6 +299,37 @@ export function mount(el) {
     } catch (err) {
       box.disabled = false;
       box.checked = !box.checked;
+      fail(null, err);
+    }
+  });
+
+  // Pickup buttons: each one is a command for the bot.
+  root.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-pk]');
+    if (!b) return;
+    const action = b.dataset.pk;
+    const extra = {};
+    if (action === 'pickupStart') {
+      const m = root.querySelector('[data-pk-mode]')?.value;
+      extra.mode = m ? Number(m) : null;
+    }
+    if (action === 'pickupCancelMatch') {
+      if (!window.confirm('Cancel this ready check / draft? Everyone goes back to the queue in their old places.')) return;
+      extra.matchId = b.dataset.match;
+    }
+    if (action === 'pickupRemove') extra.playerId = b.dataset.player;
+    if (action === 'pickupResult') {
+      extra.gameNumber = Number(b.dataset.game);
+      extra.winner = b.dataset.winner;
+      const what = extra.winner === 'cancel' ? 'cancel it (no Elo change)' : `say Team ${extra.winner === 'a' ? 1 : 2} won (Elo updates)`;
+      if (!window.confirm(`Game #${extra.gameNumber}: ${what}?`)) return;
+    }
+    b.disabled = true;
+    try {
+      await sendBotCommand({ uid, action, ...extra, adminName: page.adminName });
+      refresh();
+    } catch (err) {
+      b.disabled = false;
       fail(null, err);
     }
   });

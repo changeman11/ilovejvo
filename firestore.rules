@@ -774,8 +774,12 @@ service cloud.firestore {
     match /botCommands/{commandId} {
       allow read: if true;
       allow create: if isAdmin() && stampedByMe()
-        && request.resource.data.keys().hasOnly(['action', 'eventId', 'status', 'createdAt', 'updatedBy', 'updatedAt'])
-        && request.resource.data.action in ['syncRoles', 'repostCards', 'checkThreads', 'closeThreads', 'clearEventThreads', 'restart']
+        && request.resource.data.keys().hasOnly(['action', 'eventId', 'matchId', 'gameNumber', 'winner', 'mode', 'playerId', 'adminName', 'status', 'createdAt', 'updatedBy', 'updatedAt'])
+        && request.resource.data.action in ['syncRoles', 'repostCards', 'checkThreads', 'closeThreads', 'clearEventThreads', 'restart',
+                                            'pickupStart', 'pickupCancelMatch', 'pickupResult', 'pickupRemove']
+        && (!('winner' in request.resource.data) || request.resource.data.winner in ['a', 'b', 'cancel'])
+        && (!('gameNumber' in request.resource.data) || request.resource.data.gameNumber is int)
+        && (!('mode' in request.resource.data) || request.resource.data.mode == null || request.resource.data.mode is int)
         && request.resource.data.status == 'pending'
         && request.resource.data.createdAt == request.time
         && (!('eventId' in request.resource.data) || (request.resource.data.eventId is string && request.resource.data.eventId.size() <= 120));

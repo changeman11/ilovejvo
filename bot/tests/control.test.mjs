@@ -73,3 +73,20 @@ test('panel commands run once and save their result; stale or unknown ones fail'
   assert.equal(status.features.ranked, true);
   assert.deepEqual(featuresOf(env).welcome, true);
 });
+
+test('panel pickup commands go to the pickup admin commands', async () => {
+  const seen = [];
+  const pickup = { readyList: () => [], games: new Map(), run: (fn) => fn(), async adminCommand(sub, options, user) { seen.push([sub, options, user.name]); return { content: `ok ${sub}` }; } };
+  const x = control({ modules: { pickup } });
+  await x.c.queue('p1', { action: 'pickupResult', gameNumber: 7, winner: 'b', adminName: 'Jum', createdAt: 1_000_000 });
+  await x.c.queue('p2', { action: 'pickupCancelMatch', matchId: 'abc', createdAt: 1_000_000 });
+  await x.c.queue('p3', { action: 'pickupStart', mode: 3, createdAt: 1_000_000 });
+  await x.c.queue('p4', { action: 'pickupRemove', playerId: '123', createdAt: 1_000_000 });
+  assert.deepEqual(seen, [
+    ['result', { game: 7, winner: 'b' }, 'Jum'],
+    ['cancelmatch', { match: 'abc' }, 'an admin on the site'],
+    ['start', { mode: 3 }, 'an admin on the site'],
+    ['remove', { player: '123' }, 'an admin on the site'],
+  ]);
+  assert.equal(x.writes.filter((w) => w.path === 'botCommands/p1').pop().data.result, 'ok result');
+});

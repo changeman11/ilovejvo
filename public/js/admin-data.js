@@ -83,8 +83,10 @@ export async function saveBotSettings({ uid, existing, features, timings }) {
   await commit(uid, [{ type: 'set', path: 'botControl/settings', before: existing, data: { features, timings } }]);
 }
 // An action for the bot to run (it writes the result back on the same doc).
-export async function sendBotCommand({ uid, action, eventId = null }) {
-  await commit(uid, [{ type: 'set', path: `botCommands/${newId('botCommands')}`, data: { action, status: 'pending', createdAt: serverTimestamp(), ...(eventId ? { eventId } : {}) } }]);
+// extra: eventId, matchId, gameNumber, winner, mode, playerId, adminName (only the ones given).
+export async function sendBotCommand({ uid, action, ...extra }) {
+  const fields = Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== null && v !== undefined && v !== ''));
+  await commit(uid, [{ type: 'set', path: `botCommands/${newId('botCommands')}`, data: { action, status: 'pending', createdAt: serverTimestamp(), ...fields } }]);
 }
 export async function clearBotCommands({ uid, commands }) {
   await commit(uid, commands.map((c) => ({ type: 'delete', path: `botCommands/${c.id}`, before: c })));

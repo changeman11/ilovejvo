@@ -695,3 +695,23 @@ test('two ready checks of the same mode get numbered channels', async () => {
   const chats = [...env.io.channels.values()].filter((c) => c.text).map((c) => c.name).sort();
   assert.deepEqual(chats, ['ready-up-2v2', 'ready-up-2v2-2']);
 });
+
+test('admin panel: cancel a ready check (everyone back in the queue), remove someone from the queue', async () => {
+  const env = setup({ seed: 11 });
+  const admin = { id: 'site', name: 'Admin', isAdmin: true };
+  await joinAll(env, 5);
+  for (const id of ['u1', 'u2']) await env.pickup.select('mode', '2', { id, name: id });
+  await env.clock.advance(30_000, env.pickup);
+  const match = matchIn(env, 'check');
+  assert.equal(env.pickup.liveState().matches[0].id, match.id, 'the site sees the match id');
+  const busyOne = match.players[0].id;
+  assert.match((await env.pickup.run(() => env.pickup.adminCommand('remove', { player: busyOne }, admin))).content, /cancel that first/);
+  const r = await env.pickup.run(() => env.pickup.adminCommand('cancelmatch', { match: match.id }, admin));
+  assert.match(r.content, /Cancelled the 2v2 ready check/);
+  assert.equal(env.pickup.matches.size, 0);
+  assert.equal(env.pickup.readyList().length >= 4, true, 'everyone back in the queue');
+  assert.match((await env.pickup.run(() => env.pickup.adminCommand('cancelmatch', { match: match.id }, admin))).content, /already over/);
+  const r2 = await env.pickup.run(() => env.pickup.adminCommand('remove', { player: 'u5' }, admin));
+  assert.match(r2.content, /Took Player 5 off/);
+  assert.equal(env.pickup.queue.has('u5'), false);
+});

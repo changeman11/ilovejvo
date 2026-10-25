@@ -92,6 +92,7 @@ export class Pickup {
       queue: this.readyList().map((p) => ({ id: p.id, name: p.name, from: p.from ?? 'discord', joinedAt: p.joinedAt })),
       countdownEndsAt: this.countdown?.endsAt ?? null,
       matches: [...this.matches.values()].map((m) => ({
+        id: m.id,
         size: m.size,
         phase: m.phase,
         deadline: m.deadline,
@@ -1036,6 +1037,24 @@ export class Pickup {
       const next = await this.decide(game, outcome, { by: 'admin', userId: user.id, name: user.name });
       const text = outcome === 'cancel' ? 'cancelled, no Elo change' : `${views.teamName(next, outcome)} won, Elo updated`;
       return { content: `Game #${next.number}: ${text}.` };
+    }
+    // From the site's Bot panel (control.js): stop a ready check or draft (everyone goes back to the
+    // queue in their old places), or take someone off the sign-up list.
+    if (sub === 'cancelmatch') {
+      const match = this.matches.get(String(options.match ?? ''));
+      if (!match) return { content: 'That ready check or draft is already over.' };
+      await this.cancelMatch(match, `an admin (${views.esc(user.name)}) cancelled it`);
+      await this.queueChanged();
+      return { content: `Cancelled the ${modeLabel(match.size)} ${match.phase === 'draft' ? 'draft' : 'ready check'}; everyone is back in the queue.` };
+    }
+    if (sub === 'remove') {
+      const id = String(options.player ?? '');
+      const p = this.queue.get(id);
+      if (!p) return { content: 'They’re not signed up.' };
+      if (this.busy.has(id)) return { content: `${p.name} is in a ready check or draft: cancel that first.` };
+      this.unqueue(id);
+      await this.queueChanged();
+      return { content: `Took ${p.name} off the queue.` };
     }
     if (sub === 'testfill') {
       if (!this.config.allowTestPlayers) return { content: 'Test players are off (set ALLOW_TEST_PLAYERS=1 in .env to use them).' };

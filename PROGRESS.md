@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · Bot panel: Pickup section · site (v74) + rules DEPLOYED, bot UPLOADED
+- /admin/bot → 🏐 Pickup (live from `pickupMeta/live`): start a game now (mode or votes/random), getting ready (ready checks + drafts, Cancel = everyone back in the queue), games on (Team 1 won / Team 2 won / Cancel game), queue (Take off), recent games (Change result; old Elo undone). Each is a `botCommands` action (pickupStart / pickupCancelMatch / pickupResult / pickupRemove) run through the same code as `/pickup` admin commands (new subs `cancelmatch`, `remove`); results are logged with the admin's name. Buttons are off while the bot is offline. `liveState().matches` now has `id`.
+
 ### 2026-10-25 · Claude (owner's PC) · pickup: ready checks that run at the same time · bot UPLOADED
 - Live log 12:47–12:48: a 4v4 check and a 2v2 check overlapped; the 2v2 drafted, the 4v4 was cancelled with all 8 marked "didn't join". Couldn't prove from logs whether joins were missed; the fake-Discord test of two overlapping checks passes.
 - Fix: the bot no longer relies only on Discord's join events. Every 5 s during a check, on each join, and before dropping anyone at time-up, it looks at who is really in the ready-up channel (`io.membersIn`, `syncLobby`, `armSweep`). Each join is logged ("4v4 ready check: X joined (5/8)") so a next failure shows what happened. Two checks of the same mode get numbered channels ("ready up · 2v2 #2", "#ready-up-2v2-2").
