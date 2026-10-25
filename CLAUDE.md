@@ -123,6 +123,7 @@
       - No-shows are dropped from the sign-up list and replaced from the queue. A new locked channel is made for the new line-up, because editing who can join would need Manage Roles.
       - If there aren't enough replacements, it's cancelled and the confirmed players stay signed up in their old order.
       - Leftover `🏐 ready up · ` channels are cleared when the bot starts.
+    - **Everyone gets games (2026-10-26):** random modes and vote ties prefer modes leaving the fewest players without a game (`leastStranded`, logic/modes.js). A ready check short of players with no replacements plays a smaller mode with those who came (`shrinkMatch`) instead of cancelling.
     - Two random captains; a coin flip decides the first pick, then alternating picks (A B A B) with buttons, 60 s each or the pick is random. Leaving the ready-up channel mid-draft cancels it.
     - The bot makes two locked team voice channels (that team plus admins), moves the players, and deletes the ready-up channel.
     - Both captains press the winner; if they disagree, admins decide (`/pickup result` can also correct a result later).

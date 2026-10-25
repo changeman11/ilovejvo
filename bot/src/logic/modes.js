@@ -25,9 +25,29 @@ export function fittingModes(readyCount, modes = ALL_MODES) {
   return modes.filter((size) => size * 2 <= readyCount);
 }
 
-// A random mode that fits, or null when there aren't enough players for any mode.
+// How many of `count` players would be left without a game if games keep popping from them
+// (the best case). 7 with 2v2..6v6 -> 1 (a 3v3); 9 -> 1; 10 -> 0.
+export function stranded(count, modes = ALL_MODES, memo = new Map()) {
+  if (memo.has(count)) return memo.get(count);
+  const fits = fittingModes(count, modes);
+  const best = fits.length ? Math.min(...fits.map((sz) => stranded(count - sz * 2, modes, memo))) : count;
+  memo.set(count, best);
+  return best;
+}
+
+// Of these modes, the ones that leave the fewest players without a game (added 2026-10-26, so
+// people in the queue actually get games: 7 queued plays a 3v3, not a 2v2 that strands 3).
+export function leastStranded(sizes, readyCount, modes = ALL_MODES) {
+  if (!sizes.length) return [];
+  const left = sizes.map((sz) => stranded(readyCount - sz * 2, modes));
+  const best = Math.min(...left);
+  return sizes.filter((_, i) => left[i] === best);
+}
+
+// A random mode that fits (of those leaving the fewest players out), or null when there aren't
+// enough players for any mode.
 export function chooseMode(readyCount, modes = ALL_MODES, rng = Math.random) {
-  return pickOne(fittingModes(readyCount, modes), rng) ?? null;
+  return pickOne(leastStranded(fittingModes(readyCount, modes), readyCount, modes), rng) ?? null;
 }
 
 // Votes: { size: count } from players who are signed up. Only modes that fit count.
@@ -41,7 +61,7 @@ export function tallyVotes(sizes, readyCount, modes = ALL_MODES) {
 // The next game's mode:
 // - an admin-set mode wins (null if there aren't enough players for it yet);
 // - otherwise the most-voted mode that fits, if it has at least `needed` votes (ties: random);
-// - otherwise a random mode that fits.
+// - otherwise a random mode that fits, preferring modes that leave nobody (or the fewest) out.
 //   -> { size, by: 'admin' | 'votes' | 'random', votes } or null
 export function pickMode({ readyCount, modes = ALL_MODES, votes = [], needed = 2, fixed = null, rng = Math.random }) {
   if (fixed) return readyCount >= fixed * 2 ? { size: fixed, by: 'admin', votes: 0 } : null;
@@ -49,7 +69,7 @@ export function pickMode({ readyCount, modes = ALL_MODES, votes = [], needed = 2
   const top = Math.max(0, ...Object.values(tally));
   if (top >= needed) {
     const tied = Object.keys(tally).filter((s) => tally[s] === top).map(Number);
-    return { size: pickOne(tied, rng), by: 'votes', votes: top };
+    return { size: pickOne(leastStranded(tied, readyCount, modes), rng), by: 'votes', votes: top };
   }
   const size = chooseMode(readyCount, modes, rng);
   return size ? { size, by: 'random', votes: 0 } : null;
@@ -70,12 +90,15 @@ export function projectedMode({ readyCount, modes = ALL_MODES, tally = {}, neede
   if (fixed) return { size: fixed, by: 'admin', fits, tied: [], target: fixed * 2, waitingFor: null };
   const fittingVotes = Object.entries(tally).filter(([s, n]) => fits.includes(Number(s)) && n >= needed);
   const top = Math.max(0, ...fittingVotes.map(([, n]) => n));
-  const tied = fittingVotes.filter(([, n]) => n === top).map(([s]) => Number(s)).sort((a, b) => a - b);
+  // Tied modes: the bot breaks ties towards the ones leaving the fewest out, so only those are tied.
+  const tiedAll = fittingVotes.filter(([, n]) => n === top).map(([s]) => Number(s)).sort((a, b) => a - b);
+  const tied = tiedAll.length > 1 ? leastStranded(tiedAll, readyCount, modes) : tiedAll;
   // The most-voted mode overall, if it has the votes but needs more players.
   const allTop = Object.entries(tally).filter(([, n]) => n >= needed).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
   const waitingFor = allTop && !fits.includes(Number(allTop[0])) && allTop[1] > top ? Number(allTop[0]) : null;
   const target = waitingFor ? waitingFor * 2 : fits.length ? (nextUp ? nextUp * 2 : null) : min * 2;
   if (tied.length === 1) return { size: tied[0], by: 'votes', fits, tied, target: waitingFor ? waitingFor * 2 : tied[0] * 2, waitingFor };
   if (tied.length > 1) return { size: null, by: 'tie', fits, tied, target, waitingFor };
-  return { size: null, by: 'random', fits, tied: [], target, waitingFor };
+  // Random: only the modes that would really be picked (the ones leaving the fewest out).
+  return { size: null, by: 'random', fits: leastStranded(fits, readyCount, modes), tied: [], target, waitingFor };
 }

@@ -588,6 +588,9 @@ export class Pickup {
     const missing = match.players.filter((p) => !match.confirmed.has(p.id));
     for (const p of missing) await this.dropPlayer(match, p);
     const replacements = this.readyList().slice(0, missing.length);
+    // Not enough to replace the no-shows, but enough of the players who did come for a smaller
+    // mode: play that instead of sending everyone home (added 2026-10-26).
+    if (replacements.length < missing.length && await this.shrinkMatch(match, missing)) return;
     if (replacements.length < missing.length) {
       await this.cancelMatch(match, `${missing.map((p) => views.esc(p.name)).join(', ')} didn't join in time, and there aren't enough players in the queue to replace them`);
       await this.queueChanged();
@@ -615,6 +618,37 @@ export class Pickup {
     await this.safeEdit(match.messageId, views.checkView(match, this.config, { ping: this.realIds(match.players) }), match.chatId);
     if (this.allConfirmed(match)) await this.beginDraft(match);
     await this.queueChanged();
+  }
+
+  // The ready check can't be filled: if the players who came are enough for a smaller mode, the
+  // longest-waiting of them play that (the channels are renamed) and the rest go back to the front
+  // of the queue. No-shows are dropped as usual. Returns true if it did.
+  async shrinkMatch(match, missing) {
+    const came = match.players.filter((p) => match.confirmed.has(p.id));
+    const modes = this.fixedMode && !this.fixedMode.once ? [this.fixedMode.size] : this.config.modes;
+    const size = Math.max(0, ...modes.filter((sz) => sz < match.size && sz * 2 <= came.length));
+    if (!size) return false;
+    const from = match.size;
+    const keep = [...came].sort((x, y) => x.joinedAt - y.joinedAt).slice(0, size * 2);
+    const spare = came.filter((p) => !keep.includes(p));
+    for (const p of missing) await this.dropPlayer(match, p);
+    for (const p of spare) {
+      this.busy.delete(p.id);
+      this.queue.set(p.id, { ...p });
+      if (!p.fake) this.live?.joined({ ...p, from: p.from ?? 'discord' });
+    }
+    match.players = keep;
+    match.size = size;
+    match.note = `${missing.map((p) => views.esc(p.name)).join(', ')} didn't join, so it's a ${modeLabel(size)} instead of a ${modeLabel(from)}.`;
+    this.log.info?.(`[pickup] ${modeLabel(from)} ready check short of players: playing ${modeLabel(size)} with ${keep.map((p) => p.name).join(', ')}`);
+    await this.io.renameChannel(match.lobbyId, views.lobbyChannelName(match)).catch(() => {});
+    if (match.chatId) {
+      await this.io.renameChannel(match.chatId, views.chatChannelName(match)).catch(() => {});
+      await this.io.post({ content: `⚠️ ${match.note}${spare.length ? ` ${spare.map((p) => views.esc(p.name)).join(', ')} went back to the front of the queue.` : ''}`, allowedMentions: { parse: [] } }, match.chatId).catch(() => {});
+    }
+    await this.beginDraft(match);
+    await this.queueChanged();
+    return true;
   }
 
   // A no-show loses their place: out of the game and off the sign-up list.

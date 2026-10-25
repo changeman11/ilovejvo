@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · pickup: queued players get games · bot UPLOADED
+- Mode choice leaves the fewest players without a game (`stranded`/`leastStranded` in logic/modes.js, tested): random modes and vote ties only pick modes that let everyone else still make a game (7 queued -> 3v3, not 2v2 leaving 3; 9 -> 2v2 or 4v4; 10 -> 2v2/3v3/5v5). A clear vote winner is still played. The queue card / site "random from" shows only those modes.
+- A ready check that can't be filled (no-shows, nobody to replace them) now plays the biggest smaller mode with the players who came (longest-waiting first; channels renamed; extras back to the front of the queue) instead of cancelling (`shrinkMatch`). No-shows are still dropped from the queue. Only cancels when fewer came than the smallest mode.
+- Why: on 2026-10-25 a 4v4 check was cancelled and all 8 were dropped from the queue (joins possibly missed; fixed earlier that day by looking in the channel).
+
 ### 2026-10-25 · Claude (owner's PC) · Bot panel: Pickup section · site (v74) + rules DEPLOYED, bot UPLOADED
 - /admin/bot → 🏐 Pickup (live from `pickupMeta/live`): start a game now (mode or votes/random), getting ready (ready checks + drafts, Cancel = everyone back in the queue), games on (Team 1 won / Team 2 won / Cancel game), queue (Take off), recent games (Change result; old Elo undone). Each is a `botCommands` action (pickupStart / pickupCancelMatch / pickupResult / pickupRemove) run through the same code as `/pickup` admin commands (new subs `cancelmatch`, `remove`); results are logged with the admin's name. Buttons are off while the bot is offline. `liveState().matches` now has `id`.
 

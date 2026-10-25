@@ -32,16 +32,20 @@ test('modes that fit the number ready', () => {
   assert.equal(modeLabel(4), '4v4');
 });
 
-test('chooseMode only picks modes that fit, and over many games picks each of them', () => {
+test('chooseMode only picks modes that fit, never one that strands extra players, and varies between the rest', () => {
   assert.equal(chooseMode(3), null);
   const rng = seeded(3);
   const seen = new Set();
   for (let i = 0; i < 500; i++) {
     const m = chooseMode(9, [2, 3, 4, 5, 6], rng);
-    assert.ok([2, 3, 4].includes(m), `9 ready can't play ${m}v${m}`);
+    assert.ok([2, 4].includes(m), `9 ready: ${m}v${m} would leave 3 without a game`);
     seen.add(m);
   }
-  assert.deepEqual([...seen].sort(), [2, 3, 4]);
+  assert.deepEqual([...seen].sort(), [2, 4]);
+  // 7 ready: only 3v3 (leaves 1); 2v2 would leave 3. 10 ready: every mode works out (0 left).
+  for (let i = 0; i < 50; i++) assert.equal(chooseMode(7, [2, 3, 4, 5, 6], rng), 3);
+  const ten = new Set(Array.from({ length: 200 }, () => chooseMode(10, [2, 3, 4, 5, 6], rng)));
+  assert.deepEqual([...ten].sort(), [2, 3, 5], '4v4 would leave 2');
 });
 
 test('parseModes reads a list and rejects nonsense', () => {
@@ -236,7 +240,10 @@ test('projected next mode for the queue card', () => {
   assert.equal(w.waitingFor, 4);
   assert.equal(w.target, 8);
   // A tie.
-  assert.deepEqual(projectedMode({ readyCount: 8, tally: { 2: 2, 3: 2 } }).tied, [2, 3]);
+  // 2v2 and 3v3 tied on 8: 3v3 would leave 2 out, so it's 2v2 (two 2v2s use everyone).
+  assert.deepEqual(projectedMode({ readyCount: 8, tally: { 2: 2, 3: 2 } }).size, 2);
+  // 2v2 and 4v4 tied on 8: both use everyone, so it's a real tie.
+  assert.deepEqual(projectedMode({ readyCount: 8, tally: { 2: 2, 4: 2 } }).tied, [2, 4]);
   // Admin mode.
   assert.deepEqual(projectedMode({ readyCount: 3, fixed: 5, tally: { 2: 9 } }), { size: 5, by: 'admin', fits: [], tied: [], target: 10, waitingFor: null });
   // Everything fits: no further milestone.

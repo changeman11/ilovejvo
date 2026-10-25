@@ -205,7 +205,7 @@ test('full flow: sign up -> countdown -> locked ready check -> 2v2 draft -> lock
   assert.equal((await env.store.getGame('g1')).open, false);
 });
 
-test('only modes that fit: 9 queued plays 2v2, 3v3 or 4v4, and the first to join get in', async () => {
+test('only modes that fit: 9 queued plays 2v2 or 4v4 (3v3 would strand 3), and the first to join get in', async () => {
   const seen = new Set();
   for (let seed = 1; seed <= 40; seed++) {
     const env = setup({ seed });
@@ -214,12 +214,12 @@ test('only modes that fit: 9 queued plays 2v2, 3v3 or 4v4, and the first to join
     await env.clock.advance(30_000, env.pickup);
     const match = matchIn(env, 'check');
     seen.add(match.size);
-    assert.ok([2, 3, 4].includes(match.size));
+    assert.ok([2, 4].includes(match.size));
     const expected = Array.from({ length: match.size * 2 }, (_, i) => `u${i + 1}`).sort();
     assert.deepEqual(match.players.map((p) => p.id).sort(), expected, 'longest-waiting players are picked');
     assert.equal(env.pickup.readyList().length, 9 - match.size * 2);
   }
-  assert.deepEqual([...seen].sort(), [2, 3, 4]);
+  assert.deepEqual([...seen].sort(), [2, 4]);
 });
 
 test('12 queued starts a ready check at once (no countdown needed)', async () => {
@@ -714,4 +714,36 @@ test('admin panel: cancel a ready check (everyone back in the queue), remove som
   const r2 = await env.pickup.run(() => env.pickup.adminCommand('remove', { player: 'u5' }, admin));
   assert.match(r2.content, /Took Player 5 off/);
   assert.equal(env.pickup.queue.has('u5'), false);
+});
+
+test('a ready check short of players with nobody to replace them plays a smaller mode instead of cancelling', async () => {
+  const env = setup({ seed: 12 });
+  await joinAll(env, 8);
+  for (const id of ['u1', 'u2']) await env.pickup.select('mode', '4', { id, name: id });
+  await env.clock.advance(30_000, env.pickup);
+  const match = matchIn(env, 'check');
+  assert.equal(match.size, 4);
+  // 5 of 8 turn up; nobody else is signed up.
+  const came = match.players.slice(0, 5).map((p) => p.id);
+  for (const id of came) { env.io.voice.set(id, match.lobbyId); await env.pickup.joined(match.lobbyId, id); }
+  await env.pickup.idle();
+  await env.clock.advance(60_000, env.pickup);
+  const now = env.pickup.matches.get(match.id);
+  assert.equal(now?.phase, 'draft', 'a draft, not a cancel');
+  assert.equal(now.size, 2);
+  assert.deepEqual(now.players.map((p) => p.id).sort(), came.slice(0, 4).sort(), 'the longest-waiting 4 who came');
+  assert.ok(env.pickup.queue.has(came[4]) && !env.pickup.busy.has(came[4]), 'the 5th goes back to the queue');
+  for (const p of match.players.filter((x) => !came.includes(x.id))) assert.ok(!env.pickup.queue.has(p.id), 'no-shows are dropped');
+  assert.deepEqual([...env.io.channels.values()].filter((c) => !c.text).map((c) => c.name), ['🏐 ready up · 2v2'], 'channel renamed');
+  assert.ok([...env.io.messages.values()].some((m) => /instead of a 4v4/.test(m.content ?? '')));
+
+  // Only 3 of 4 come to a 2v2 (smallest mode): nothing smaller, so it's cancelled as before.
+  const env2 = setup({ seed: 13 });
+  await joinAll(env2, 4);
+  await env2.clock.advance(30_000, env2.pickup);
+  const m2 = matchIn(env2, 'check');
+  for (const p of m2.players.slice(0, 3)) { env2.io.voice.set(p.id, m2.lobbyId); await env2.pickup.joined(m2.lobbyId, p.id); }
+  await env2.clock.advance(60_000, env2.pickup);
+  assert.equal(env2.pickup.matches.size, 0, 'cancelled');
+  assert.equal(env2.pickup.readyList().length, 3, 'the 3 who came keep their places');
 });
