@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · #pickup-chat · bot UPLOADED
+- The bot made **#pickup-chat** just under #pickup (same category, same permissions as the category) where players can talk; #pickup stays bot-only. The queue card says "💬 Chat with other players in #pickup-chat". `PICKUP_CHAT_CHANNEL_ID` picks another channel, `PICKUP_CHAT=0` turns it off. Discord only (the owner chose no site chat).
+
 ### 2026-10-25 · Claude (owner's PC) · Bot control panel (/admin/bot) + match threads per event · site (v73) + rules DEPLOYED, bot UPLOADED
 - **/admin/bot** (admin bar 🤖 Bot): status (online / last heard / counts / what's running), 🧵 match threads by event (Threads on switch = `event.matchThreads`, missing = on; 🧹 Clear threads deletes that event's Discord threads, site scores stay), ⚡ quick actions (check threads now, sync roles, repost queue cards, close all threads, restart), 📜 recent actions with the bot's result, 🔌 switches (match threads, read stats, 1v1, award roles, club roles, characters, welcomes; saving restarts the bot), ⏱️ timings (reminders, thread close, ready/pick seconds; live).
 - Bot `src/control.js` (tested): reads `botControl/settings` at start (on top of .env; .env decides what's possible) and live; runs `botCommands`; sends `botControl/status` every 5 min. Rules: settings/commands admin-only writes, status/results bot-only, all public read. Event form Rule config has the same "Discord match threads" switch.

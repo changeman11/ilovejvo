@@ -78,6 +78,10 @@ export function loadConfig(env = process.env) {
     // #pickup-results next to #pickup; PICKUP_RESULTS=0 keeps them in #pickup.
     pickupResults: text('PICKUP_RESULTS') !== '0',
     pickupResultsChannelId: discordId('PICKUP_RESULTS_CHANNEL_ID', '', false),
+    // A chat channel for pickup players (2026-10-25): #pickup itself is bot-only. Empty = the bot
+    // finds or makes #pickup-chat next to #pickup; PICKUP_CHAT=0 = no chat channel.
+    pickupChat: text('PICKUP_CHAT') !== '0',
+    pickupChatChannelId: discordId('PICKUP_CHAT_CHANNEL_ID', '', false),
     adminRoleIds: text('ADMIN_ROLE_IDS')
       .split(/[\s,]+/)
       .filter(Boolean),

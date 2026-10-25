@@ -112,6 +112,7 @@
 - **Audit log:** written by the browser in the same batch as each admin change; rules force `by == uid` and make it append-only.
 - **Pickup bot (added 2026-10-23):** a Discord bot in `bot/` (its own `package.json`, discord.js 14.27.0). Setup: `BOT-SETUP.md`.
   - **Flow:**
+    - **#pickup-chat** (2026-10-25): the bot finds or makes it just under #pickup for players to talk (#pickup is bot-only); the queue card links it. `PICKUP_CHAT_CHANNEL_ID`, `PICKUP_CHAT=0` = off.
     - Players sign up / withdraw with a dropdown (`custom_id: 'queue'`) on the bot's queue card in `#pickup`; no voice needed to queue (changed 2026-10-23, was a queue voice channel). Sign-ups are kept in memory only. At 4+ signed up, a 30 s countdown runs, then the bot picks a random mode (2v2 to 6v6) from those that fit. The longest-waiting players get in; 12 signed up starts at once.
     - **Ready check (2026-10-23):** the bot makes a locked `🏐 ready up · NvN` voice channel, plus a locked match chat `#ready-up-NvN`.
       - The chat is hidden from everyone but the players, admins and the bot (added 2026-10-24). The ready-check card pings the players there and ticks them off as they join the voice channel.

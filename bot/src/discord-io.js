@@ -84,6 +84,33 @@ export async function setupDiscord(client, config, log = console) {
     } else config.pickupResultsChannelId = '';
   } else config.pickupResultsChannelId = '';
 
+  // Pickup chat: an ordinary channel next to #pickup where players talk (#pickup is bot-only).
+  // It takes the category's permissions, so whoever can see #pickup can chat there.
+  if (config.pickupChat) {
+    let chat = config.pickupChatChannelId ? await guild.channels.fetch(config.pickupChatChannelId).catch(() => null) : null;
+    if (config.pickupChatChannelId && !chat?.isTextBased()) log.warn(`⚠️  PICKUP_CHAT_CHANNEL_ID (${config.pickupChatChannelId}) wasn't found; using #pickup-chat.`);
+    if (!chat?.isTextBased()) {
+      chat = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === 'pickup-chat' && c.parentId === (text.parentId ?? null)) ?? null;
+    }
+    if (!chat) {
+      try {
+        chat = await guild.channels.create({
+          name: 'pickup-chat',
+          type: ChannelType.GuildText,
+          parent: text.parentId ?? undefined,
+          topic: 'Talk pickup: find players, call for one more, trash talk (nicely). Sign up in #pickup.',
+          reason: 'Pickup chat',
+        });
+        // Just under #pickup.
+        await chat.setPosition(text.position + 1).catch(() => {});
+        log.info?.(`Made #pickup-chat (id ${chat.id}).`);
+      } catch (err) {
+        log.warn(`⚠️  Couldn't make #pickup-chat (${err.message}).`);
+      }
+    }
+    config.pickupChatChannelId = chat?.id ?? '';
+  } else config.pickupChatChannelId = '';
+
   const channelFor = async (channelId) => (channelId ? guild.channels.cache.get(channelId) ?? (await client.channels.fetch(channelId)) : text);
 
   const io = {

@@ -137,7 +137,7 @@ export function queueView(snapshot, config) {
       {
         author: { name: 'I<3JVO PICKUP', url: pickupUrl(config) ?? undefined, icon_url: logo ?? undefined },
         color,
-        description: `${headline}\n${how}\n\n${playerBar}\n${status}`,
+        description: `${headline}\n${how}\n\n${playerBar}\n${status}${config.pickupChatChannelId ? `\n💬 Chat with other players in <#${config.pickupChatChannelId}>` : ''}`,
         fields: [
           { name: '🎮 Modes', value: modesBoard, inline: true },
           { name: `👥 Signed up · ${n}`, value: players, inline: true },

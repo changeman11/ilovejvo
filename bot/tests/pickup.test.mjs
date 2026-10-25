@@ -619,3 +619,9 @@ test('results go to #pickup-results when it is set up, and #pickup stays quiet',
   assert.match(env.io.messages.get(inResults[0]).embeds[0].description, /won/);
   assert.equal(env.io.posted.filter((id) => env.io.where.get(id) === 'pickup').length, pickupPosts, 'nothing new in #pickup');
 });
+
+test('the queue card points to #pickup-chat when there is one', () => {
+  const env = setup({ cfg: { ...config, pickupChatChannelId: '888888888888888888' } });
+  assert.match(queueView(env.pickup.snapshot(), env.pickup.config).embeds[0].description, /💬 Chat with other players in <#888888888888888888>/);
+  assert.doesNotMatch(queueView(env.pickup.snapshot(), config).embeds[0].description, /💬/);
+});
