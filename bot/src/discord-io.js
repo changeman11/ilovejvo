@@ -123,6 +123,11 @@ export async function setupDiscord(client, config, log = console) {
     async remove(messageId) {
       await text.messages.delete(messageId);
     },
+    // The newest message in #pickup (to keep the queue card at the bottom).
+    async latestMessageId() {
+      const latest = await text.messages.fetch({ limit: 1, cache: false });
+      return latest.first()?.id ?? null;
+    },
     async createVoice(name, { allow = [], roles } = {}) {
       const channel = await guild.channels.create({
         name,

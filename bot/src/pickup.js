@@ -168,8 +168,10 @@ export class Pickup {
       this.queueMessageId = this.store.getMeta('queueMessageId') ?? null;
       this.fixedMode = this.store.getMeta('fixedMode') ?? null;
       // Edit the card that's already there (a new message would mark #pickup unread on every
-      // restart); a new one is only posted if it's gone.
+      // restart); a new one is only posted if it's gone, or if something was posted under it.
       await this.queueChanged({ immediate: true, repost: false });
+      await this.keepCardAtBottom();
+      this.armCardWatch();
     });
   }
 
@@ -324,6 +326,7 @@ export class Pickup {
     return this.event(async () => {
       this.stopCountdown();
       if (this.renderTimer) this.clock.clearTimeout(this.renderTimer);
+      if (this.cardTimer) this.clock.clearTimeout(this.cardTimer);
       for (const match of [...this.matches.values()]) await this.cancelMatch(match, 'the bot is restarting');
     });
   }
@@ -445,6 +448,24 @@ export class Pickup {
   }
 
   // repost: post it again at the bottom of the channel (after a draft pushed it up).
+  // The queue card stays the newest message in #pickup (players' messages and the bot's notices
+  // would push it up). io.latestMessageId is optional (test fakes may not have it).
+  async keepCardAtBottom() {
+    if (!this.io.latestMessageId) return;
+    const latest = await this.io.latestMessageId().catch(() => null);
+    if (latest && latest !== this.queueMessageId) await this.renderQueue({ repost: true });
+  }
+
+  // Look every 30 seconds.
+  armCardWatch() {
+    if (this.cardTimer) this.clock.clearTimeout(this.cardTimer);
+    this.cardTimer = this.clock.setTimeout(() => this.event(async () => {
+      await this.keepCardAtBottom();
+      this.armCardWatch();
+    }), 30_000);
+    this.cardTimer?.unref?.(); // never keeps the process alive on its own
+  }
+
   async renderQueue({ repost = false } = {}) {
     const message = views.queueView(this.snapshot(), this.config);
     if (this.queueMessageId) {
@@ -703,6 +724,7 @@ export class Pickup {
     }
     // The match chat (with the ready check or draft in it) goes, so the notice is posted in #pickup.
     await this.io.post(views.matchCancelledView(match, reason)).catch(() => {});
+    await this.keepCardAtBottom(); // the notice went under the queue card
     if (match.lobbyId) await this.removeLobby(match.lobbyId);
     await this.deleteChat(match.chatId);
     this.log.info?.(`[pickup] ${modeLabel(match.size)} cancelled: ${reason}`);

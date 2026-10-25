@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · #pickup queue card stays at the bottom · bot UPLOADED
+- The bot checks #pickup every 30 s and right after posting a "ready check cancelled" notice: if the queue card isn't the newest message (a notice or a player's message under it), it posts it again at the bottom (`keepCardAtBottom`, `armCardWatch`, `io.latestMessageId`). On start it edits the card if it's already the newest, so restarts don't mark #pickup unread for nothing. Checked live: card moved back under two cancel notices.
+- Players can still type in #pickup (no @everyone send block); each message there makes the card jump back under it within 30 s.
+
 ### 2026-10-26 · Claude (owner's PC) · pickup: queued players get games · bot UPLOADED
 - Mode choice leaves the fewest players without a game (`stranded`/`leastStranded` in logic/modes.js, tested): random modes and vote ties only pick modes that let everyone else still make a game (7 queued -> 3v3, not 2v2 leaving 3; 9 -> 2v2 or 4v4; 10 -> 2v2/3v3/5v5). A clear vote winner is still played. The queue card / site "random from" shows only those modes.
 - A ready check that can't be filled (no-shows, nobody to replace them) now plays the biggest smaller mode with the players who came (longest-waiting first; channels renamed; extras back to the front of the queue) instead of cancelling (`shrinkMatch`). No-shows are still dropped from the queue. Only cancels when fewer came than the smallest mode.

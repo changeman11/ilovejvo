@@ -747,3 +747,27 @@ test('a ready check short of players with nobody to replace them plays a smaller
   assert.equal(env2.pickup.matches.size, 0, 'cancelled');
   assert.equal(env2.pickup.readyList().length, 3, 'the 3 who came keep their places');
 });
+
+test('the queue card is kept as the newest message in #pickup', async () => {
+  const io = new FakeIo();
+  // The newest message in #pickup: whatever was posted there last (by the bot or a player).
+  io.latestMessageId = async () => [...io.posted].reverse().find((id) => io.where.get(id) === 'pickup' && io.messages.has(id)) ?? null;
+  const env = setup({ seed: 14, io });
+  await env.pickup.start();
+  const first = env.pickup.queueMessageId;
+  // A restart with the card already at the bottom: edited, not reposted.
+  await env.pickup.idle();
+  assert.equal(env.pickup.queueMessageId, first);
+  // A player types in #pickup: within 30 seconds the card is posted again under it.
+  await io.post({ content: 'anyone on?' });
+  await env.clock.advance(30_000, env.pickup);
+  assert.notEqual(env.pickup.queueMessageId, first);
+  assert.equal(await io.latestMessageId(), env.pickup.queueMessageId);
+  assert.ok(!io.messages.has(first), 'the old card is removed');
+  // A ready check is cancelled: the notice goes in and the card goes back under it straight away.
+  await joinAll(env, 4);
+  await env.clock.advance(30_000, env.pickup);
+  await env.clock.advance(60_000, env.pickup); // nobody joins -> cancelled
+  assert.equal(await io.latestMessageId(), env.pickup.queueMessageId, 'card under the cancel notice');
+  assert.ok([...io.messages.values()].some((m) => /cancelled/.test(m.content ?? '')));
+});
