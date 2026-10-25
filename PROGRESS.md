@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · #pickup / #1v1-queue no longer unread after restarts · bot UPLOADED
+- Both queue cards were deleted and reposted on every bot start (`repost: true` in `Pickup.start()` / `Ranked.start()`), so the channels showed unread after each upload. Now the existing card is edited (a new one only if it was deleted). Checked live after the upload: same message ids, edited, no new message. #pickup still gets new messages for real activity (game results, the card moving under a finished draft).
+
 ### 2026-10-25 · Claude (owner's PC) · character approvals + admin page · site (v70) + rules + bot DEPLOYED
 - **/admin/characters** (admin bar → Characters): Waiting for approval (Approve / Deny), On the court (Remove), Removed or denied (Put back). New bot characters are `pending` until approved (rules: bot creates pending only; admins change `status`). Hand-made ones hidden via `settings/characters.hidden`. Admin bell: "New character to approve".
 - Bot: ⏳ on new posts, ✅ when approved, 🚫 when denied (`charactersShown` meta). Older bot characters (no status) stay live.

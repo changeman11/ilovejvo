@@ -160,7 +160,9 @@ export class Pickup {
       for (const game of [...this.games.values()]) await this.cleanupChannels(game);
       this.queueMessageId = this.store.getMeta('queueMessageId') ?? null;
       this.fixedMode = this.store.getMeta('fixedMode') ?? null;
-      await this.queueChanged({ immediate: true, repost: true });
+      // Edit the card that's already there (a new message would mark #pickup unread on every
+      // restart); a new one is only posted if it's gone.
+      await this.queueChanged({ immediate: true, repost: false });
     });
   }
 

@@ -83,7 +83,9 @@ export class Ranked {
   start() {
     return this.run(async () => {
       this.cardId = this.store.getMeta('queueMessageId') ?? null;
-      await this.renderCard({ repost: true });
+      // Edit the card that's already there (a new message would mark #1v1-queue unread on every
+      // restart); a new one is only posted if it's gone.
+      await this.renderCard({ repost: false });
     });
   }
 
