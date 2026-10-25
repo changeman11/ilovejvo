@@ -37,6 +37,7 @@ import * as pickup from './pages/pickup.js';
 import * as helpEdit from './pages/admin/help-edit.js';
 import * as charactersAdmin from './pages/admin/characters.js';
 import * as myMatches from './pages/my-matches.js';
+import * as botAdmin from './pages/admin/bot.js';
 import { setNav } from './nav.js';
 import { notice, esc, urls } from './ui.js';
 
@@ -67,6 +68,7 @@ const routes = [
   { path: '/admin/people', page: people, section: '/admin', up: toAdmin },
   { path: '/admin/help', page: helpEdit, section: '/admin', up: toAdmin, tabbed: true },
   { path: '/admin/characters', page: charactersAdmin, section: '/admin', up: toAdmin },
+  { path: '/admin/bot', page: botAdmin, section: '/admin', up: toAdmin },
   { path: '/admin/event/:eventId', page: eventEdit, section: '/admin', up: toAdmin, tabbed: true },
   { path: '/admin/result/:eventId/:fixtureId', page: resultEntry, section: '/admin', up: (p) => ({ href: urls.adminEvent(p.eventId, 'fixtures'), label: 'the event’s fixtures' }) },
 ];

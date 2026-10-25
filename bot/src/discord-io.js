@@ -304,6 +304,10 @@ export async function setupDiscord(client, config, log = console) {
         const out = files.length ? { ...message, attachments: [], files: files.map((f) => ({ attachment: f.data, name: f.name })) } : message;
         await thread.messages.edit(messageId, out);
       },
+      async deleteThread(threadId) {
+        const thread = await channelFor(threadId).catch(() => null);
+        if (thread) await thread.delete('Cleared from the I<3JVO bot panel');
+      },
       async close(threadId) {
         const thread = await channelFor(threadId).catch(() => null);
         if (!thread) return;

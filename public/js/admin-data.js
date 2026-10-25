@@ -77,6 +77,25 @@ export async function deleteEvent({ uid, bundle }) {
 
 // ---------- Site settings (FAQ, rules) ----------
 
+// ---------- Bot control panel (/admin/bot) ----------
+// Switches and timings for the Discord bot (bot/src/control.js reads them live).
+export async function saveBotSettings({ uid, existing, features, timings }) {
+  await commit(uid, [{ type: 'set', path: 'botControl/settings', before: existing, data: { features, timings } }]);
+}
+// An action for the bot to run (it writes the result back on the same doc).
+export async function sendBotCommand({ uid, action, eventId = null }) {
+  await commit(uid, [{ type: 'set', path: `botCommands/${newId('botCommands')}`, data: { action, status: 'pending', createdAt: serverTimestamp(), ...(eventId ? { eventId } : {}) } }]);
+}
+export async function clearBotCommands({ uid, commands }) {
+  await commit(uid, commands.map((c) => ({ type: 'delete', path: `botCommands/${c.id}`, before: c })));
+}
+// Discord match threads on/off for one event (event.matchThreads; missing = on).
+export async function setEventThreads({ uid, event, on }) {
+  await commit(uid, [{ type: 'update', path: `events/${event.id}`, before: event, data: { matchThreads: on } }]);
+  invalidate(`event:${event.id}`);
+  invalidate('events');
+}
+
 export async function saveSetting({ uid, id, existing, data }) {
   await commit(uid, [{ type: 'set', path: `settings/${id}`, before: existing, data }]);
   invalidate(`setting:${id}`);

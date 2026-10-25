@@ -70,6 +70,17 @@ export class SiteReader {
     return out;
   }
 
+  // One document, or null if it isn't there.
+  async get(path) {
+    try {
+      const d = await this.call('GET', `${this.base}/${path}`);
+      return fromFields(d.fields ?? {});
+    } catch (err) {
+      if (/\(404\)/.test(err.message)) return null;
+      throw err;
+    }
+  }
+
   // Documents where `field` == `value` (e.g. published events).
   async query(collection, field, value) {
     const rows = await this.call('POST', `${this.base}:runQuery`, {

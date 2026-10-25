@@ -73,6 +73,7 @@ export async function render() {
     ['/admin/event/new?type=exhibition', '➕', 'New exhibition night', 'btn-primary'],
     ['/admin/event/new?type=tournament', '🏆', 'New tournament', ''],
     ['/admin/people', '👥', 'Edit a team or player', ''],
+    ['/admin/bot', '🤖', 'Bot control panel', ''],
     ['/admin/help', '📜', 'Edit the FAQ & rules', ''],
   ];
 

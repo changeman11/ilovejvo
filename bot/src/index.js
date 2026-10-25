@@ -19,6 +19,7 @@ import { SiteWatch } from './site-watch.js';
 import { StatRoles } from './stat-roles.js';
 import { Characters } from './characters.js';
 import { checkMembersIntent, checkMessageContent } from './login.js';
+import { BotControl, applySettings } from './control.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -32,6 +33,21 @@ try {
 } catch (err) {
   console.error(err instanceof ConfigError ? err.message : err);
   process.exit(1);
+}
+
+// The site's Bot panel (control.js): its switches and timings go on top of .env before anything
+// starts. .env says what's possible; the panel says what's on.
+const envConfig = { ...config };
+if (config.store === 'firebase') {
+  try {
+    const settings = await new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator }).get('botControl/settings');
+    if (settings) {
+      applySettings(config, settings, envConfig);
+      console.log(new Date().toISOString(), '[control] using the switches and timings from the site’s Bot panel');
+    }
+  } catch (err) {
+    console.warn(new Date().toISOString(), '[control] could not read the Bot panel settings, using .env:', err.message);
+  }
 }
 
 const store =
@@ -88,6 +104,7 @@ let matches = null;
 let matchSite = null;
 let statRoles = null;
 let characters = null;
+let control = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -136,6 +153,11 @@ client.once(Events.ClientReady, async () => {
       characters = new Characters({ io: discord.charIo, rest: store.rest, site, store, config, log });
       log.info(`[characters] watching #${config.charactersChannel} every ${config.charactersMinutes} min`);
       characters.start().catch((err) => log.error(`[characters] ${err.message}`));
+    }
+    // The site's Bot panel: settings, commands and status (needs STORE=firebase).
+    if (store.rest) {
+      control = new BotControl({ rest: store.rest, firebase: config.firebase, config, env: envConfig, log, modules: () => ({ pickup, ranked, matches, clubRoles, statRoles }) });
+      await control.start();
     }
     log.info(`Logged in as ${client.user.tag}. Queue card in #${discord.text.name} (${discord.guild.name}).`);
     if (config.allowTestPlayers) log.info('Test players are ON (/pickup testfill). Turn ALLOW_TEST_PLAYERS off for real games.');
@@ -292,6 +314,7 @@ async function stop(signal) {
   matchSite?.stop();
   siteQueue?.stop();
   rankedSite?.stop();
+  control?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

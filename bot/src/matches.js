@@ -137,8 +137,10 @@ export class MatchThreads {
   async syncNow() {
     if (!this.site.ready()) return; // still loading: don't take "not there yet" for "gone"
     const now = this.clock.now();
-    // 1. New threads for matches that just opened.
+    // 1. New threads for matches that just opened (not for events with threads switched off on
+    //    the site: event.matchThreads === false).
     for (const b of this.site.bundles()) {
+      if (b.event.matchThreads === false) continue;
       for (const f of openMatches(b, now)) {
         const id = threadDocId(b.event.id, f.id);
         const t = this.threads.get(id);
@@ -595,6 +597,36 @@ export class MatchThreads {
     const [, , ...rest] = String(customId).split(':');
     const i = Number(rest.pop());
     return this.run(() => this.answerName(rest.join(':'), i, String(value), user)).catch((err) => ({ ephemeral: `Something went wrong: ${err.message}` }));
+  }
+
+  // Bot panel: close every thread that's still open (locked + archived; they stay readable).
+  closeAll() {
+    return this.run(async () => {
+      let n = 0;
+      const now = this.clock.now();
+      for (const [id, t] of [...this.threads]) {
+        if (t.status === 'closed') continue;
+        await this.close(id, t, now);
+        n++;
+      }
+      return n;
+    });
+  }
+
+  // Bot panel: delete one event's threads from Discord (scores and stats on the site stay) and
+  // forget them, so the match channel is clean for the next event.
+  clearEvent(eventId) {
+    return this.run(async () => {
+      let n = 0;
+      for (const [id, t] of [...this.threads]) {
+        if (t.eventId !== eventId) continue;
+        if (t.threadId) await this.io.deleteThread(t.threadId).catch((err) => this.log.warn('[matches] could not delete a thread:', err.message));
+        await this.rest.commit([{ delete: `matchThreads/${id}` }]).catch((err) => this.log.warn('[matches] could not forget a thread:', err.message));
+        for (const map of [this.threads, this.cards, this.asks, this.checks, this.fresh]) map.delete(id);
+        n++;
+      }
+      return n;
+    });
   }
 
   async close(id, t, now) {

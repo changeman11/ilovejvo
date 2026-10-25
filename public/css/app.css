@@ -1734,3 +1734,19 @@ body.char-menu-open .trophy { display: none; }
 .all-clear { margin: 0; font-weight: 700; }
 .quick-jobs { display: flex; flex-wrap: wrap; gap: 8px; }
 .how-to ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; }
+
+/* Bot control panel (pages/admin/bot.js) */
+.bot-status .bot-light { display: flex; align-items: center; gap: 8px; font-size: 18px; }
+.bot-status .dot { width: 14px; height: 14px; border-radius: 50%; background: #c2c8d8; border: 2px solid var(--ink); }
+.bot-status.on .dot { background: var(--teal, #19c9b1); box-shadow: 0 0 0 4px rgba(25, 201, 177, 0.25); }
+.bot-status.off .dot { background: var(--coral, #ff6b57); }
+.bot-tiles { grid-template-columns: repeat(3, 1fr); margin: 10px 0; }
+.bot-switch { align-items: flex-start; }
+.bot-switch span { display: grid; gap: 2px; }
+.bot-switch small { color: var(--muted); font-weight: 600; }
+.bot-switch.disabled { opacity: 0.6; }
+.bot-timings { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.bot-num { display: flex; align-items: center; gap: 6px; }
+.bot-num input { width: 90px; }
+.bot-action { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.bot-action .btn { min-width: 230px; justify-content: flex-start; }

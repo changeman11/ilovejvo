@@ -99,6 +99,7 @@ function world({ now = T0 + MIN, reader = null } = {}) {
     async commit(writes) {
       this.commits.push(writes);
       for (const w of writes) {
+        if (w.delete) { db.delete(w.delete); continue; }
         db.set(w.path, w.data);
         // What the site's listeners would then see.
         const [, , kind, docId] = w.path.split('/');
@@ -122,6 +123,8 @@ function world({ now = T0 + MIN, reader = null } = {}) {
     downloads: [],
     async edit(messageId, message, threadId, files = []) { this.edits.push({ messageId, message, threadId, files }); },
     async close(threadId) { this.closed.push(threadId); },
+    deleted: [],
+    async deleteThread(threadId) { this.deleted.push(threadId); },
     async reopen() {},
     async download(url) { this.downloads.push(url); return Buffer.from('png'); },
   };
@@ -503,4 +506,23 @@ test('thread screenshots: GIFs, memes and small pictures posted in between are s
   const result = { sets: [{ home: 10, away: 5 }], playerStats: {}, statsStatus: 'pending', threadShots: ['players/p/shot/abc.gif'] };
   assert.equal(needsScreenshot(result, []), true);
   assert.equal(needsScreenshot({ ...result, threadShots: ['players/p/shot/abc.png'] }, []), false);
+});
+
+test('bot panel: threads switched off for an event; close all; clear an event deletes its threads', async () => {
+  const w = world();
+  w.bundle.event.matchThreads = false;
+  await w.matches.start();
+  assert.equal(w.io.threads.length, 0, 'switched off: no threads');
+  w.bundle.event.matchThreads = true;
+  await w.matches.sync();
+  assert.equal(w.io.threads.length, 1);
+  assert.equal(await w.matches.closeAll(), 1);
+  assert.deepEqual(w.io.closed, ['th1']);
+  assert.equal(w.db.get('matchThreads/night__f1').status, 'closed');
+  assert.equal(await w.matches.closeAll(), 0, 'nothing left open');
+  assert.equal(await w.matches.clearEvent('other'), 0);
+  assert.equal(await w.matches.clearEvent('night'), 1);
+  assert.deepEqual(w.io.deleted, ['th1']);
+  assert.equal(w.db.has('matchThreads/night__f1'), false, 'forgotten');
+  assert.equal(w.matches.threads.size, 0);
 });

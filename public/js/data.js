@@ -342,6 +342,11 @@ export const loadPickupGames = (count = 15) =>
 // The Discord match thread for one match (bot/src/matches.js), or null.
 export const loadMatchThread = (eventId, fixtureId) => getOne(`matchThreads/${eventId}__${fixtureId}`).catch(() => null);
 
+// The bot control panel (/admin/bot, bot/src/control.js): public docs, read fresh each time.
+export const loadBotStatus = () => getOne('botControl/status').catch(() => null);
+export const loadBotSettings = () => getOne('botControl/settings').catch(() => null);
+export const loadBotCommands = () => getAll('botCommands').catch(() => []);
+
 export const loadPickupLive = () => getOne('pickupMeta/live').catch(() => null);
 export const loadPickupSignup = (discordId) => (discordId ? getOne(`pickupSignups/${discordId}`).catch(() => null) : Promise.resolve(null));
 

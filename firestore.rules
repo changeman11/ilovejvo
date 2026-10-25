@@ -759,6 +759,31 @@ service cloud.firestore {
     }
     // Discord match threads (bot/src/matches.js): one per match, id "<eventId>__<fixtureId>".
     // Public to read (the match page links to the thread); only the bot writes.
+    // ---------- Bot control panel (/admin/bot, bot/src/control.js) ----------
+    // botControl/settings: feature switches and timings, written by admins. botControl/status:
+    // what the bot is running, written by the bot. botCommands: admins send an action, the bot
+    // writes the result. Public to read (nothing secret in them).
+    match /botControl/{docId} {
+      allow read: if true;
+      allow create, update: if (docId == 'settings' && isAdmin() && stampedByMe()
+                                && request.resource.data.keys().hasOnly(['features', 'timings', 'updatedBy', 'updatedAt'])
+                                && request.resource.data.features is map && request.resource.data.features.size() <= 20
+                                && request.resource.data.timings is map && request.resource.data.timings.size() <= 20)
+                            || (docId == 'status' && isPickupBot());
+    }
+    match /botCommands/{commandId} {
+      allow read: if true;
+      allow create: if isAdmin() && stampedByMe()
+        && request.resource.data.keys().hasOnly(['action', 'eventId', 'status', 'createdAt', 'updatedBy', 'updatedAt'])
+        && request.resource.data.action in ['syncRoles', 'repostCards', 'checkThreads', 'closeThreads', 'clearEventThreads', 'restart']
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && (!('eventId' in request.resource.data) || (request.resource.data.eventId is string && request.resource.data.eventId.size() <= 120));
+      allow update: if isPickupBot()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'result', 'doneAt', 'updatedBy', 'updatedAt']);
+      allow delete: if isAdmin();
+    }
+
     match /matchThreads/{threadDocId} {
       allow read: if true;
       allow create, update: if isPickupBot()
