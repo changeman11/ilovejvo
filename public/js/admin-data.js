@@ -239,9 +239,11 @@ export async function deleteFixture({ eventId, uid, fixture, result }) {
 
 // Saves a result and marks the fixture completed, together.
 // swapTeams: { homeTeamId, awayTeamId } if the admin swapped home/away.
-export async function saveResult({ eventId, fixture, uid, result, existing, swapTeams = null }) {
+// closeFixes: players' open fixes for this match (rules/corrections.js), closed in the same save.
+export async function saveResult({ eventId, fixture, uid, result, existing, swapTeams = null, closeFixes = [] }) {
   const fixtureData = storedFixture(fixture);
   await commit(uid, [
+    ...closeFixes.map((c) => ({ type: 'update', path: `events/${eventId}/corrections/${c.id}`, before: c, data: { status: 'done' } })),
     {
       type: 'set',
       path: `events/${eventId}/results/${fixture.id}`,
@@ -392,6 +394,12 @@ export async function deleteResult({ eventId, fixture, uid, existing }) {
 
 // ---------- Community characters (/admin/characters) ----------
 // The bot's characters: approve, deny or take off the court (status on characters/{key}).
+// Close (or reopen) one player's result fix from the Requests inbox.
+export async function setFixStatus({ uid, eventId, fix, status }) {
+  await commit(uid, [{ type: 'update', path: `events/${eventId}/corrections/${fix.id}`, before: fix, data: { status } }]);
+  invalidate(`event:${eventId}`);
+}
+
 export async function setCharacterStatus({ uid, character, status }) {
   await commit(uid, [{ type: 'update', path: `characters/${character.key}`, before: character.doc, data: { status } }]);
   invalidate('col:characters');

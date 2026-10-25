@@ -122,10 +122,14 @@ function playersCard(teamId) {
   const team = b.teamsById[teamId];
   const defs = statDefs();
   // Each line's player can be changed (a stat line given to the wrong person): pick who it belongs to.
-  const everyone = Object.values(b.playersById).sort((x, y) => x.displayName.localeCompare(y.displayName));
+  // Only this team's players are offered (its squad, its event roster, its lines); "Someone else…"
+  // opens the full list for a sub or a ringer.
+  const showAll = page.showAll?.[teamId];
+  const everyone = (showAll ? Object.values(b.playersById) : teamPool(teamId)).sort((x, y) => x.displayName.localeCompare(y.displayName));
+  const more = showAll ? '' : '<option value="__all">Someone else… (show every player)</option>';
   const rows = s.players[teamId].map((row) => {
     const name = b.playersById[row.pid]?.displayName ?? row.pid;
-    const pick = `<select data-reassign aria-label="Whose line is this">${everyone.map((p) => `<option value="${esc(p.id)}"${p.id === row.pid ? ' selected' : ''}>${esc(p.displayName)}${p.teamId && p.teamId !== teamId ? ` · ${esc(b.teamsById[p.teamId]?.shortName ?? '')}` : ''}</option>`).join('')}${b.playersById[row.pid] ? '' : `<option value="${esc(row.pid)}" selected>${esc(name)}</option>`}</select>`;
+    const pick = `<select data-reassign aria-label="Whose line is this">${everyone.map((p) => `<option value="${esc(p.id)}"${p.id === row.pid ? ' selected' : ''}>${esc(p.displayName)}${p.teamId && p.teamId !== teamId ? ` · ${esc(b.teamsById[p.teamId]?.shortName ?? '')}` : ''}</option>`).join('')}${everyone.some((p) => p.id === row.pid) ? '' : `<option value="${esc(row.pid)}" selected>${esc(name)}</option>`}${more}</select>`;
     return `
       <tr data-pid="${esc(row.pid)}" data-team="${esc(teamId)}" class="${row.played ? '' : 'off'}">
         <td class="first"><span class="played-toggle"><input type="checkbox" data-played ${row.played ? 'checked' : ''} aria-label="Played"> ${pick}</span></td>
@@ -133,7 +137,7 @@ function playersCard(teamId) {
       </tr>`;
   }).join('');
   const listed = new Set(s.players[teamId].map((r) => r.pid));
-  const options = Object.values(b.playersById)
+  const options = everyone
     .filter((p) => !listed.has(p.id))
     .sort((x, y) => x.displayName.localeCompare(y.displayName))
     .map((p) => `<option value="${esc(p.id)}">${esc(p.displayName)}</option>`)
@@ -147,7 +151,7 @@ function playersCard(teamId) {
           <thead><tr><th class="first">Player</th>${statHeads(defs)}</tr></thead>
           <tbody>${rows || `<tr><td class="first muted" colspan="${defs.length + 1}">No roster yet. Add players below, or set the roster on the event’s Teams tab.</td></tr>`}</tbody>
         </table></div>
-        <div class="inline-form"><label class="field"><span>Add a player</span><select data-add-player="${esc(teamId)}"><option value="">Choose a player…</option>${options}</select></label></div>
+        <div class="inline-form"><label class="field"><span>Add a player</span><select data-add-player="${esc(teamId)}"><option value="">${options ? 'Choose a player…' : 'Everyone in the squad is listed'}</option>${options}${more}</select></label></div>
       </div>
     </section>`;
 }
@@ -185,6 +189,29 @@ function votesPanel() {
     </section>`;
 }
 
+// Players' fixes sent after the score went in (rules/corrections.js): "Use this score" copies the
+// sets into the form; saving the result closes every open fix for this match.
+const fixtureFixes = () => (page.b.corrections ?? []).filter((c) => c.fixtureId === page.fixture.id && (c.status ?? 'open') === 'open');
+
+function fixesPanel() {
+  const { b } = page;
+  const fixes = fixtureFixes().sort((x, y) => (y.updatedAt ?? 0) - (x.updatedAt ?? 0));
+  if (!fixes.length) return '';
+  return `
+    <section class="panel fix-admin">
+      <h3 style="margin-bottom:6px">🛠 Fixes from players</h3>
+      <p class="muted small" style="margin-bottom:8px">Sent after the score went in. “Use this score” copies it into the form below. Saving closes these.</p>
+      <div class="rows">${fixes.map((c) => `
+        <div class="row">
+          <span class="row-main"><b>${esc(b.playersById[c.playerId]?.displayName ?? c.playerId)} <span class="muted">(${esc(b.teamsById[c.teamId]?.name ?? c.teamId)})</span></b>
+            <span class="small">${c.sets?.length ? `Says it was <b class="num">${esc(voteLabel(c.sets))}</b>` : 'Score is right'}${c.updatedAt ? ` · ${esc(fmtDay(c.updatedAt))}` : ''}</span>
+            ${c.note ? `<span class="small">“${esc(c.note)}”</span>` : ''}
+            ${c.screenshotPaths?.length ? `<span class="vote-shots">${shotThumbs(c.screenshotPaths)}</span>` : ''}</span>
+          <span class="row-side">${c.sets?.length ? `<button type="button" class="btn btn-sm" data-act="use-fix" data-id="${esc(c.id)}">Use this score</button>` : ''}</span>
+        </div>`).join('')}</div>
+    </section>`;
+}
+
 // ---------- Reading stats from end-of-match screenshots ----------
 // page.reading: { url, rows: [{ side, nameText, name, playerId, stats: { pts: { value, sure } | null } }] }
 // page.aliases: [{ playerId, name }] in-game names to remember on save.
@@ -201,6 +228,16 @@ function candidatePlayers() {
   return [...ids].map((id) => b.playersById[id]).filter(Boolean);
 }
 
+// One team's players: its current squad, its event roster and anyone already on its sheet.
+function teamPool(teamId) {
+  const { b, state: s } = page;
+  const ids = new Set();
+  for (const p of Object.values(b.playersById)) if (p.teamId === teamId) ids.add(p.id);
+  for (const pid of b.rosters[teamId]?.playerIds ?? []) ids.add(pid);
+  for (const r of s.players[teamId]) ids.add(r.pid);
+  return [...ids].map((id) => b.playersById[id]).filter(Boolean);
+}
+
 const teamOfPlayer = (pid) => {
   const s = page.state;
   for (const teamId of [s.homeId, s.awayId]) {
@@ -213,6 +250,8 @@ function screenshotsPanel() {
   const shots = [
     ...fixtureVotes().flatMap((v) => (v.screenshotPaths ?? []).map((p) => ({ url: mediaUrl(p), who: page.b.playersById[v.playerId]?.displayName ?? v.playerId }))),
     ...(page.existing?.threadShots ?? []).map((p) => ({ url: mediaUrl(p), who: 'the Discord thread' })),
+    ...(page.b.corrections ?? []).filter((c) => c.fixtureId === page.fixture.id)
+      .flatMap((c) => (c.screenshotPaths ?? []).map((p) => ({ url: mediaUrl(p), who: `${page.b.playersById[c.playerId]?.displayName ?? c.playerId}’s fix` }))),
   ];
   const r = page.reading;
   const players = candidatePlayers().sort((x, y) => x.displayName.localeCompare(y.displayName));
@@ -241,7 +280,7 @@ function screenshotsPanel() {
             <tr>
               <td class="first">
                 <span class="small"><b>${esc(row.name || '?')}</b> <span class="muted">(${row.side})</span></span>
-                <select data-assign="${i}"><option value="">Not one of ours / bot</option>${players.map((p) => `<option value="${esc(p.id)}"${row.playerId === p.id ? ' selected' : ''}>${esc(p.displayName)}${b_teamTag(p.id)}</option>`).join('')}</select>
+                <select data-assign="${i}"><option value="">Not one of ours / bot</option>${[page.state.homeId, page.state.awayId].map((t) => `<optgroup label="${esc(page.b.teamsById[t]?.name ?? t)}">${players.filter((p) => teamOfPlayer(p.id) === t).map((p) => `<option value="${esc(p.id)}"${row.playerId === p.id ? ' selected' : ''}>${esc(p.displayName)}</option>`).join('')}</optgroup>`).join('')}</select>
               </td>
               ${defs.map((d) => cell(row, i, d)).join('')}
             </tr>`).join('')}</tbody>
@@ -253,10 +292,6 @@ function screenshotsPanel() {
       </div>` : ''}
     </section>`;
 }
-const b_teamTag = (pid) => {
-  const t = teamOfPlayer(pid);
-  return t ? ` · ${page.b.teamsById[t]?.shortName ?? ''}` : '';
-};
 
 const readMessage = (rows, auto = false) => {
   const found = rows.filter((r) => r.playerId).length;
@@ -397,6 +432,7 @@ function formHtml() {
       </div>
       ${swapped ? '<p class="small" style="margin-top:8px;font-weight:700">Swapped: the fixture will be saved this way round.</p>' : ''}
     </section>
+    ${fixesPanel()}
     ${votesPanel()}
     ${s.mode === 'played' ? screenshotsPanel() : ''}
 
@@ -587,6 +623,14 @@ export function mount(el) {
     }
     if (e.target.closest('.read-table')) return; // the reading table isn't part of the result until "Use"
     // A stat line moved to another player. If they already have a line (in either team), the two swap.
+    const wantAll = e.target.closest('[data-reassign], [data-add-player]');
+    if (wantAll && wantAll.value === '__all') {
+      readForm(root);
+      const teamId = wantAll.closest('tr')?.dataset.team ?? wantAll.dataset.addPlayer;
+      page.showAll = { ...(page.showAll ?? {}), [teamId]: true };
+      redraw(root);
+      return;
+    }
     const reassign = e.target.closest('[data-reassign]');
     if (reassign) {
       const tr = reassign.closest('tr');
@@ -643,6 +687,20 @@ export function mount(el) {
       }
     }
 
+    if (button.dataset.act === 'use-fix') {
+      const fix = fixtureFixes().find((c) => c.id === button.dataset.id);
+      if (fix) {
+        const flip = s.homeId !== page.fixture.homeTeamId;
+        s.mode = 'played';
+        s.sets = Array.from({ length: page.format.bestOf }, (_, i) => {
+          const set = fix.sets[i];
+          if (!set) return { home: '', away: '' };
+          return flip ? { home: String(set.away), away: String(set.home) } : { home: String(set.home), away: String(set.away) };
+        });
+        redraw(root);
+      }
+    }
+
     if (button.dataset.act === 'swap') {
       [s.homeId, s.awayId] = [s.awayId, s.homeId];
       s.sets = s.sets.map((x) => ({ home: x.away, away: x.home }));
@@ -674,6 +732,7 @@ export function mount(el) {
           result: { ...keep, ...result, statsStatus: hasStats || result.forfeit ? 'reviewed' : (existing?.statsStatus ?? null) },
           existing,
           swapTeams: s.homeId !== fixture.homeTeamId ? { homeTeamId: s.homeId, awayTeamId: s.awayId } : null,
+          closeFixes: fixtureFixes(),
         });
         // Remember in-game names read from screenshots, so next time they match by themselves.
         if (page.aliases?.length) {

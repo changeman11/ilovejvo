@@ -1,14 +1,18 @@
-// Stat roles (STAT_ROLES=1, needs Manage Roles): "👑 Point Machine · Top 3 ✨" and one for every other stat
-// (logic/stat-roles.js STAT_ROLE_STYLE: emoji flair, colour, gradient + role icon where the server allows),
-// always held by the current top 3 (ties included) across every published event, and taken off
-// whoever drops out. Every STAT_ROLES_MINUTES (30) the bot reads the results from the site (public
-// data, no sign-in), works out the top 3s (logic/stat-roles.js) and moves the roles.
+// Stat roles (STAT_ROLES=1, needs Manage Roles): "🥇 1st · Point Machine 👑", "🥈 2nd · …", "🥉 3rd · …"
+// for every stat (logic/stat-roles.js STAT_ROLE_STYLE: emoji flair, colour, gradient + role icon where
+// the server allows). Each is held by whoever is in that place right now across every published
+// event (ties share a place) and taken off whoever moves. Every STAT_ROLES_MINUTES (30) the bot reads
+// the results from the site (public data, no sign-in), works out the places and moves the roles.
 //
-// Remembered in the store's meta: statRoles = { statKey: roleId } (roles it made) and
-// statRoleHolders = { statKey: [discordIds] } (who had each last time, so it knows whom to take
-// them from). It never touches any other role.
+// Remembered in the store's meta: statRoles = { "statKey:place": roleId } (roles it made) and
+// statRoleHolders = { "statKey:place": [discordIds] } (who had each last time, so it knows whom to
+// take them from). Before 2026-10-25 the keys were just "statKey" (one Top 3 role): that role becomes
+// the 1st place one, renamed. It never touches any other role.
 // roleIo: the same as club roles (discord-io.js).
-import { STAT_ROLE_STATS, STAT_ROLE_LOOK, statRoleName, statRoleStyle, statTotals, wantedHolders, planHolders } from './logic/stat-roles.js';
+import { STAT_ROLE_STATS, STAT_ROLE_LOOK, PLACE_MEDAL, statRoleName, statRoleStyle, roleKey, statTotals, wantedHolders, planHolders } from './logic/stat-roles.js';
+
+// Old single-role keys ("pts") move to the 1st place key ("pts:1").
+const upgradeKeys = (map) => Object.fromEntries(Object.entries(map ?? {}).map(([k, v]) => [k.includes(':') ? k : roleKey(k, 1), v]));
 
 export class StatRoles {
   constructor({ io, site, store, config, log = console }) {
@@ -42,38 +46,45 @@ export class StatRoles {
     const want = wantedHolders(statTotals(results), players, top);
 
     // Make sure each role exists (and has the right name).
-    const roleMap = { ...(this.store.getMeta('statRoles') ?? {}) };
+    const savedMap = this.store.getMeta('statRoles') ?? {};
+    const roleMap = upgradeKeys(savedMap);
+    const upgraded = JSON.stringify(roleMap) !== JSON.stringify(savedMap);
     const existing = await this.io.roles();
     // Gradient colours and role icons only where the server has them (boosts).
     const features = new Set((await this.io.features?.().catch(() => [])) ?? []);
-    const look = (stat) => {
+    const look = (stat, place) => {
       const s = statRoleStyle(stat);
       return {
-        name: statRoleName(stat, top), color: s.color, hoist: false,
+        name: statRoleName(stat, place), color: s.color, hoist: false,
         ...(features.has('ENHANCED_ROLE_COLORS') ? { color2: s.color2 } : {}),
-        ...(features.has('ROLE_ICONS') ? { emoji: s.emoji } : {}),
+        // Role icon: the stat's own emoji for 1st, the medal for 2nd and 3rd.
+        ...(features.has('ROLE_ICONS') ? { emoji: place === 1 ? s.emoji : PLACE_MEDAL[place - 1] ?? s.emoji } : {}),
       };
     };
     const restyle = (this.store.getMeta('statRoleLook') ?? 0) !== STAT_ROLE_LOOK;
     let made = 0;
+    // New roles go just under the bot's own, so making 3rd, then 2nd, then 1st keeps 1st on top.
     for (const stat of STAT_ROLE_STATS) {
-      const id = roleMap[stat.key];
-      if (id && existing.has(id)) {
-        if (restyle || existing.get(id).name !== statRoleName(stat, top)) await this.io.editRole(id, look(stat)).catch((err) => this.log.warn('[stat roles]', err.message));
-        continue;
+      for (let place = top; place >= 1; place--) {
+        const key = roleKey(stat.key, place);
+        const id = roleMap[key];
+        if (id && existing.has(id)) {
+          if (restyle || existing.get(id).name !== statRoleName(stat, place)) await this.io.editRole(id, look(stat, place)).catch((err) => this.log.warn('[stat roles]', err.message));
+          continue;
+        }
+        roleMap[key] = await this.io.createRole(look(stat, place));
+        made++;
       }
-      roleMap[stat.key] = await this.io.createRole(look(stat));
-      made++;
     }
-    if (made) await this.store.setMeta('statRoles', roleMap);
+    if (made || upgraded) await this.store.setMeta('statRoles', roleMap);
     if (restyle) {
       await this.store.setMeta('statRoleLook', STAT_ROLE_LOOK);
       this.log.info?.(`[stat roles] new look${features.has('ENHANCED_ROLE_COLORS') ? ' with gradients' : ''}${features.has('ROLE_ICONS') ? ' and role icons' : ''}`);
     }
 
     // A role made just now has nobody yet, whatever was saved before.
-    const before = { ...(this.store.getMeta('statRoleHolders') ?? {}) };
-    for (const stat of STAT_ROLE_STATS) if (!existing.has(roleMap[stat.key])) before[stat.key] = [];
+    const before = upgradeKeys(this.store.getMeta('statRoleHolders'));
+    for (const key of Object.keys(roleMap)) if (!existing.has(roleMap[key])) before[key] = [];
     const plan = planHolders({ before, want });
     let added = 0;
     let removed = 0;

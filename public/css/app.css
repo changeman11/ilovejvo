@@ -1601,6 +1601,8 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .ac-rest { display: grid; gap: 2px; font-size: 13px; font-weight: 700; }
 .ac-rest span { display: flex; gap: 6px; }
 .ac-rest b { margin-left: auto; font-family: var(--font-num); }
+.ac-name .ac-place { display: block; font: 800 10px var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.9; }
+.ac-rest .ac-place { font-style: normal; min-width: 4.2em; }
 @media (max-width: 600px) { .award-grid { grid-auto-flow: column; grid-auto-columns: 78%; grid-template-columns: none; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 10px; } .award-card { scroll-snap-align: start; } }
 
 .stats-table .st-head a { display: grid; justify-items: center; gap: 1px; text-decoration: none; line-height: 1.1; }
@@ -1711,3 +1713,24 @@ body.char-menu-open .trophy { display: none; }
 .ch-info { display: grid; font-size: 13px; line-height: 1.2; }
 .ch-info small { color: var(--muted); }
 .ch-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Result fixes on the match page (pages/fix-result.js) */
+.fix-panel details > summary { list-style: none; display: inline-flex; margin: 4px 0 12px; }
+.fix-panel details > summary::-webkit-details-marker { display: none; }
+.fix-panel details[open] > summary { margin-bottom: 14px; }
+.fix-panel form { display: grid; gap: 12px; }
+.fix-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+.fix-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; border: 2px solid var(--line, rgba(24, 32, 74, 0.15)); border-radius: var(--radius-sm); }
+.fix-list q { flex-basis: 100%; color: var(--muted, #556); }
+
+/* Admin home (pages/admin/home.js): what needs you, quick jobs */
+.todo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.todo-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: var(--outline); border-radius: var(--radius-sm); background: var(--surface); text-decoration: none; color: inherit; box-shadow: 0 3px 0 var(--ink); transition: transform 0.12s; }
+.todo-card:hover { transform: translateY(-2px); }
+.todo-card b { display: block; font-size: 15px; }
+.todo-card small { display: block; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.todo-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; font-size: 22px; border-radius: 12px; background: var(--tint-sky); }
+.todo-go { margin-left: auto; font-weight: 800; color: var(--blue); }
+.all-clear { margin: 0; font-weight: 700; }
+.quick-jobs { display: flex; flex-wrap: wrap; gap: 8px; }
+.how-to ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; }

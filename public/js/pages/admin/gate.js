@@ -75,10 +75,18 @@ export function bindAuthActions(root) {
 
 // "Signed in as" bar with admin navigation, for the top of admin pages.
 export function adminBar(user, admin, current = '') {
-  const links = [['/admin', 'Events'], ['/admin/stats', 'Stats'], ['/admin/requests', 'Requests'], ['/admin/people', 'Teams & players'], ['/admin/characters', 'Characters'], ['/admin/help', 'FAQ & rules']];
+  // Icons + plain names, and a hint on hover/long-press saying what each page is for.
+  const links = [
+    ['/admin', '🏠', 'Home', 'What needs you, quick jobs and every event'],
+    ['/admin/requests', '📥', 'Requests', 'Result fixes, disputed scores, new clubs, claims and leave requests'],
+    ['/admin/stats', '📸', 'Stats', 'Check and publish stats read from end-of-match screenshots'],
+    ['/admin/people', '👥', 'Teams & players', 'Edit clubs and players, staff badges, pictures'],
+    ['/admin/characters', '🎭', 'Characters', 'Approve or remove characters on the Home court'],
+    ['/admin/help', '📜', 'FAQ & rules', 'Edit the help pages players read'],
+  ];
   return `
     <div class="admin-bar">
-      <nav class="admin-nav">${links.map(([href, label]) => `<a href="${href}" data-link${href === current ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
+      <nav class="admin-nav" aria-label="Admin pages">${links.map(([href, icon, label, hint]) => `<a href="${href}" data-link title="${esc(hint)}"${href === current ? ' aria-current="page"' : ''}><span aria-hidden="true">${icon}</span> ${esc(label)}</a>`).join('')}</nav>
       <span class="muted small">${user.uid.startsWith('discord:')
         ? `${esc(admin.name ?? 'Admin')} · admin via Discord · <button class="admin-mode-btn" type="button" data-action="admin-mode-off" title="Browse as a normal player"><span class="admin-mode-dot" aria-hidden="true"></span>Admin mode: on</button>`
         : `${esc(admin.name ?? usernameOf(user))} · <button class="link-btn" data-action="sign-out">Sign out</button>`}</span>

@@ -36,6 +36,7 @@ import * as help from './pages/help.js';
 import * as pickup from './pages/pickup.js';
 import * as helpEdit from './pages/admin/help-edit.js';
 import * as charactersAdmin from './pages/admin/characters.js';
+import * as myMatches from './pages/my-matches.js';
 import { setNav } from './nav.js';
 import { notice, esc, urls } from './ui.js';
 
@@ -58,6 +59,7 @@ const routes = [
   { path: '/pickup', page: pickup, section: '/pickup', up: toMenu },
   { path: '/me', page: me, section: '/me', up: toMenu },
   { path: '/club', page: club, section: '/club', up: toMenu, tabbed: true },
+  { path: '/matches', page: myMatches, section: '/club', up: () => ({ href: '/club', label: 'the Club hub' }) },
   { path: '/auth/discord', page: authCallback, section: '/me' },
   { path: '/admin', page: adminHome, section: '/admin', up: toMenu },
   { path: '/admin/requests', page: requests, section: '/admin', up: toAdmin },

@@ -258,6 +258,29 @@ export async function submitVote({ uid, eventId, fixtureId, player, sets, player
   invalidate(`event:${eventId}`);
 }
 
+// A fix to a result that is already in (rules/corrections.js): the right set scores ([] = score is
+// right), screenshots and/or a note. applied = { sets, correctedBy } when the other team sent the same
+// score: the result changes in the same save (firestore.rules agreedCorrection).
+export async function submitFix({ uid, eventId, fixtureId, player, sets, screenshotPaths = [], note = '', existing, applied = null, result = null }) {
+  const ops = [{
+    type: 'set',
+    path: `events/${eventId}/corrections/${fixtureId}__${player.id}`,
+    before: existing,
+    data: {
+      fixtureId, playerId: player.id, uid, teamId: player.teamId, sets, screenshotPaths, note, status: 'open',
+      createdAt: existing?.createdAt ? ts(existing.createdAt) : serverTimestamp(),
+    },
+  }];
+  if (applied) ops.push({ type: 'update', path: `events/${eventId}/results/${fixtureId}`, before: result, data: applied });
+  await commit(uid, ops);
+  invalidate(`event:${eventId}`);
+}
+
+export async function withdrawFix({ uid, eventId, fix }) {
+  await commit(uid, [{ type: 'delete', path: `events/${eventId}/corrections/${fix.id}`, before: fix }]);
+  invalidate(`event:${eventId}`);
+}
+
 export async function cancelLeave({ uid, request }) {
   await commit(uid, [{ type: 'update', path: `leaveRequests/${request.id}`, before: request, data: { status: 'cancelled' } }]);
 }

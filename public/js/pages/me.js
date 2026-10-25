@@ -253,7 +253,7 @@ export async function render() {
     const toReport = onTeam ? matchesToReport(await loadAllBundles().catch(() => []), me.player).slice(0, 6) : [];
     const reportBlock = toReport.length ? `
       <section>
-        <div class="section-head"><h2>Report your results</h2><span class="muted small">Tap a match to vote</span></div>
+        <div class="section-head"><h2>Report your results</h2><a href="/matches" data-link>My matches &amp; fixes</a></div>
         <div class="panel flush fixtures">${toReport.map(({ b, f, voted }) => fixtureRow(b, f, { showEvent: true }).replace('<div class="mid">', `<div class="mid">${voted ? '<span class="tag tag-live">voted</span>' : '<span class="tag tag-draft">vote</span>'}`)).join('')}</div>
       </section>` : '';
     const [pickup, rp] = await Promise.all([loadPickupRank(discord?.discordId ?? me.player.discordId), loadRankedRank(discord?.discordId ?? me.player.discordId)]);

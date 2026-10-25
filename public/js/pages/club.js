@@ -188,14 +188,14 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
         </section>
         ${toReport.length ? `
         <section>
-          <div class="section-head"><h2>Report results</h2><span class="muted small">Tap a match to vote</span></div>
+          <div class="section-head"><h2>Report results</h2><a href="/matches" data-link>My matches &amp; fixes</a></div>
           <div class="panel flush fixtures">${toReport.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('')}</div>
         </section>` : ''}
       </div>
       <div class="stack">
         ${chatBlock(team, me.player)}
         <section>
-          <div class="section-head"><h2>Next matches</h2><a href="/fixtures?team=${encodeURIComponent(team.id)}" data-link>All</a></div>
+          <div class="section-head"><h2>Next matches</h2><a href="/matches" data-link>My matches &amp; fixes</a></div>
           <div class="panel flush fixtures">${upcoming.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('') || '<p class="muted" style="padding:16px">Nothing scheduled.</p>'}</div>
         </section>
         ${isManager && squad.length > 1 ? `
@@ -258,7 +258,7 @@ function managerTab(ctx) {
           </section>
 
           <section id="mgr-results">
-            <div class="section-head"><h2>Results to report</h2></div>
+            <div class="section-head"><h2>Results to report</h2><a href="/matches" data-link>Fix a result / add a screenshot</a></div>
             <div class="panel flush fixtures">${toReport.map(({ b, f }) => fixtureRow(b, f, { showEvent: true })).join('') || '<p class="muted" style="padding:16px">Nothing to report.</p>'}</div>
           </section>
         </div>

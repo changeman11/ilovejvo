@@ -1,4 +1,4 @@
-// Player stats, across all events or one event: award cards (each stat's top 3, with the same
+// Player stats, across all events or one event: award cards (each stat's 1st, 2nd and 3rd, with the same
 // names as the Discord award roles, rules/stat-style.js), then one sortable table.
 // URL options: ?event=<id>  ?per=total|match|set  ?sort=<stat key>
 
@@ -74,19 +74,27 @@ export async function render() {
     </tr>`;
   }).join('');
 
-  // Award cards: each stat's top 3 right now (same titles as the Discord award roles).
+  // Award cards: each stat's 1st, 2nd and 3rd right now (same titles as the Discord award roles,
+  // one role per place). Ties share a place and skip the next, like the bot (9, 9, 5 = 1st, 1st, 3rd).
+  const PLACE = ['🥇 1st', '🥈 2nd', '🥉 3rd'];
   const cards = cols.map((c) => {
     const st = look(c);
-    const ranked = [...stats.values()].filter((p) => p.matches >= minMatches && statValue(p, c.key, mode) > 0)
-      .sort((a, b) => statValue(b, c.key, mode) - statValue(a, c.key, mode)).slice(0, 3);
+    const sorted = [...stats.values()].filter((p) => p.matches >= minMatches && statValue(p, c.key, mode) > 0)
+      .sort((a, b) => statValue(b, c.key, mode) - statValue(a, c.key, mode));
+    const ranked = [];
+    let place = 0;
+    sorted.forEach((p, i) => {
+      if (i === 0 || statValue(p, c.key, mode) < statValue(sorted[i - 1], c.key, mode)) place = i + 1;
+      if (place <= 3) ranked.push({ ...p, place });
+    });
     if (!ranked.length) return '';
     const [lead, ...rest] = ranked;
     const leader = people.playersById[lead.playerId];
     return `
       <a class="award-card${st.ink ? ' ink' : ''}${c.key === sortKey ? ' on' : ''}" style="${vars(c)}" href="${esc(url({ sort: c.key }))}" data-link data-keep-scroll>
         <span class="ac-top"><span class="ac-emoji" aria-hidden="true">${st.emoji}</span><span class="ac-title">${esc(st.title)}<small>${esc(st.name)}${mode === 'total' ? '' : mode === 'match' ? ' per match' : ' per set'}</small></span></span>
-        <span class="ac-lead">${avatarImg(leader ?? { displayName: '?' }, 'avatar')}<span class="ac-name">${esc(leader?.displayName ?? lead.playerId)}</span><b class="ac-num num">${fmt(statValue(lead, c.key, mode))}</b></span>
-        ${rest.length ? `<span class="ac-rest">${rest.map((p, i) => `<span>${['🥈', '🥉'][i]} ${esc(people.playersById[p.playerId]?.displayName ?? p.playerId)} <b class="num">${fmt(statValue(p, c.key, mode))}</b></span>`).join('')}</span>` : ''}
+        <span class="ac-lead">${avatarImg(leader ?? { displayName: '?' }, 'avatar')}<span class="ac-name"><small class="ac-place">${PLACE[0]}</small>${esc(leader?.displayName ?? lead.playerId)}</span><b class="ac-num num">${fmt(statValue(lead, c.key, mode))}</b></span>
+        ${rest.length ? `<span class="ac-rest">${rest.map((p) => `<span><i class="ac-place">${PLACE[p.place - 1]}</i> ${esc(people.playersById[p.playerId]?.displayName ?? p.playerId)} <b class="num">${fmt(statValue(p, c.key, mode))}</b></span>`).join('')}</span>` : ''}
       </a>`;
   }).join('');
 
@@ -107,7 +115,7 @@ export async function render() {
         <div class="tile"><b>${points}</b><span>Points scored</span></div>
         <div class="tile"><b>${stats.size}</b><span>Players</span></div>
       </div>
-      ${cards ? `<section><div class="section-head"><h2>🏆 Award holders</h2><span class="muted small">Top 3 hold the matching Discord role</span></div><div class="award-grid">${cards}</div></section>` : ''}
+      ${cards ? `<section><div class="section-head"><h2>🏆 Award holders</h2><span class="muted small">1st, 2nd and 3rd each get their own Discord role</span></div><div class="award-grid">${cards}</div></section>` : ''}
       <div>
         <nav class="chips">${PERS.map(([v, label]) => `<a class="chip-link" href="${esc(url({ per: v === 'total' ? null : v }))}" data-link data-keep-scroll${v === mode ? ' aria-current="true"' : ''}>${label}</a>`).join('')}</nav>
         ${mode !== 'total' ? `<p class="muted small" style="margin-bottom:8px">Averages include players with at least ${minMatches} match${minMatches === 1 ? '' : 'es'}.</p>` : ''}

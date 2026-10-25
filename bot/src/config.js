@@ -93,10 +93,10 @@ export function loadConfig(env = process.env) {
     clubRolesMinutes: number('CLUB_ROLES_MINUTES', 5, 1, 1440),
     // With club roles on: one more role for every club's captain (manager). CAPTAIN_ROLE=0 = none.
     captainRoleName: text('CAPTAIN_ROLE') === '0' ? '' : text('CAPTAIN_ROLE', 'Captain').slice(0, 100),
-    // Stat roles (stat-roles.js): "Top 3 · Points" etc. for the current top STAT_ROLES_TOP of each stat.
+    // Stat roles (stat-roles.js): 🥇 1st / 🥈 2nd / 🥉 3rd roles for each stat (STAT_ROLES_TOP places, 1-3).
     statRoles: text('STAT_ROLES') === '1',
     statRolesMinutes: number('STAT_ROLES_MINUTES', 30, 5, 1440),
-    statRolesTop: number('STAT_ROLES_TOP', 3, 1, 10),
+    statRolesTop: number('STAT_ROLES_TOP', 3, 1, 3),
     // Community characters (characters.js, needs STORE=firebase): pictures posted in
     // #in-game-characters are cut out and added to the site's Home court.
     characters: text('CHARACTERS') === '1',

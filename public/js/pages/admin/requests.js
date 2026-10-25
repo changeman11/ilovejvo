@@ -1,10 +1,11 @@
 // Admin inbox: team registrations, leave requests and profile claims.
 
 import { loadRequests, loadAllBundles } from '../../data.js';
-import { decideTeam, decideLeave, decideClaim } from '../../admin-data.js';
+import { decideTeam, decideLeave, decideClaim, setFixStatus } from '../../admin-data.js';
+import { fixPending } from '../../rules/corrections.js';
 import { refresh } from '../../nav.js';
 import { esc, skeleton, teamDot, playerLink, fmtDay, urls } from '../../ui.js';
-import { tallyVotes, voteLabel } from '../../rules/votes.js';
+import { tallyVotes, voteLabel, sameSets } from '../../rules/votes.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
 export const title = 'Requests';
@@ -19,7 +20,27 @@ export async function render() {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
   const [r, bundles] = await Promise.all([loadRequests(), loadAllBundles({ includeDrafts: true, fresh: true })]);
-  page = { user: gate.user, r };
+  // Players' fixes to results already in (rules/corrections.js) that still need an admin.
+  const fixes = bundles.flatMap((b) => (b.corrections ?? [])
+    .filter((c) => fixPending(c, b.results[c.fixtureId]))
+    .map((c) => ({ b, c, f: b.fixtures.find((x) => x.id === c.fixtureId) }))
+    .filter((x) => x.f));
+  page = { user: gate.user, r, fixes };
+  const fixRows = fixes.map(({ b, c, f }) => {
+    const result = b.results[f.id];
+    const asks = [
+      c.sets?.length ? (sameSets(c.sets, result.sets) ? `score fixed to <b class="num">${esc(voteLabel(c.sets))}</b> (both teams agreed)` : `says it was <b class="num">${esc(voteLabel(c.sets))}</b> (now ${esc(voteLabel(result.sets))})`) : '',
+      c.screenshotPaths?.length ? `${c.screenshotPaths.length} screenshot${c.screenshotPaths.length === 1 ? '' : 's'} added` : '',
+      c.note ? `“${esc(c.note)}”` : '',
+    ].filter(Boolean).join(' · ');
+    return `
+    <div class="row">
+      <span class="row-main"><b>${esc(b.teamsById[f.homeTeamId]?.name ?? 'TBC')} v ${esc(b.teamsById[f.awayTeamId]?.name ?? 'TBC')}</b>
+        <span class="muted small">${esc(b.event.title)} · ${esc(b.playersById[c.playerId]?.displayName ?? c.playerId)} (${esc(b.teamsById[c.teamId]?.shortName ?? '')}) ${asks}</span></span>
+      <span class="row-side"><a class="btn btn-sm btn-primary" href="${urls.adminResult(b.event.id, f.id)}" data-link>Open</a>
+        <button class="btn btn-sm" data-act="fix-done" data-id="${esc(c.id)}" data-event="${esc(b.event.id)}" title="Nothing to change: close it">Done</button></span>
+    </div>`;
+  }).join('');
 
   // Result votes the two teams don't agree on (no result yet): an admin decides.
   const disputes = bundles.flatMap((b) => b.fixtures
@@ -90,6 +111,8 @@ export async function render() {
         ${adminBar(gate.user, gate.admin, '/admin/requests')}
         <div class="page-head"><div><h1>Requests</h1><p class="muted">Things players are waiting on.</p></div></div>
         <div class="stack">
+          ${fixRows ? `<section><div class="section-head"><h2>🛠 Result fixes from players</h2></div><div class="panel flush rows">${fixRows}</div>
+            <p class="muted small" style="margin-top:6px">Sent after a score went in (often a mistake made on Discord). Open one to use the new score or read the screenshot; saving closes the fix. “Done” closes it without changes.</p></section>` : ''}
           <section><div class="section-head"><h2>Stats to check</h2></div><div class="panel flush rows">${statsRows || empty('Nothing waiting. Matches appear here once both teams agree on the score.')}</div>
             <p class="muted small" style="margin-top:6px">The score is already live. Open one, press “Read stats” on a screenshot, check names and numbers, then save.</p></section>
           <section><div class="section-head"><h2>Scores the teams disagree on</h2></div><div class="panel flush rows">${disputeRows || empty('No disagreements. Scores both teams agree on go live by themselves.')}</div>
@@ -115,6 +138,18 @@ export function mount(el) {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const { user, r } = page;
+    if (b.dataset.act === 'fix-done') {
+      const hit = page.fixes.find((x) => x.c.id === b.dataset.id && x.b.event.id === b.dataset.event);
+      b.disabled = true;
+      try {
+        await setFixStatus({ uid: user.uid, eventId: hit.b.event.id, fix: hit.c, status: 'done' });
+        refresh();
+      } catch (err) {
+        console.error(err);
+        b.disabled = false;
+      }
+      return;
+    }
     const [kind, answer] = b.dataset.act.split('-');
     const approve = answer === 'yes';
     const id = b.dataset.id;

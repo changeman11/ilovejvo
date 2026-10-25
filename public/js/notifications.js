@@ -9,6 +9,7 @@
 import { currentUser, currentAdmin } from './auth.js';
 import { loadMe, isApprovedTeam, loadAllBundles, loadRequests, loadCharacters } from './data.js';
 import { tallyVotes } from './rules/votes.js';
+import { fixPending, fixesToAgree } from './rules/corrections.js';
 import { flowOf, matchState, eventPhase } from './rules/flow.js';
 import { checkText } from './rules/profanity.js';
 import { onSnapshot, query, collection, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
@@ -112,6 +113,16 @@ async function gather(uid) {
         ? { id: `ready-${b.event.id}-${f.id}`, at: since || now, icon: '✋', text: `Ready up for your match: ${vs}`, href: urls.match(b.event.id, f.id) }
         : { id: `vote-${b.event.id}-${f.id}`, at: f.scheduledAt ?? (since || now), icon: '🏐', text: `Report the result: ${vs}`, href: urls.match(b.event.id, f.id) });
     }
+    // The other team sent a fix to a result (rules/corrections.js): one tap from us applies it.
+    for (const b of bundles) {
+      for (const f of b.fixtures) {
+        const res = b.results[f.id];
+        if (f.virtual || !res || (f.homeTeamId !== me.team.id && f.awayTeamId !== me.team.id)) continue;
+        for (const c of fixesToAgree({ corrections: b.corrections, fixture: f, result: res, teamId: me.team.id })) {
+          items.push({ id: `fix-${b.event.id}-${c.id}-${c.updatedAt ?? 0}`, at: c.updatedAt ?? now, icon: '🛠', text: `<b>${team(c.teamId)}</b> sent a score fix for ${`<b>${team(f.homeTeamId)}</b> v <b>${team(f.awayTeamId)}</b>`}: check it`, href: `${urls.match(b.event.id, f.id)}#fix` });
+        }
+      }
+    }
   }
   return items.sort((x, y) => (y.at ?? 0) - (x.at ?? 0));
 }
@@ -162,6 +173,12 @@ async function gatherAdmin() {
           out.push({ id: `a-missing-${b.event.id}-${f.id}`, at: f.scheduledAt, icon: '⏳', text: `No result yet: ${match}`, href: urls.adminResult(b.event.id, f.id) });
         }
       }
+    }
+    // Players' fixes to results already in, still needing an admin (rules/corrections.js).
+    for (const c of b.corrections ?? []) {
+      const f = b.fixtures.find((x) => x.id === c.fixtureId);
+      if (!f || !fixPending(c, b.results[f.id])) continue;
+      out.push({ id: `a-fix-${b.event.id}-${c.id}-${c.updatedAt ?? 0}`, at: c.updatedAt ?? now, icon: '🛠', text: `Result fix from <b>${esc(b.playersById[c.playerId]?.displayName ?? 'a player')}</b>: ${name(f.homeTeamId)} v ${name(f.awayTeamId)}`, href: urls.adminResult(b.event.id, f.id) });
     }
     // A break that waits for an admin to open the finals.
     const phase = eventPhase(b, now);

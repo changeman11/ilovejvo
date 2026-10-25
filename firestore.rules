@@ -188,6 +188,47 @@ service cloud.firestore {
           && d.statsStatus == 'pending' && d.forfeit == null;
     }
 
+    // Result fixes (public/js/rules/corrections.js): a fix as it will be after this save.
+    function fixAfter(eventId, fixId) { return getAfter(/databases/$(database)/documents/events/$(eventId)/corrections/$(fixId)).data; }
+
+    // A player's fix for a match that already has a score: they're signed in as that player, the
+    // player is on one of the two teams, and the event is public. sets = the right set scores (or []
+    // when the score is right and they only add screenshots / a note).
+    function validFix(eventId, fixId) {
+      let d = request.resource.data;
+      let f = fixtureDoc(eventId, d.fixtureId);
+      return signedIn() && stampedByMe() && eventPublished(eventId)
+          && fixId == d.fixtureId + '__' + d.playerId
+          && d.uid == uid() && ownsPlayer(d.playerId)
+          && d.teamId == playerDoc(d.playerId).get('teamId', '')
+          && (d.teamId == f.homeTeamId || d.teamId == f.awayTeamId)
+          && exists(/databases/$(database)/documents/events/$(eventId)/results/$(d.fixtureId))
+          && d.sets is list && d.sets.size() <= 7
+          && d.screenshotPaths is list && d.screenshotPaths.size() <= 3
+          && d.note is string && d.note.size() <= 500
+          && d.status == 'open'
+          && d.keys().hasOnly(['fixtureId', 'playerId', 'uid', 'teamId', 'sets', 'screenshotPaths', 'note', 'status', 'createdAt', 'updatedBy', 'updatedAt']);
+    }
+
+    // A score changed by players: one home-team fix and one away-team fix (both open) give the same
+    // new set scores, saved by one of the two. Only the sets change; stats, MVP and the rest stay.
+    // Forfeits are left to admins.
+    function agreedCorrection(eventId, fixtureId) {
+      let d = request.resource.data;
+      let f = fixtureDoc(eventId, fixtureId);
+      let h = fixAfter(eventId, d.correctedBy[0]);
+      let a = fixAfter(eventId, d.correctedBy[1]);
+      return signedIn() && stampedByMe() && eventPublished(eventId) && validResult()
+          && resource.data.get('forfeit', null) == null
+          && d.diff(resource.data).affectedKeys().hasOnly(['sets', 'correctedBy', 'updatedBy', 'updatedAt'])
+          && d.correctedBy is list && d.correctedBy.size() == 2
+          && h.fixtureId == fixtureId && a.fixtureId == fixtureId
+          && h.teamId == f.homeTeamId && a.teamId == f.awayTeamId
+          && h.status == 'open' && a.status == 'open'
+          && (h.uid == uid() || a.uid == uid())
+          && h.sets == d.sets && a.sets == d.sets;
+    }
+
     // ---------- Events (exhibition nights, tournaments): admin-run ----------
     match /events/{eventId} {
       allow read: if resource.data.published == true || isAdmin();
@@ -199,6 +240,8 @@ service cloud.firestore {
         allow create, update: if isAdmin() && stampedByMe() && validResult();
         // Players publish a result only when both teams have voted the same set scores (see agreedResult).
         allow create: if agreedResult(eventId, fixtureId);
+        // ... and change its score only when both teams send the same fix (see agreedCorrection).
+        allow update: if agreedCorrection(eventId, fixtureId);
         // The Discord bot fills in who's who on the automatic stats reading (statsDraft) when a
         // player answers in the match thread, and adds screenshots players posted in the thread
         // (threadShots, paths in Storage). Only those, and only before staff check the stats.
@@ -221,6 +264,19 @@ service cloud.firestore {
           || (signedIn() && resource.data.uid == uid()
               && !exists(/databases/$(database)/documents/events/$(eventId)/results/$(resource.data.fixtureId)));
       }
+      // ---------- Result fixes (id "<fixtureId>__<playerId>", public/js/rules/corrections.js) ----------
+      // After a score is in, a player on either team sends the right score, screenshots or a note.
+      // They can change or take back their own while it's open; admins close it (status 'done').
+      match /corrections/{fixId} {
+        allow read: if eventPublished(eventId) || isAdmin();
+        allow create: if validFix(eventId, fixId);
+        allow update: if validFix(eventId, fixId) && resource.data.uid == uid() && resource.data.status == 'open';
+        allow update: if isAdmin() && stampedByMe()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedBy', 'updatedAt'])
+          && request.resource.data.status in ['open', 'done'];
+        allow delete: if isAdmin() || (signedIn() && resource.data.uid == uid());
+      }
+
       // ---------- Ready-up (id "<fixtureId>__<playerId>", public/js/rules/flow.js) ----------
       // A player presses Ready for a match their club is in, before it has a score; they can take it
       // back (delete). Admins can clear any.

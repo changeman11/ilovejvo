@@ -170,7 +170,7 @@ export function engineSeason(event) {
 }
 
 // Everything one event's pages need.
-// Returns { event, season, teams, teamsById, playersById, rosters, fixtures, results, submissions }
+// Returns { event, season, teams, teamsById, playersById, rosters, fixtures, results, submissions, corrections, ... }
 export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) {
   if (fresh) invalidate(`event:${eventId}`);
   return cached(`event:${eventId}`, admin, async () => {
@@ -183,7 +183,7 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
     }
     if (!event) throw new NotFoundError('That event doesn’t exist');
     const base = `events/${eventId}`;
-    const [teams, players, rosters, fixtures, results, submissions, entries, solos, ready] = await Promise.all([
+    const [teams, players, rosters, fixtures, results, submissions, entries, solos, ready, corrections] = await Promise.all([
       loadTeams({ fresh, admin }),
       loadPlayers({ fresh, admin }),
       getAll(`${base}/rosters`, admin),
@@ -197,6 +197,8 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
       getAll(`${base}/solos`, admin).catch(() => []),
       // Players who pressed Ready for a match (rules/flow.js ready-up).
       getAll(`${base}/ready`, admin).catch(() => []),
+      // Players' fixes to a result that is already in (rules/corrections.js).
+      getAll(`${base}/corrections`, admin).catch(() => []),
     ]);
     const season = engineSeason(event);
     const resultsById = Object.fromEntries(results.map((r) => [r.id, r]));
@@ -219,6 +221,7 @@ export function loadEventBundle(eventId, { fresh = false, admin = false } = {}) 
       entries,
       solos,
       ready,
+      corrections,
       plan,
     };
   });

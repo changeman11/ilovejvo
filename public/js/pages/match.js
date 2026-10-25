@@ -6,6 +6,7 @@ import { formatFor } from '../rules/season.js';
 import { resultOf, statHeads, statCells } from './parts.js';
 import { votesSummary, reportBlock, mountReport } from './report.js';
 import { readyPanel, mountReady } from './ready-up.js';
+import { fixPanel, mountFix } from './fix-result.js';
 import { matchState } from '../rules/flow.js';
 import { mediaUrl } from '../media.js';
 import { currentAdmin } from '../auth.js';
@@ -65,7 +66,8 @@ export async function render({ eventId, fixtureId }) {
       ${vod || shots.length ? `<section class="panel">
         ${vod ? `<a class="btn btn-primary" href="${esc(vod)}" target="_blank" rel="noopener">▶ Watch the VOD</a>` : ''}
         ${shots.length ? `<div class="shots">${shots.map((s, i) => `<a href="${esc(s)}" target="_blank" rel="noopener"><img src="${esc(s)}" alt="Screenshot ${i + 1}" loading="lazy"></a>`).join('')}</div>` : ''}
-      </section>` : ''}`;
+      </section>` : ''}
+      ${await fixPanel(b, f, result)}`;
   } else if (result) {
     body = notice('Result under review', ' An admin is checking this score.');
   } else {
@@ -117,4 +119,5 @@ export async function render({ eventId, fixtureId }) {
 export function mount(el) {
   mountReport(el);
   mountReady(el);
+  mountFix(el);
 }
