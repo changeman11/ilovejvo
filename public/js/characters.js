@@ -5,9 +5,7 @@
 // `cyclingCharacters` in config.js.
 
 import { cyclingCharacters } from './config.js';
-import { getDocs, collection } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from './firebase.js';
-import { mediaUrl } from './media.js';
+import { loadCharacters } from './data.js';
 
 const DIR = '/images/characters/';
 const EVERY_MS = 6000;
@@ -31,16 +29,13 @@ const hasOwnBall = (name) => /ball/i.test(name);
 const srcs = new Map();
 const srcOf = (name) => srcs.get(name) ?? `${DIR}${name}`;
 
+// Only approved characters that admins haven't hidden (data.js loadCharacters; /admin/characters).
 let list = null;
 async function loadList() {
   if (!list) {
-    const [files, added] = await Promise.all([
-      // no-cache: always check for a newer list (images are cached for a week; the list must not be).
-      fetch(`${DIR}list.json`, { cache: 'no-cache' }).then((r) => r.json()).catch(() => []),
-      getDocs(collection(db, 'characters')).then((s) => s.docs.map((d) => d.data())).catch(() => []),
-    ]);
-    for (const c of added) if (c.path) srcs.set(`${c.key}.png`, mediaUrl(c.path));
-    list = [...files, ...added.filter((c) => c.path).map((c) => `${c.key}.png`)];
+    const { live } = await loadCharacters().catch(() => ({ live: [] }));
+    for (const c of live) srcs.set(c.name, c.src);
+    list = live.map((c) => c.name);
   }
   return list;
 }
@@ -89,11 +84,13 @@ export async function startCharacters(root) {
   for (const pick of root.querySelectorAll('[data-char-pick]')) {
     const btn = pick.querySelector('.char-pick-btn');
     const menu = pick.querySelector('.char-menu');
-    const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    // While the menu is open the 🏆 Champions tab steps aside (on phones it sat on top of the menu).
+    const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.body.classList.remove('char-menu-open'); };
     btn.addEventListener('click', () => {
       const opening = menu.hidden;
       if (opening) drawMenu(menu, all, getPick());
       menu.hidden = !opening;
+      document.body.classList.toggle('char-menu-open', opening);
       btn.setAttribute('aria-expanded', String(opening));
     });
     menu.addEventListener('click', (e) => {

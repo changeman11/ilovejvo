@@ -20,6 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-25 · Claude (owner's PC) · character approvals + admin page · site (v70) + rules + bot DEPLOYED
+- **/admin/characters** (admin bar → Characters): Waiting for approval (Approve / Deny), On the court (Remove), Removed or denied (Put back). New bot characters are `pending` until approved (rules: bot creates pending only; admins change `status`). Hand-made ones hidden via `settings/characters.hidden`. Admin bell: "New character to approve".
+- Bot: ⏳ on new posts, ✅ when approved, 🚫 when denied (`charactersShown` meta). Older bot characters (no status) stay live.
+- Character button: couldn't reproduce it failing on v69 (fresh load, redraws, back/forward, phone/laptop/wide all fine). Fixed: on phones the 🏆 Champions tab sat on top of the open character menu; it now hides while the menu is open.
+- Tests: site 237 incl. bot 89 pass. Checked locally: approve/deny/remove/put back, court list follows.
+
 ### 2026-10-25 · Claude (partner's PC) · pages keep their place · site DEPLOYED (cache v69)
 - Checked live on the admin event page: fixture Edit opens in place, back from a result returns to the same spot, live redraws keep the scroll.
 - Back links no longer say "(1) …" (the bell's unread count was in the title); checked live.

@@ -58,7 +58,8 @@ test('characters: a new picture is cut out, added and ticked; screenshots, repea
   assert.equal(r.added, 1);
   assert.deepEqual(commits.map((w) => w.path), [`characters/discord-${id(1)}-0`]);
   assert.equal(commits[0].data.path, `characters/discord-${id(1)}-0.png`);
-  assert.deepEqual(reacted, [[id(1), '✅']]);
+  assert.deepEqual(reacted, [[id(1), '⏳']], 'waits for an admin');
+  assert.equal(commits[0].data.status, 'pending');
   const seen = store.getMeta('charactersSeen');
   assert.match(seen[`discord-${id(2)}-0`], /wide/);
   assert.match(seen[`discord-${id(3)}-0`], /repeat/);
@@ -94,4 +95,20 @@ test('characters: only a staff ❌ stops a new picture; a joke ❌ from anyone e
   assert.equal(r.added, 1, 'the joke-❌ picture is added (looked at again)');
   assert.deepEqual(commits.map((w) => w.path), [`characters/discord-${id(1)}-0`]);
   assert.match(store.getMeta('charactersSeen')[`discord-${id(2)}-0`], /staff ❌/);
+});
+
+test('characters: the post\'s reaction follows the admin (⏳ waiting, ✅ approved, 🚫 denied); old ones keep ✅', async () => {
+  const id = (n) => `15637${String(n).padStart(14, '0')}`;
+  const doc = (n, status) => ({ id: `discord-${id(n)}-0`, data: { path: `characters/discord-${id(n)}-0.png`, messageId: id(n), ...(status ? { status } : {}) } });
+  const docs = [doc(1, 'approved'), doc(2, 'denied'), doc(3, null), doc(4, 'pending')];
+  const posts = [1, 2, 3, 4].map((n) => post(id(n), []));
+  const { ch, reacted, store } = setup({ posts, docs });
+  const unreacted = [];
+  ch.io.unreact = async (c, m, e) => { unreacted.push([m, e]); };
+  await store.setMeta('charactersShown', { [`discord-${id(1)}-0`]: '⏳', [`discord-${id(2)}-0`]: '⏳', [`discord-${id(4)}-0`]: '⏳' });
+  await ch.sync();
+  assert.deepEqual(reacted.sort(), [[id(1), '✅'], [id(2), '🚫']].sort());
+  assert.deepEqual(unreacted.sort(), [[id(1), '⏳'], [id(2), '⏳']].sort());
+  await ch.sync();
+  assert.equal(reacted.length, 2, 'nothing changes the second time');
 });

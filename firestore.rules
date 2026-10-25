@@ -707,13 +707,19 @@ service cloud.firestore {
       allow delete: if isPickupBot() || isAdmin();
     }
     // Community characters for the Home court, added by the bot from #in-game-characters
-    // (bot/src/characters.js). Anyone reads; only the bot adds them; the bot or an admin removes them.
+    // (bot/src/characters.js). Anyone reads; only the bot adds them (as 'pending' since 2026-10-25:
+    // the site shows a character once an admin approves it); the bot or an admin removes them.
     match /characters/{key} {
       allow read: if true;
       allow create: if isPickupBot()
         && key.matches('discord-[0-9]{15,22}-[0-9]{1,2}')
         && request.resource.data.path == 'characters/' + key + '.png'
-        && request.resource.data.keys().hasOnly(['key', 'path', 'messageId', 'author', 'authorId', 'postedAt', 'print', 'addedAt']);
+        && request.resource.data.get('status', 'pending') == 'pending'
+        && request.resource.data.keys().hasOnly(['key', 'path', 'messageId', 'author', 'authorId', 'postedAt', 'print', 'addedAt', 'status']);
+      // Admins approve, deny or take one off the court (/admin/characters). New ones wait as 'pending'.
+      allow update: if isAdmin() && stampedByMe()
+        && request.resource.data.status in ['pending', 'approved', 'denied']
+        && changedOnly(['status', 'updatedBy', 'updatedAt']);
       allow delete: if isPickupBot() || isAdmin();
     }
     match /pickupBots/{botUid} {

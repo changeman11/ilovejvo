@@ -336,6 +336,12 @@ export async function setupDiscord(client, config, log = console) {
       const msg = await channel.messages.fetch(messageId);
       await msg.react(emoji);
     },
+    // Takes the bot's own reaction off a post.
+    async unreact(channelId, messageId, emoji) {
+      const channel = await client.channels.fetch(channelId);
+      const msg = await channel.messages.fetch(messageId);
+      await msg.reactions.cache.find((r) => r.emoji.name === emoji)?.users.remove(client.user.id);
+    },
     // Staff for removing characters: Manage Server, or one of ADMIN_ROLE_IDS / STAFF_ROLE_IDS.
     async isStaff(userId) {
       const member = await guild.members.fetch(userId).catch(() => null);

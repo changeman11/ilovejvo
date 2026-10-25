@@ -1697,3 +1697,17 @@ table.data tr.me-row td { background: var(--tint-sky); }
 .tr-first .dot.xl { border-radius: 16px; }
 .tcab-first .dot { border-radius: 10px; }
 @media (min-width: 1800px) { .trophy { right: 64px; width: 290px; } }
+
+/* The trophy tab steps aside while the character menu is open (characters.js). */
+body.char-menu-open .trophy { display: none; }
+
+/* Admin: community characters (pages/admin/characters.js) */
+.ch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ch-card { display: grid; gap: 6px; padding: 8px; border: 2px solid var(--ink); border-radius: 14px; background: var(--surface); }
+.ch-card.pending { border-color: #f5a300; background: var(--tint-yellow); }
+.ch-card.denied, .ch-card.hidden { opacity: 0.7; }
+.ch-pic { display: grid; place-items: center; height: 150px; border-radius: 10px; background: linear-gradient(#cfe9ff, #9dd17a); }
+.ch-pic img { max-height: 140px; max-width: 100%; object-fit: contain; }
+.ch-info { display: grid; font-size: 13px; line-height: 1.2; }
+.ch-info small { color: var(--muted); }
+.ch-actions { display: flex; flex-wrap: wrap; gap: 6px; }

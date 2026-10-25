@@ -389,3 +389,16 @@ export async function deleteResult({ eventId, fixture, uid, existing }) {
   ]);
   invalidate(`event:${eventId}`);
 }
+
+// ---------- Community characters (/admin/characters) ----------
+// The bot's characters: approve, deny or take off the court (status on characters/{key}).
+export async function setCharacterStatus({ uid, character, status }) {
+  await commit(uid, [{ type: 'update', path: `characters/${character.key}`, before: character.doc, data: { status } }]);
+  invalidate('col:characters');
+}
+// The hand-made ones (images/characters/list.json): hidden or shown again via settings/characters.
+export async function setHandCharacterHidden({ uid, name, hidden, setting }) {
+  const list = new Set(setting?.hidden ?? []);
+  if (hidden) list.add(name); else list.delete(name);
+  await saveSetting({ uid, id: 'characters', existing: setting ?? null, data: { hidden: [...list].sort() } });
+}

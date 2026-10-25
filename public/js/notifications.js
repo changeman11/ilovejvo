@@ -7,7 +7,7 @@
 // Admins can clear to-dos (one, or all) on this device; a cleared one comes back only if it changes.
 
 import { currentUser, currentAdmin } from './auth.js';
-import { loadMe, isApprovedTeam, loadAllBundles, loadRequests } from './data.js';
+import { loadMe, isApprovedTeam, loadAllBundles, loadRequests, loadCharacters } from './data.js';
 import { tallyVotes } from './rules/votes.js';
 import { flowOf, matchState, eventPhase } from './rules/flow.js';
 import { checkText } from './rules/profanity.js';
@@ -125,6 +125,11 @@ async function gatherAdmin() {
   const out = [];
   const now = Date.now();
   const inbox = '/admin/requests';
+  // Characters from #in-game-characters waiting for approval (one to-do per picture).
+  const chars = await loadCharacters({ admin: true }).catch(() => ({ all: [] }));
+  for (const c of chars.all.filter((x) => x.status === 'pending')) {
+    out.push({ id: `a-char-${c.key}`, at: c.postedAt ?? now, icon: '🎭', text: `New character to approve${c.author ? ` from <b>${esc(c.author)}</b>` : ''}`, href: '/admin/characters' });
+  }
   for (const t of r.pendingTeams) {
     out.push({ id: `a-team-${t.id}`, at: t.updatedAt ?? 0, icon: '🛡️', text: `New club to approve: <b>${esc(t.name)}</b>`, href: inbox });
   }

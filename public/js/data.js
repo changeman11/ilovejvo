@@ -16,6 +16,7 @@ import {
 import { db, adminDatabase } from './firebase.js';
 import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './rules/defaults.js';
 import { schedulePlan } from './rules/autofix.js';
+import { mediaUrl } from './media.js';
 
 export class NotFoundError extends Error {}
 
@@ -276,6 +277,29 @@ export async function loadComments(kind, id) {
 export function loadSetting(id, { fresh = false, admin = false } = {}) {
   if (fresh) invalidate(`setting:${id}`);
   return cached(`setting:${id}`, admin, () => getOne(`settings/${id}`, admin));
+}
+
+// ---------- Community characters (Home court) ----------
+// The hand-made ones (images/characters/list.json; admins hide them with settings/characters.hidden)
+// and the ones the Discord bot adds (Firestore characters/{key}; status pending | approved | denied,
+// missing = approved, for the ones added before approvals existed). -> { all, live, setting }
+//   all: [{ name, src, source: 'hand'|'bot', status: 'pending'|'approved'|'denied'|'hidden', key?, author?, postedAt?, doc? }]
+//   live: what the court shows (approved and not hidden).
+export async function loadCharacters({ admin = false } = {}) {
+  const [files, docs, setting] = await Promise.all([
+    fetch('/images/characters/list.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => []),
+    getAll('characters', admin).catch(() => []),
+    loadSetting('characters', { admin }).catch(() => null),
+  ]);
+  const hidden = new Set(setting?.hidden ?? []);
+  const all = [
+    ...files.map((name) => ({ name, src: `/images/characters/${name}`, source: 'hand', status: hidden.has(name) ? 'hidden' : 'approved' })),
+    ...docs.filter((d) => d.path).map((d) => ({
+      name: `${d.key ?? d.id}.png`, key: d.id, src: mediaUrl(d.path), source: 'bot', status: d.status ?? 'approved',
+      author: d.author ?? null, postedAt: d.postedAt ?? null, doc: d,
+    })),
+  ];
+  return { all, live: all.filter((c) => c.status === 'approved'), setting };
 }
 
 // ---------- Admin inbox ----------

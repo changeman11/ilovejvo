@@ -5,7 +5,8 @@
 //     scripts/cut-characters.mjs); screenshots, player cards, scenes and black backgrounds are skipped
 //   - skips repeats: a small fingerprint is compared with every character already on the site
 //   - uploads the cut-out to Storage (characters/discord-<message>-<n>.png), lists it in Firestore
-//     (characters/{key}) and reacts ✅ on the post
+//     (characters/{key}) as 'pending' with ⏳ on the post; an admin approves it on the site
+//     (/admin/characters), then the post gets ✅ (or 🚫 if denied)
 //   - takes a character off the site when its post is deleted, or a staff member reacts ❌
 // Pictures already handled by hand (the site's images/characters/list.json and skipped.json) are
 // left alone. What it decided about each picture is remembered in the store meta `charactersSeen`.
@@ -62,6 +63,18 @@ export class Characters {
     return { list: new Set(list.map((n) => n.replace(/\.png$/, ''))), skipped: new Set(skipped.map((n) => n.replace(/\.\w+$/, ''))) };
   }
 
+  // Swaps the bot's reaction on a post (old -> new). Returns what's shown now.
+  async mark(channelId, messageId, old, emoji) {
+    try {
+      if (old) await this.io.unreact?.(channelId, messageId, old);
+      await this.io.react(channelId, messageId, emoji);
+      return emoji;
+    } catch (err) {
+      this.log.warn('[characters] could not react:', err.message);
+      return old;
+    }
+  }
+
   async syncNow() {
     const channelId = this.io.channelId();
     if (!channelId) {
@@ -80,6 +93,10 @@ export class Characters {
     let addedNow = 0;
     let removedNow = 0;
     let rejectedNow = 0;
+    // The reaction on each post follows the admin's decision: ⏳ waiting, ✅ approved, 🚫 denied.
+    // Remembered per character (store meta charactersShown); ones added before approvals existed
+    // already have ✅.
+    const shown = { ...(this.store.getMeta('charactersShown') ?? {}) };
 
     // Taken off: the post was deleted, or a staff member reacted ❌.
     const byId = new Map(posts.map((p) => [p.id, p]));
@@ -99,6 +116,12 @@ export class Characters {
       } catch (err) {
         this.log.warn('[characters] could not remove', key, err.message);
       }
+    }
+
+    for (const [key, d] of added) {
+      const want = { pending: '⏳', approved: '✅', denied: '🚫' }[d.status ?? 'approved'];
+      const have = shown[key] ?? (d.status ? null : '✅');
+      if (want && want !== have && byId.has(d.messageId)) shown[key] = await this.mark(channelId, d.messageId, have, want);
     }
 
     // New pictures, oldest first. Only a staff member's ❌ counts (anyone can react ❌ as a joke).
@@ -126,20 +149,22 @@ export class Characters {
           if (twin && twin[1] < REPEAT_LIMIT) { seen[key] = `skipped: repeat of ${twin[0]}`; rejectedNow++; continue; }
           const path = `characters/${key}.png`;
           await this.rest.upload(bucket, path, png, 'image/png');
-          const doc = { key, path, messageId: post.id, author: post.authorName ?? null, authorId: post.authorId ?? null, postedAt: post.postedAt, print };
+          // Waits for an admin (/admin/characters) before it shows on the site (2026-10-25).
+          const doc = { key, path, messageId: post.id, author: post.authorName ?? null, authorId: post.authorId ?? null, postedAt: post.postedAt, print, status: 'pending' };
           await this.rest.commit([{ path: `characters/${key}`, data: doc, serverTime: ['addedAt'], mustNotExist: true }]);
           added.set(key, doc);
           this.prints.set(key, print);
           seen[key] = 'added';
           addedNow++;
           this.log.info?.(`[characters] added ${key} (posted by ${post.authorName ?? post.authorId})`);
-          await this.io.react(channelId, post.id, '✅').catch((err) => this.log.warn('[characters] could not react:', err.message));
+          shown[key] = await this.mark(channelId, post.id, null, '⏳');
         } catch (err) {
           this.log.warn('[characters] could not add', key, err.message); // tried again next time
         }
       }
     }
     if (JSON.stringify(seen) !== JSON.stringify(this.store.getMeta('charactersSeen') ?? {})) await this.store.setMeta('charactersSeen', seen);
+    if (JSON.stringify(shown) !== JSON.stringify(this.store.getMeta('charactersShown') ?? {})) await this.store.setMeta('charactersShown', shown);
     if (addedNow || removedNow || rejectedNow) this.log.info?.(`[characters] ${addedNow} added, ${removedNow} taken off, ${rejectedNow} skipped`);
     return { added: addedNow, removed: removedNow, rejected: rejectedNow };
   }
