@@ -19,7 +19,7 @@ export const placeWord = (place) => ['1st', '2nd', '3rd'][place - 1] ?? `${place
 export const statRoleName = (stat, place) => { const s = statRoleStyle(stat); return `${PLACE_MEDAL[place - 1] ?? '🏅'} ${placeWord(place)} · ${s.title} ${s.emoji}`; };
 export const roleKey = (statKey, place) => `${statKey}:${place}`;
 // Bump when the look changes, so the bot restyles roles it made before.
-export const STAT_ROLE_LOOK = 3;
+export const STAT_ROLE_LOOK = 4;
 
 // results: [{ playerStats: { playerId: { pts, spk, ... } } }] -> Map playerId -> { pts: total, ... }
 export function statTotals(results) {

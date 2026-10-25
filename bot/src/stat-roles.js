@@ -77,6 +77,12 @@ export class StatRoles {
       }
     }
     if (made || upgraded) await this.store.setMeta('statRoles', roleMap);
+    // Every 1st above every 2nd above every 3rd, so a member's name colour comes from their best place.
+    if ((made || upgraded || restyle) && this.io.orderRoles) {
+      const order = [];
+      for (let place = 1; place <= top; place++) for (const stat of STAT_ROLE_STATS) order.push(roleMap[roleKey(stat.key, place)]);
+      await this.io.orderRoles(order).catch((err) => this.log.warn('[stat roles] couldn’t order the roles:', err.message));
+    }
     if (restyle) {
       await this.store.setMeta('statRoleLook', STAT_ROLE_LOOK);
       this.log.info?.(`[stat roles] new look${features.has('ENHANCED_ROLE_COLORS') ? ' with gradients' : ''}${features.has('ROLE_ICONS') ? ' and role icons' : ''}`);

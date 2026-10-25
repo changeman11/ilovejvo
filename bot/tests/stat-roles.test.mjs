@@ -54,6 +54,7 @@ test('stat roles end to end: made once, 1st/2nd/3rd given, moved when overtaken'
     async editRole(rid, r) { roleList.set(rid, r); },
     async addRole(u, r) { members.get(u).add(r); },
     async removeRole(u, r) { members.get(u).delete(r); },
+    async orderRoles(ids) { this.ordered = ids; },
   };
   const results = [{ playerStats: { a: { pts: 9 }, b: { pts: 7 }, c: { pts: 5 }, d: { pts: 1 } } }];
   const site = {
@@ -68,6 +69,8 @@ test('stat roles end to end: made once, 1st/2nd/3rd given, moved when overtaken'
   const first = await roles.sync();
   assert.equal(first.made, 24, 'three roles per stat');
   const map = store.getMeta('statRoles');
+  assert.ok(io.ordered.slice(0, 8).every((rid) => roleList.get(rid).name.startsWith('🥇')), 'all 1sts on top');
+  assert.ok(io.ordered.slice(16).every((rid) => roleList.get(rid).name.startsWith('🥉')), 'all 3rds at the bottom');
   const [p1, p2, p3] = [map['pts:1'], map['pts:2'], map['pts:3']];
   assert.equal(roleList.get(p1).name, '🥇 1st · Point Machine 👑');
   assert.equal(roleList.get(p2).name, '🥈 2nd · Point Machine 👑');

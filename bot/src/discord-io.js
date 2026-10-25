@@ -135,6 +135,14 @@ export async function setupDiscord(client, config, log = console) {
     async editRole(roleId, { name, color, color2, emoji, hoist }) {
       await guild.roles.edit(roleId, { name, colors: { primaryColor: color, ...(color2 ? { secondaryColor: color2 } : {}) }, ...(emoji ? { unicodeEmoji: emoji } : {}), hoist, reason: 'I<3JVO role changed' });
     },
+    // Put these roles in this order (first = highest), as one block where the highest of them is now.
+    async orderRoles(roleIds) {
+      const all = await guild.roles.fetch();
+      const found = roleIds.map((id) => all.get(id)).filter(Boolean);
+      if (!found.length) return;
+      const top = Math.max(...found.map((r) => r.position));
+      await guild.roles.setPositions(found.map((role, i) => ({ role, position: Math.max(1, top - i) })));
+    },
     async deleteRole(roleId) {
       await guild.roles.delete(roleId, 'I<3JVO club no longer active');
     },
