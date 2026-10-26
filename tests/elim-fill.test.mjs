@@ -76,3 +76,26 @@ test('nothing to add while a round is still being played', () => {
   const out = fillElimination({ kind: 'single', fixtures: fx, teamIds: ['t1', 't2', 't3', 't4'], outcome: (f) => (f.id === 'a' ? { winner: 't1', loser: 't2' } : null) });
   assert.deepEqual(out.add, []);
 });
+
+test('bracket view: which events get one, and their rounds', async () => {
+  const { elimView, elimBracket } = await import('../public/js/rules/elim-fill.js');
+  assert.equal(elimView({}, hand), null, 'plain numbers alone: no bracket unless switched on');
+  assert.equal(elimView({ bracketView: 'single' }, hand), 'single');
+  assert.equal(elimView({ elimByes: { 'Round 1': ['t9'] } }, hand), 'single', 'byes saved by the fill button');
+  assert.equal(elimView({}, [{ id: 'x', label: 'Upper Round 1 · Match 1', homeTeamId: 'a', awayTeamId: 'b' }]), 'double');
+  assert.equal(elimView({ bracketView: 'off' }, [{ id: 'x', label: 'Upper Round 1 · Match 1' }]), null);
+  assert.equal(elimView({}, [{ id: 'x', stage: 'playoffs', label: 'Final' }]), null, 'automatic knockouts have their own');
+  const later = [...hand, { id: 'm5', order: 5, label: '5', homeTeamId: 't1', awayTeamId: 't9' }];
+  const br = elimBracket({ kind: 'single', fixtures: later, byes: { 'Round 1': ['t9', 't10'] } });
+  assert.deepEqual(br.upper.map((r) => [r.name, r.matches.length, r.byes.length]), [['Round 1', 4, 2], ['Round 2', 1, 0]]);
+});
+
+test('two bye teams put against each other by hand count as the next round', () => {
+  const byes = { 'Round 1': ['t9', 't10'] };
+  const fx = [...hand, { id: 'm5', order: 5, label: '5', homeTeamId: 't9', awayTeamId: 't10' }];
+  const won = (f) => (f.id.startsWith('m') && f.id !== 'm5' ? { winner: f.homeTeamId, loser: f.awayTeamId } : null);
+  const out = fillElimination({ kind: 'single', fixtures: fx, teamIds: teams, outcome: won, seed: 'ev', byes });
+  // Round 2 = 4 winners + 2 byes; t9 v t10 is already one of its matches, so 2 more are added.
+  assert.deepEqual(out.add.map((m) => m.label), ['6', '7']);
+  assert.deepEqual(out.add.flatMap((m) => [m.homeTeamId, m.awayTeamId]).sort(), ['t1', 't3', 't5', 't7']);
+});

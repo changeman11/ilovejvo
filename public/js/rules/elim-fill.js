@@ -50,9 +50,10 @@ export function fillElimination({ kind = 'single', fixtures, teamIds, outcome, s
   if (numbered) {
     // By order: a new round starts when a team that already played in this round shows up again.
     let i = 0;
-    let seen = new Set();
+    // A team with a bye in this round can't play in it either.
+    let seen = new Set(saveByes['Round 1'] ?? []);
     for (const f of real) {
-      if (seen.has(f.homeTeamId) || seen.has(f.awayTeamId)) { i++; seen = new Set(); }
+      if (seen.has(f.homeTeamId) || seen.has(f.awayTeamId)) { i++; seen = new Set(saveByes[`Round ${i + 1}`] ?? []); }
       seen.add(f.homeTeamId); seen.add(f.awayTeamId);
       roundOf.set(f.id, `Round ${i + 1}`);
     }
@@ -178,4 +179,51 @@ export function fillElimination({ kind = 'single', fixtures, teamIds, outcome, s
 // What's waiting to be filled, for the admin's bye checkboxes (no dice rolled, nothing saved).
 export function pendingRound(args) {
   return fillElimination({ ...args, giveByes: [] }).pending;
+}
+
+// ---------- Drawing a hand-made bracket (event page, Fixtures page; added 2026-10-26) ----------
+// Which bracket view an event gets: event.bracketView 'single' | 'double' | 'off', or (missing /
+// 'auto') worked out: Upper/Lower/Grand Final labels = double; other elimination round labels, or
+// saved byes = single; otherwise none. Events with an automatic knockout use their own bracket.
+export function elimView(event, fixtures) {
+  const set = event?.bracketView;
+  if (set === 'off') return null;
+  if (set === 'single' || set === 'double') return set;
+  const real = fixtures.filter((f) => !f.virtual);
+  if (real.some((f) => f.stage === 'playoffs')) return null;
+  if (real.some((f) => /^(Upper|Lower) |^Grand Final/i.test(String(f.label ?? '')))) return 'double';
+  if (real.some((f) => elimRound(f.label)) || Object.values(event?.elimByes ?? {}).some((v) => v?.length)) return 'single';
+  return null;
+}
+
+// The bracket as rounds: { upper: [{ name, matches, byes }], lower: [...], grand: [matches], other: [matches] }.
+// Rounds as the fill button sees them (plain numbers: a new round starts when a team plays again).
+export function elimBracket({ kind = 'single', fixtures, byes = {} }) {
+  const real = [...fixtures].filter((f) => !f.virtual && f.homeTeamId && f.awayTeamId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const numbered = real.length > 0 && real.every((f) => numberOnly(f.label));
+  const roundOf = new Map();
+  if (numbered) {
+    let i = 0;
+    let seen = new Set(byes?.['Round 1'] ?? []);
+    for (const f of real) {
+      if (seen.has(f.homeTeamId) || seen.has(f.awayTeamId)) { i++; seen = new Set(byes?.[`Round ${i + 1}`] ?? []); }
+      seen.add(f.homeTeamId); seen.add(f.awayTeamId);
+      roundOf.set(f.id, `Round ${i + 1}`);
+    }
+  } else {
+    const firstUpper = kind === 'double' ? 'Upper Round 1' : 'Round 1';
+    for (const f of real) roundOf.set(f.id, elimRound(f.label) ?? (numberOnly(f.label) ? firstUpper : null));
+  }
+  const order = [];
+  for (const f of real) { const r = roundOf.get(f.id); if (r && !order.includes(r)) order.push(r); }
+  for (const r of Object.keys(byes ?? {})) if (!order.includes(r)) order.push(r);
+  const round = (name) => ({ name, matches: real.filter((f) => roundOf.get(f.id) === name), byes: byes?.[name] ?? [] });
+  const isGrand = (n) => /^Grand Final/.test(n);
+  return {
+    upper: order.filter((n) => !/^Lower /.test(n) && !isGrand(n) && !/^3rd place/.test(n)).map(round),
+    lower: order.filter((n) => /^Lower /.test(n)).map(round),
+    grand: order.filter(isGrand).flatMap((n) => round(n).matches),
+    third: order.filter((n) => /^3rd place/.test(n)).flatMap((n) => round(n).matches),
+    other: real.filter((f) => !roundOf.get(f.id)),
+  };
 }

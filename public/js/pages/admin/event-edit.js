@@ -479,20 +479,39 @@ function elimBoxHtml() {
   // Teams waiting for a match in the current round: tick the ones that get a bye.
   const waiting = b.teams.length >= 2 ? pendingRound(elimArgs(b, double ? 'double' : 'single')) : null;
   const saved = Object.entries(b.event.elimByes ?? {}).filter(([, ids]) => ids?.length);
+  const name = (id) => esc(b.teamsById[id]?.name ?? id);
   return `
     <section class="panel elim-box">
-      <div class="bot-action">
-        <b>🪄 Elimination bracket</b>
-        <select data-elim-kind aria-label="Bracket type">
-          <option value="single"${double ? '' : ' selected'}>Single elimination</option>
-          <option value="double"${double ? ' selected' : ''}>Double elimination</option>
-        </select>
-        <button class="btn btn-primary btn-sm" type="button" data-act="elim-fill">Fill in the next matches</button>
+      <h3 class="elim-title">🪄 Fill in the next matches</h3>
+      <div class="elim-step">
+        <span class="elim-num">1</span>
+        <label class="elim-field">Bracket
+          <select data-elim-kind>
+            <option value="single"${double ? "" : " selected"}>Single elimination</option>
+            <option value="double"${double ? " selected" : ""}>Double elimination</option>
+          </select>
+        </label>
       </div>
-      ${waiting?.free.length ? `<div class="elim-byes small"><b>Not in a match yet (${esc(waiting.round)}):</b> tick any that get a bye
-        ${waiting.free.map((id) => `<label class="check"><input type="checkbox" data-elim-bye value="${esc(id)}"> ${esc(b.teamsById[id]?.name ?? id)}</label>`).join('')}</div>` : ''}
-      ${saved.length ? `<p class="small" style="margin:6px 0 0">Byes so far: ${saved.map(([r, ids]) => `${esc(r)}: ${ids.map((id) => esc(b.teamsById[id]?.name ?? id)).join(', ')}`).join(' · ')}</p>` : ''}
-      <p class="muted small" style="margin:6px 0 0">Keeps every match already made, and your numbering. Pairs up the teams not yet in the current round, apart from the ones you tick for a bye (an odd one out gets a bye too), and once a round has all its scores, makes the next round from the winners and the byes. Double elimination also drops losers into the lower bracket, then makes the Grand Final. Shows you the list before saving. Press it again after each round.</p>
+      <div class="elim-step">
+        <span class="elim-num">2</span>
+        <div>
+          ${waiting?.free.length
+            ? `<p class="elim-q">Who gets a bye in <b>${esc(waiting.round)}</b>? <span class="muted">(skips this round, goes straight through)</span></p>
+               <div class="elim-chips">${waiting.free.map((id) => `<label class="elim-chip"><input type="checkbox" data-elim-bye value="${esc(id)}"><span>${name(id)}</span></label>`).join("")}</div>`
+            : `<p class="elim-q muted">Byes: nobody is waiting for a match right now.</p>`}
+          ${saved.length ? `<p class="small elim-saved">Byes so far: ${saved.map(([r, ids]) => `<b>${esc(r)}</b> ${ids.map(name).join(", ")}`).join(" · ")}</p>` : ""}
+        </div>
+      </div>
+      <div class="elim-step">
+        <span class="elim-num">3</span>
+        <div>
+          <button class="btn btn-primary" type="button" data-act="elim-fill">🪄 Fill in the next matches</button>
+          <p class="muted small" style="margin:6px 0 0">You see the list and confirm before anything is saved.</p>
+        </div>
+      </div>
+      <details class="elim-help small"><summary>How it works</summary>
+        <p>Keeps every match already made and your numbering. Pairs up the teams not in a match yet in the current round, apart from the byes you tick (an odd one out also gets a bye). Once a round has all its scores, press it again: the next round is made from the winners and the byes. Double elimination (needs Upper / Lower round names) also drops losers into the lower bracket, then makes the Grand Final.</p>
+      </details>
     </section>`;
 }
 
@@ -652,7 +671,7 @@ export function mount(el) {
         ...plan.add.map((m) => `+ Match ${m.label}: ${name(m.homeTeamId)} v ${name(m.awayTeamId)}`),
         ...newByes,
       ];
-      if (!window.confirm(`Add these?\n\n${lines.join('\n')}`)) return;
+      if (!window.confirm(`${plan.add.length ? `This adds ${plan.add.length} new match${plan.add.length === 1 ? '' : 'es'}${newByes.length ? ' and saves the byes' : ''}` : 'This saves the byes (no new matches)'}. Nothing else changes.\n\n${lines.join('\n')}\n\nOK to save?`)) return;
       button.disabled = true;
       try {
         if (byesChanged) await saveElimByes({ uid, event: b.event, byes: plan.byes });

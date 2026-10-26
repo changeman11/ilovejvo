@@ -1750,3 +1750,19 @@ body.char-menu-open .trophy { display: none; }
 .bot-num input { width: 90px; }
 .bot-action { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .bot-action .btn { min-width: 230px; justify-content: flex-start; }
+
+/* Admin: "Fill in the next matches" box (pages/admin/event-edit.js elimBoxHtml) */
+.elim-box { display: grid; gap: 12px; }
+.elim-title { margin: 0; font: 600 18px var(--font-head); }
+.elim-step { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.elim-num { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; font-weight: 800; font-size: 14px; }
+.elim-field { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; padding-top: 2px; }
+.elim-field select { width: auto; min-width: 200px; }
+.elim-q { margin: 3px 0 8px; font-weight: 700; }
+.elim-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.elim-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: var(--outline); border-radius: 999px; background: var(--surface); font-weight: 700; cursor: pointer; user-select: none; }
+.elim-chip input { width: 18px; height: 18px; margin: 0; accent-color: var(--blue); }
+.elim-chip:has(input:checked) { background: var(--blue); color: #fff; }
+.elim-saved { margin: 8px 0 0; }
+.elim-help summary { cursor: pointer; font-weight: 700; }
+.elim-help p { margin: 6px 0 0; }

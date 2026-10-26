@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · fill box redone (admin said it was broken) · site (v78) DEPLOYED
+- The 🪄 box is now 3 numbered steps: bracket type, "Who gets a bye in Round N?" chips, the button; the explanation is folded under "How it works". The confirm says plainly what it will save ("This adds 1 new match…" / "This saves the byes (no new matches)… OK to save?"). The admin's screenshot ("…get round labels") was the old cached version (v76); v78 forces the refresh.
+- Logic: teams with a bye can't be in that round, so two bye teams put against each other by hand count as the next round (tested).
+- Paused at the owner's request: drawing single/double elimination brackets on the event and Fixtures pages (`elimView` / `elimBracket` in rules/elim-fill.js are written and tested; the drawing isn't).
+
 ### 2026-10-26 · Claude (owner's PC) · elimination fill: byes + keeps the admin's numbering · site (v77) DEPLOYED
 - Admin feedback: wanted Orchids and Chikchester City on byes, and their own numbered labels kept. Now: never renames matches; with plain-number labels new matches carry on the numbers (5, 6, …) and rounds are told apart by order (a new round starts when a team plays again). The box lists the teams not in a match yet in the current round with "bye" tick boxes; ticked teams go through (saved as `event.elimByes` { round: [teamIds] }), an odd one out also gets a bye. Double elimination needs round names (it says so with plain numbers).
 - Dry run on tonight's event: ticking Orchids + Chikchester City adds no matches and saves both byes; after round 1 it makes round 2 from the 4 winners + 2 byes (3 matches, numbered 5-7).
