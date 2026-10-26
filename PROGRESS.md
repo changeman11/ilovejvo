@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · elimination brackets drawn on the event + Fixtures pages · site (v80) DEPLOYED
+- `elimBracketHtml(b)` (pages/parts.js) draws hand-made brackets in the same dark "finals" style: **single** = a column per round (bye cards, dashed), TBD columns for rounds still to come out to the Final, trophy + champion; **double** = ⬆️ Upper bracket, ⬇️ Lower bracket, 🏆 Grand Final (+ reset) with champion. On the event page ("Bracket" section) and the Fixtures page's 🏆 Groups & bracket view.
+- Which events: `elimView()` (rules/elim-fill.js): `event.bracketView` single/double/off, or automatic (Upper/Lower labels = double; elimination round labels or saved byes = single). Admin switch "Bracket on the event page" in the 🪄 box (saved straight away). Tonight's event is plain-numbered with no saved byes, so it needs the switch set to "Show as single elimination"; its rounds read correctly (Round 1 = 1-4, Round 2 = 5, 6, 8 with Chikchester City and Orchids).
+
 ### 2026-10-26 · Claude (owner's PC) · stats reader: lines per side = team size · site (v79) DEPLOYED, bot UPLOADED
 - The bot (`stats-read.js read(buf, { maxRows })`, called with the event's `teamSize`) and the site's reader (`readEndScreen({ maxRows })` from stats-reader.js) look for at most team-size lines per side (3v3 = 3, so 6 lines, never 8); the bot also drops any extra lines before saving a reading. Tonight's 4 results were already reviewed with 6 lines each.
 

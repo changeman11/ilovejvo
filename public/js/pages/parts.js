@@ -7,6 +7,7 @@ import { formatFor } from '../rules/season.js';
 import { byTime } from '../rules/standings.js';
 import { flowOf, matchState } from '../rules/flow.js';
 import { elimRound } from '../rules/bracket-labels.js';
+import { elimView, elimBracket } from '../rules/elim-fill.js';
 
 export { byTime };
 
@@ -315,6 +316,105 @@ export function bracketHtml(b) {
         </div>` : ''}
     </div>
     ${extra.length ? `<div class="panel flush fixtures" style="margin-top:14px">${extra.map((f) => fixtureRow(b, f)).join('')}</div>` : ''}`;
+}
+
+// ---------- Elimination brackets made by hand (added 2026-10-26) ----------
+// Single elimination: one row of rounds ending in the Final + champion. Double elimination: the
+// upper bracket, the lower bracket, then the Grand Final (+ reset). Byes show as their own cards.
+// rules/elim-fill.js decides if an event gets one (elimView) and splits the rounds (elimBracket).
+const winnerOf = (b, f) => {
+  const { check } = f ? resultOf(b, f) : {};
+  if (!check?.ok) return null;
+  return check.winner === 'home' ? f.homeTeamId : f.awayTeamId;
+};
+function byeCard(b, teamId) {
+  const t = b.teamsById[teamId];
+  return `
+    <div class="br-match br-bye">
+      <span class="br-label">Bye<span>straight through</span></span>
+      <div class="br-team won">${teamDot(t)}<span class="br-name">${esc(t?.name ?? teamId)}</span><b class="br-sets">→</b></div>
+    </div>`;
+}
+const elimCols = (b, rounds) => rounds.map((r) => `
+  <div class="br-col">
+    <h3 class="br-round">${esc(r.name)}</h3>
+    <div class="br-matches">${r.matches.map((f) => bracketMatch(b, f)).join('')}${r.byes.map((id) => byeCard(b, id)).join('')}</div>
+  </div>`).join('');
+
+export function elimBracketHtml(b) {
+  const kind = elimView(b.event, b.fixtures);
+  if (!kind) return '';
+  const br = elimBracket({ kind, fixtures: b.fixtures, byes: b.event.elimByes ?? {} });
+  if (!br.upper.length && !br.lower.length && !br.grand.length) return '';
+  const champCard = (teamId) => {
+    const t = teamId ? b.teamsById[teamId] : null;
+    return t ? `<div class="br-champion">Champions<b>${teamDot(t, 'lg')}${esc(t.name)}</b></div>` : '';
+  };
+  if (kind === 'single') {
+    // The last round is the Final once it's one match with no byes left.
+    const last = br.upper[br.upper.length - 1];
+    const isFinal = last && last.matches.length === 1 && !last.byes.length && br.upper.length > 1;
+    const rounds = isFinal ? br.upper.slice(0, -1) : br.upper;
+    const final = isFinal ? last.matches[0] : null;
+    // Rounds still to come, as TBD cards, out to the Final.
+    const tbd = `<div class="br-match draft"><span class="br-label">To be decided</span><div class="br-team tbc"><i class="dot"></i><span class="br-name">TBD</span></div><div class="br-team tbc"><i class="dot"></i><span class="br-name">TBD</span></div></div>`;
+    const future = [];
+    if (!isFinal && last) {
+      let left = last.matches.length + last.byes.length;
+      let n = br.upper.length;
+      while (left > 1) {
+        n++;
+        const games = Math.floor(left / 2);
+        future.push({ name: left === 2 ? 'Final' : `Round ${n}`, games, bye: left % 2 === 1 });
+        left = games + (left % 2);
+      }
+    }
+    const finalTbd = future.length && future[future.length - 1].name === 'Final' ? future.pop() : null;
+    const futureCols = future.map((r) => `
+      <div class="br-col br-future">
+        <h3 class="br-round">${esc(r.name)}</h3>
+        <div class="br-matches">${tbd.repeat(r.games)}${r.bye ? `<div class="br-match br-bye draft"><span class="br-label">Bye<span>to be decided</span></span><div class="br-team tbc"><i class="dot"></i><span class="br-name">TBD</span></div></div>` : ''}</div>
+      </div>`).join('');
+    return `
+      <div class="bracket">
+        ${elimCols(b, rounds)}
+        ${futureCols}
+        ${finalTbd ? `<div class="br-col br-col-final br-future"><h3 class="br-round">Final</h3><div class="br-matches"><div class="br-trophy" aria-hidden="true">🏆</div>${tbd}</div></div>` : ''}
+        ${final ? `
+          <div class="br-col br-col-final">
+            <h3 class="br-round">${esc(/^\d+$/.test(String(final.label ?? '').trim()) ? 'Final' : final.label ?? 'Final')}</h3>
+            <div class="br-matches">
+              <div class="br-trophy" aria-hidden="true">🏆</div>
+              ${bracketMatch(b, final, { big: true })}
+              ${champCard(winnerOf(b, final))}
+              ${br.third.length ? `<h3 class="br-round br-third">🥉 3rd place</h3>${bracketMatch(b, br.third[0])}` : ''}
+            </div>
+          </div>` : ''}
+      </div>
+      ${br.other.length ? `<div class="panel flush fixtures" style="margin-top:14px">${br.other.map((x) => fixtureRow(b, x)).join('')}</div>` : ''}`;
+  }
+  // Double elimination.
+  const gf = br.grand;
+  const lastGf = gf[gf.length - 1];
+  const champ = gf.length ? winnerOf(b, lastGf) : null;
+  // The reset only counts once played; a Grand Final won by the upper team ends it.
+  const done = champ && (gf.length > 1 || winnerOf(b, gf[0]) === gf[0].homeTeamId);
+  return `
+    <h3 class="br-bracket-name">⬆️ Upper bracket</h3>
+    <div class="bracket">${elimCols(b, br.upper)}</div>
+    ${br.lower.length ? `<h3 class="br-bracket-name">⬇️ Lower bracket <small>one more loss and you’re out</small></h3><div class="bracket">${elimCols(b, br.lower)}</div>` : ''}
+    ${gf.length ? `
+      <h3 class="br-bracket-name">🏆 Grand Final</h3>
+      <div class="bracket br-grand">
+        <div class="br-col br-col-final">
+          <div class="br-matches">
+            <div class="br-trophy" aria-hidden="true">🏆</div>
+            ${gf.map((x) => bracketMatch(b, x, { big: true })).join('')}
+            ${done ? champCard(champ) : ''}
+          </div>
+        </div>
+      </div>` : ''}
+    ${br.other.length ? `<div class="panel flush fixtures" style="margin-top:14px">${br.other.map((x) => fixtureRow(b, x)).join('')}</div>` : ''}`;
 }
 
 // ---------- Seeding map (Fixtures page, bracket view) ----------

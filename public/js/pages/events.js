@@ -12,8 +12,9 @@ import { formatFor } from '../rules/season.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag, staffTag } from '../ui.js';
 import { livePanelsHtml } from './live-parts.js';
 import { eventRulesHtml } from './event-rules.js';
+import { elimView } from '../rules/elim-fill.js';
 import { checkinPanel, mountReady } from './ready-up.js';
-import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupTablesHtml, groupFixturesHtml, bracketHtml, stageOrder } from './parts.js';
+import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupTablesHtml, groupFixturesHtml, bracketHtml, elimBracketHtml, stageOrder } from './parts.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
 import { adminAddEntry, removeEntry } from '../admin-data.js';
@@ -266,6 +267,12 @@ async function signupBox(b) {
     </section>`;
 }
 
+// "Single elimination · 10 teams" for the bracket heading.
+function elimSubtitle(b) {
+  const kind = elimView(b.event, b.fixtures);
+  return `${kind === 'double' ? 'Double elimination' : 'Single elimination'} · ${b.teams.length} teams`;
+}
+
 export const eventPage = {
   title: 'Event',
   loading: () => skeleton([180, 320]),
@@ -326,6 +333,13 @@ export const eventPage = {
         ${bracketHtml(b)}
         ${b.plan.finalsNote ? `<p class="small" style="margin:10px 0 0">${esc(b.plan.finalsNote)}</p>` : ''}
       </section>` : '';
+    // A bracket made by hand (single / double elimination).
+    const elim = elimBracketHtml(b);
+    const elimSection = elim ? `
+      <section class="finals-section">
+        <div class="finals-head"><h2>Bracket</h2><span>${esc(elimSubtitle(b))}</span><span class="br-swipe">Swipe to see more rounds →</span></div>
+        ${elim}
+      </section>` : '';
     const listed = hasGroups ? items.filter(({ f }) => !f.group) : items;
     const others = listed.filter(({ f }) => f.stage !== 'playoffs');
 
@@ -350,6 +364,7 @@ export const eventPage = {
 
           ${groupStage}
           ${finalsSection}
+          ${elimSection}
 
           <div class="cols">
             <div class="stack">

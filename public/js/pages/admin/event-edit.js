@@ -14,7 +14,7 @@ import { FLOW_DEFAULTS, flowOf, eventPhase, liveSummary } from '../../rules/flow
 import { zoneLabel } from '../../rules/events.js';
 import { ELIM_PREFIXES, nextLabel, elimRound } from '../../rules/bracket-labels.js';
 import { fillElimination, pendingRound } from '../../rules/elim-fill.js';
-import { saveElimByes } from '../../admin-data.js';
+import { saveElimByes, saveBracketView } from '../../admin-data.js';
 import { saveEvent, saveFlow, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures, makeMixTeams, breakUpMixTeam } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
@@ -509,6 +509,15 @@ function elimBoxHtml() {
           <p class="muted small" style="margin:6px 0 0">You see the list and confirm before anything is saved.</p>
         </div>
       </div>
+      <div class="elim-step">
+        <span class="elim-num">🏆</span>
+        <label class="elim-field">Bracket on the event page
+          <select data-bracket-view>
+            ${[['auto', 'Automatic (when matches have round names or byes)'], ['single', 'Show as single elimination'], ['double', 'Show as double elimination'], ['off', 'Don’t show a bracket']]
+              .map(([v, l]) => `<option value="${v}"${(b.event.bracketView ?? 'auto') === v ? ' selected' : ''}>${l}</option>`).join('')}
+          </select>
+        </label>
+      </div>
       <details class="elim-help small"><summary>How it works</summary>
         <p>Keeps every match already made and your numbering. Pairs up the teams not in a match yet in the current round, apart from the byes you tick (an odd one out also gets a bye). Once a round has all its scores, press it again: the next round is made from the winners and the byes. Double elimination (needs Upper / Lower round names) also drops losers into the lower bracket, then makes the Grand Final.</p>
       </details>
@@ -576,7 +585,20 @@ export function mount(el) {
     }
   });
 
-  root.addEventListener('change', (e) => {
+  root.addEventListener('change', async (e) => {
+    // The bracket picture on the event page (event.bracketView), saved straight away.
+    if (e.target.matches('[data-bracket-view]')) {
+      e.target.disabled = true;
+      try {
+        await saveBracketView({ uid, event: page.b.event, view: e.target.value });
+        refresh();
+      } catch (err) {
+        console.error(err);
+        e.target.disabled = false;
+        window.alert(`That didn’t save: ${err.message}`);
+      }
+      return;
+    }
     // Fixture form: picking a round (single / double elimination) fills in the label, numbered
     // after the matches already in that round ("Upper Round 1 · Match 3").
     if (e.target.matches('[data-form="fixture"] [name=prefix]') && e.target.value) {

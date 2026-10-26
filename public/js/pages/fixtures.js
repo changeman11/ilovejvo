@@ -10,7 +10,7 @@ import { loadAllBundles, loadPeople, isApprovedTeam } from '../data.js';
 import { currentUser } from '../auth.js';
 import { esc, skeleton, notice, pageTitle, urls } from '../ui.js';
 import {
-  allFixtures, fixturesByRound, resultOf, groupFixturesHtml, groupTablesHtml, bracketHtml, seedingMapHtml, stageOrder,
+  allFixtures, fixturesByRound, resultOf, groupFixturesHtml, groupTablesHtml, bracketHtml, elimBracketHtml, seedingMapHtml, stageOrder,
 } from './parts.js';
 import { seedingMap } from '../rules/autofix.js';
 import { eventDateLabel } from '../rules/events.js';
@@ -61,7 +61,7 @@ function listView(bundles, shown, view) {
 
 // Groups & bracket view: tables, seeding map and bracket for each event that has them.
 function bracketView(bundles) {
-  const withStages = bundles.filter((b) => b.plan.groupCount > 1 || (b.event.finals?.type && b.event.finals.type !== 'none'));
+  const withStages = bundles.filter((b) => b.plan.groupCount > 1 || (b.event.finals?.type && b.event.finals.type !== 'none') || elimBracketHtml(b));
   if (!withStages.length) return notice('No events with groups or finals yet', ' When an event has a group stage or a knockout, its tables and bracket show here.', 'x');
   // Upcoming events first, then the most recent.
   withStages.sort((a, z) => (a.event.status === 'upcoming' ? 0 : 1) - (z.event.status === 'upcoming' ? 0 : 1)
@@ -70,13 +70,15 @@ function bracketView(bundles) {
     const hasGroups = b.plan.groupCount > 1 && b.plan.teamIds.length > 0;
     const map = seedingMap(b.event, b.plan);
     const bracket = bracketHtml(b);
+    const elim = elimBracketHtml(b);
     return `
       <section class="fx-event">
         ${eventHead(b)}
         ${hasGroups ? `<h3 class="fx-sub">Group tables</h3>${groupTablesHtml(b)}` : ''}
         ${map ? `<h3 class="fx-sub">Seeding map</h3>${seedingMapHtml(b, map)}` : ''}
         ${bracket ? `<div class="finals-section" style="margin-top:18px"><div class="finals-head"><h2>Finals</h2><span class="br-swipe">Swipe to see the final →</span></div>${bracket}</div>` : ''}
-        ${!hasGroups && !map && !bracket ? `<p class="muted">${esc(b.plan.finalsNote ?? 'Nothing to show yet: teams appear here once they’re in.')}</p>` : ''}
+        ${elim ? `<div class="finals-section" style="margin-top:18px"><div class="finals-head"><h2>Bracket</h2><span class="br-swipe">Swipe to see more rounds →</span></div>${elim}</div>` : ''}
+        ${!hasGroups && !map && !bracket && !elim ? `<p class="muted">${esc(b.plan.finalsNote ?? 'Nothing to show yet: teams appear here once they’re in.')}</p>` : ''}
         ${b.plan.finalsNote && (map || bracket) ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
       </section>`;
   }).join('');

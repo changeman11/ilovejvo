@@ -53,6 +53,13 @@ export async function saveElimByes({ uid, event, byes }) {
   invalidate('events');
 }
 
+// How the event page shows a hand-made bracket: 'auto' | 'single' | 'double' | 'off' (event.bracketView).
+export async function saveBracketView({ uid, event, view }) {
+  await commit(uid, [{ type: 'update', path: `events/${event.id}`, before: event, data: { bracketView: view } }]);
+  invalidate(`event:${event.id}`);
+  invalidate('events');
+}
+
 // Starts a match without waiting for the check-ins (rules/flow.js): fixture.startedAt.
 export async function startMatchNow({ uid, eventId, fixture }) {
   await commit(uid, [{ type: 'update', path: `events/${eventId}/fixtures/${fixture.id}`, before: fixture, data: { startedAt: serverTimestamp() } }]);
