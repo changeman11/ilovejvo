@@ -83,7 +83,9 @@ export class ShotReader {
     await w?.terminate().catch(() => {});
   }
 
-  async read(buffer) {
+  // maxRows: players per team in this event (a 3v3 has 3 lines per side, never more).
+  async read(buffer, { maxRows = MAX_ROWS } = {}) {
+    const rowsPerSide = Math.max(1, Math.min(MAX_ROWS, Number(maxRows) || MAX_ROWS));
     let raw; let info;
     try {
       ({ data: raw, info } = await sharp(buffer).removeAlpha().raw().toBuffer({ resolveWithObject: true }));
@@ -109,7 +111,7 @@ export class ShotReader {
     await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '' });
     const lines = [];
     for (const [side, panel] of layout.panels.entries()) {
-      for (let row = 0; row < MAX_ROWS; row++) {
+      for (let row = 0; row < rowsPerSide; row++) {
         const stats = {};
         let cells = 0; let empty = 0;
         for (const stat of STAT_ORDER) {

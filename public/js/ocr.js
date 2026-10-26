@@ -62,7 +62,9 @@ const scaled = (rect, s) => ({ left: Math.max(0, Math.round(rect.left * s)), top
 // image: a URL or Blob. onProgress(text) for a status line.
 // Returns { panels: [{ rows: [{ nameText, name, stats: { pts: { value, sure } | null, ... } }] }] }
 // A stat is null when its column isn't on the screenshot (e.g. cut off at the edge).
-export async function readEndScreen(image, { onProgress = () => {} } = {}) {
+// maxRows: players per team in the event (a 3v3 has 3 lines per side).
+export async function readEndScreen(image, { onProgress = () => {}, maxRows = MAX_ROWS } = {}) {
+  const rowsPerSide = Math.max(1, Math.min(MAX_ROWS, Number(maxRows) || MAX_ROWS));
   onProgress('Loading the screenshot…');
   const blob = image instanceof Blob ? image : await (await fetch(image)).blob();
   const bitmap = await toBitmap(blob);
@@ -89,7 +91,7 @@ export async function readEndScreen(image, { onProgress = () => {} } = {}) {
     const panels = [];
     for (const [pi, panel] of layout.panels.entries()) {
       const rows = [];
-      for (let row = 0; row < MAX_ROWS; row++) {
+      for (let row = 0; row < rowsPerSide; row++) {
         onProgress(`Reading ${pi === 0 ? 'left' : 'right'} table, row ${row + 1}…`);
         await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789' });
         const stats = {};

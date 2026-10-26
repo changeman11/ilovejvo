@@ -55,7 +55,7 @@ export async function readMatchShot(b, fixture, source, { result = null, onProgr
     if (!res?.ok) throw new Error('Couldn’t download that screenshot here. Open it (click the picture), save it, then use “Read a screenshot from this computer…”.');
     blob = await res.blob();
   }
-  const out = await readEndScreen(blob, { onProgress });
+  const out = await readEndScreen(blob, { onProgress, maxRows: Number(b.event?.teamSize) || 4 });
   const rows = out.panels.flatMap((panel, pi) => panel.rows.map((row) => ({ ...row, side: pi === 0 ? 'left' : 'right' })));
   const candidates = candidatesFor(b, fixture, result).map((p) => ({ id: p.id, names: [p.displayName, ...(p.gameNames ?? [])] }));
   const matched = matchNames(rows.map((r) => r.name), candidates);

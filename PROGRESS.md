@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · stats reader: lines per side = team size · site (v79) DEPLOYED, bot UPLOADED
+- The bot (`stats-read.js read(buf, { maxRows })`, called with the event's `teamSize`) and the site's reader (`readEndScreen({ maxRows })` from stats-reader.js) look for at most team-size lines per side (3v3 = 3, so 6 lines, never 8); the bot also drops any extra lines before saving a reading. Tonight's 4 results were already reviewed with 6 lines each.
+
 ### 2026-10-26 · Claude (owner's PC) · fill box redone (admin said it was broken) · site (v78) DEPLOYED
 - The 🪄 box is now 3 numbered steps: bracket type, "Who gets a bye in Round N?" chips, the button; the explanation is folded under "How it works". The confirm says plainly what it will save ("This adds 1 new match…" / "This saves the byes (no new matches)… OK to save?"). The admin's screenshot ("…get round labels") was the old cached version (v76); v78 forces the refresh.
 - Logic: teams with a bye can't be in that round, so two bye teams put against each other by hand count as the next round (tested).

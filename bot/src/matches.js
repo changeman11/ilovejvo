@@ -307,7 +307,8 @@ export class MatchThreads {
     const job = (async () => {
       const files = await this.shotFiles(shot);
       if (!files.length) return { error: 'couldn’t download the screenshot' };
-      return this.reader.read(files[0].data);
+      // Only as many lines per side as there are players per team in this event.
+      return this.reader.read(files[0].data, { maxRows: Number(m.b.event?.teamSize) || 4 });
     })().catch((err) => ({ error: `couldn’t read it (${err.message})` }));
     this.reading = job.then((out) => this.run(() => this.saveReading(id, shot, out)))
       .catch((err) => this.log.warn('[matches] stats reading:', err.message))
@@ -323,6 +324,9 @@ export class MatchThreads {
     const now = this.clock.now();
     const extra = (teamId) => (m.b.rosters?.[teamId]?.playerIds ?? []).map((pid) => m.playersById[pid]).filter(Boolean);
     const squad = (list, teamId) => [...list, ...extra(teamId).filter((p) => !list.some((q) => q.id === p.id))];
+    // Never more lines per side than players per team (a reading made before this rule, or a stray mark).
+    const perSide = Number(m.b.event?.teamSize) || 4;
+    if (!out.error && out.lines) out = { ...out, lines: out.lines.filter((l) => (l.row ?? 0) < perSide) };
     const statsDraft = out.error
       ? { shot, readAt: now, by: botUid, reader: 'bot', error: out.error }
       : {

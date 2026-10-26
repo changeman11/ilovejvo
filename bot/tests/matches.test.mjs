@@ -526,3 +526,25 @@ test('bot panel: threads switched off for an event; close all; clear an event de
   assert.equal(w.db.has('matchThreads/night__f1'), false, 'forgotten');
   assert.equal(w.matches.threads.size, 0);
 });
+
+test('the reader looks for only as many lines per side as players per team (3v3: 3, never 8)', async () => {
+  const line = (side, row, name) => ({ side, row, nameText: name, name, print: null, stats: { pts: { value: 5, sure: true, why: null } } });
+  const asked = [];
+  const reader = {
+    seedPrints: {},
+    async read(buf, opts) {
+      asked.push(opts);
+      // A stray 4th line on each side (it shouldn't be there in a 3v3).
+      return { size: '1920x1080', lines: [0, 1].flatMap((side) => [0, 1, 2, 3].map((row) => line(side, row, `p${side}${row}`))) };
+    },
+  };
+  const w = world({ reader });
+  w.bundle.event.teamSize = 3;
+  await w.matches.start();
+  w.bundle.submissions = [{ id: 'f1__dA1', fixtureId: 'f1', teamId: 'reef', screenshotPaths: ['players/dA1/shot/end.png'], updatedAt: 5 }];
+  w.bundle.results.f1 = { id: 'f1', sets: [{ home: 10, away: 5 }, { home: 10, away: 5 }], statsStatus: 'pending', playerStats: {}, confirmedBy: ['f1__dA1'] };
+  await w.matches.sync();
+  await w.matches.idle();
+  assert.deepEqual(asked, [{ maxRows: 3 }]);
+  assert.equal(w.bundle.results.f1.statsDraft.rows.length, 6, '3 per side');
+});
