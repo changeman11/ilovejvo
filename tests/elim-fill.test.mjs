@@ -99,3 +99,12 @@ test('two bye teams put against each other by hand count as the next round', () 
   assert.deepEqual(out.add.map((m) => m.label), ['6', '7']);
   assert.deepEqual(out.add.flatMap((m) => [m.homeTeamId, m.awayTeamId]).sort(), ['t1', 't3', 't5', 't7']);
 });
+
+test('bracket view: byes nobody saved are worked out from who turns up in the next round', async () => {
+  const { elimBracket } = await import('../public/js/rules/elim-fill.js');
+  // Tonight's shape: 4 round-1 matches, then round 2 with the two clubs that sat out.
+  const r2 = [{ id: 'm5', order: 5, label: '5', homeTeamId: 't9', awayTeamId: 't1' }, { id: 'm6', order: 6, label: '6', homeTeamId: 't10', awayTeamId: 't3' }];
+  const br = elimBracket({ kind: 'single', fixtures: [...hand, ...r2] });
+  assert.deepEqual(br.upper[0].byes.sort(), ['t10', 't9']);
+  assert.deepEqual(br.upper[1].byes, []);
+});

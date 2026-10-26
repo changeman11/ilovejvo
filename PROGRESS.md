@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · bracket: byes shown, finals emphasised · site (v83) DEPLOYED
+- Byes nobody saved are worked out: a team in an upper round that didn't play the round before gets a bye card there (`elimBracket`, tested). Each round counts the teams it should have (round 1 = all event teams; later = winners + byes of the round before), so a round with an odd team isn't mistaken for the Final; teams already through but not drawn show by name (bye card / next round), the rest "TBD".
+- Plain "Round N" rounds are named by teams left: Quarter-finals (8), Semi-finals (4, silver header), Final (2: gold banner, trophy, big gold card, wider column). Champion banner bigger.
+- The bracket stacks one round under another whenever its own box is under 680px wide (container query), so names are never squashed; side by side on wide screens. Still never scrolls sideways.
+
 ### 2026-10-26 · Claude (owner's PC) · elimination bracket redone: no sideways scroll, clearer · site (v82) DEPLOYED
 - Owner said the bracket was terrible. `elimBracketHtml` (parts.js) now uses its own `.eb` grid: rounds side by side when they fit (equal columns, never wider than the page), stacked one under another on narrow screens. Each round has a header ("1/3 played · winners → Round 2", "winner is champion 🏆"); each match card says ✓ Final score / Score being checked / To play, ticks the winner and fades the loser; byes say "Goes straight through → to <next round>"; rounds not drawn yet show teams already through (e.g. a round 1 winner) and TBD for the rest. Champion banner on top. Double: Upper (lose once → lower), Lower (lose → out), Grand Final, each explained. "Swipe" hints removed. Checked desktop and phone (no horizontal scroll).
 

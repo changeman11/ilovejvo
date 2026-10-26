@@ -1779,8 +1779,11 @@ body.char-menu-open .trophy { display: none; }
 .stats-badge.none { background: var(--line); color: var(--muted); font-style: italic; }
 
 /* Hand-made elimination bracket, redone (pages/parts.js elimBracketHtml): never scrolls sideways. */
-.eb { display: grid; grid-template-columns: repeat(var(--eb-cols, 3), minmax(0, 1fr)); gap: 14px; }
+.eb { display: grid; grid-template-columns: var(--eb-tpl, repeat(var(--eb-cols, 3), minmax(0, 1fr))); gap: 14px; }
+.finals-section { container-type: inline-size; }
 @media (max-width: 900px) { .eb { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+/* The bracket box itself is narrow (side menu on screen): one round under the other. */
+@container (max-width: 680px) { .eb { grid-template-columns: minmax(0, 1fr); } }
 .eb-round { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .eb-head { display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); }
 .eb-head h3 { margin: 0; font: 700 16px var(--font-head); color: var(--yellow); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1814,3 +1817,18 @@ a.eb-match:hover { border-color: var(--yellow); }
 .eb-section + .eb-section { margin-top: 22px; }
 .eb-bracket { margin: 0 0 10px; color: #fff; font: 700 20px var(--font-head); }
 .eb-bracket small { display: block; color: #b9bdd0; font: 500 13px var(--font-body); margin-top: 2px; }
+
+/* Finals emphasis (single/double elimination) */
+.eb-round.semi .eb-head { background: rgba(200, 208, 240, 0.16); box-shadow: inset 0 0 0 1px #aeb6dc; }
+.eb-round.semi .eb-head h3 { color: #e8ecff; }
+.eb-round.semi .eb-match { border-color: #7d86b8; }
+.eb-round.final .eb-head { background: linear-gradient(135deg, #ffe200, #ffb300); text-align: center; }
+.eb-round.final .eb-head h3 { color: var(--ink); font-size: 22px; letter-spacing: 0.08em; }
+.eb-round.final .eb-head span { color: var(--ink); font-weight: 700; }
+.eb-round.final .eb-cards { justify-content: center; }
+.eb-round.final .eb-cards::before { content: "🏆"; display: block; text-align: center; font-size: 64px; line-height: 1; filter: drop-shadow(0 6px 12px rgba(255, 210, 63, 0.45)); }
+.eb-round.final .eb-match { border: 3px solid var(--yellow); box-shadow: 0 0 0 5px rgba(255, 226, 0, 0.14), 0 14px 30px rgba(0, 0, 0, 0.45); padding: 12px 14px; }
+.eb-round.final .eb-name { font-size: 19px; }
+.eb-round.final .eb-sets { font-size: 22px; }
+.eb-champ { background: radial-gradient(circle at 50% 0%, rgba(255, 226, 0, 0.18), transparent 70%); font-size: 34px; padding: 16px; }
+.eb-champ b { font-size: 30px; }

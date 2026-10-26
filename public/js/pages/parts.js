@@ -368,18 +368,18 @@ const ebTbd = (b, a = null, c = null) => {
 };
 
 // One round: heading (name, how many matches, where winners go), then its cards.
-function ebRound(b, r, next, { future = false, final = false, through = [] } = {}) {
+function ebRound(b, r, next, { future = false, final = false, semi = false, through = [] } = {}) {
   const games = r.matches?.length ?? r.games ?? 0;
   const done = (r.matches ?? []).filter((f) => winnerOf(b, f)).length;
   const sub = [
-    future ? 'not drawn yet' : `${done}/${games} played`,
+    future ? 'not drawn yet' : `${done}/${games} played${r.extra ? ` · ${r.extra} still to draw` : ''}`,
     final ? 'winner is champion 🏆' : next ? `winners → ${next}` : '',
   ].filter(Boolean).join(' · ');
   const cards = future
     ? `${Array.from({ length: r.games }, (_, i) => ebTbd(b, through[i * 2], through[i * 2 + 1])).join('')}${r.bye ? ebBye(b, through[r.games * 2] ?? null, next) : ''}`
-    : `${(r.matches ?? []).map((f) => ebMatch(b, f, { big: final })).join('')}${(r.byes ?? []).map((id) => ebBye(b, id, next)).join('')}`;
+    : `${(r.matches ?? []).map((f) => ebMatch(b, f, { big: final })).join('')}${(r.byes ?? []).map((id) => ebBye(b, id, next)).join('')}${Array.from({ length: r.extra ?? 0 }, (_, i) => ebTbd(b, r.waitingIds?.[i * 2], r.waitingIds?.[i * 2 + 1])).join('')}${r.extraBye ? ebBye(b, r.waitingIds?.[(r.extra ?? 0) * 2] ?? null, next) : ''}`;
   return `
-    <div class="eb-round${future ? ' future' : ''}${final ? ' final' : ''}">
+    <div class="eb-round${future ? ' future' : ''}${final ? ' final' : ''}${semi ? ' semi' : ''}">
       <div class="eb-head"><h3>${final ? '🏆 ' : ''}${esc(r.name)}</h3><span>${esc(sub)}</span></div>
       <div class="eb-cards">${cards || '<p class="muted small">No matches yet.</p>'}</div>
     </div>`;
@@ -398,32 +398,60 @@ export function elimBracketHtml(b) {
   const others = br.other.length ? `<div class="panel flush fixtures" style="margin-top:14px">${br.other.map((x) => fixtureRow(b, x)).join('')}</div>` : '';
 
   if (kind === 'single') {
-    const last = br.upper[br.upper.length - 1];
-    const isFinal = last && last.matches.length === 1 && !last.byes.length && br.upper.length > 1;
-    const rounds = isFinal ? br.upper.slice(0, -1) : [...br.upper];
+    // How many teams each round should have: everyone in round 1, then whoever came through the
+    // round before (its winners and byes). A round can be short of that while it's still being
+    // drawn, or when its bye isn't known yet; the rest show as "not drawn yet".
+    const rounds = br.upper.map((r, i) => {
+      const prev = br.upper[i - 1];
+      const expected = i === 0 ? Math.max(b.teams.length, r.matches.length * 2 + r.byes.length) : prev.matches.length + prev.byes.length;
+      const shown = r.matches.length * 2 + r.byes.length;
+      // Who is through to this round but not in a match yet (known once their match is played).
+      const placed = new Set([...r.matches.flatMap((f) => [f.homeTeamId, f.awayTeamId]), ...r.byes]);
+      const cameThrough = i === 0 ? b.teams.map((t) => t.id) : [...prev.matches.map((f) => winnerOf(b, f)).filter(Boolean), ...prev.byes];
+      const waitingIds = cameThrough.filter((id) => !placed.has(id));
+      return { ...r, teams: Math.max(expected, shown), waiting: Math.max(0, expected - shown), waitingIds };
+    });
     // Rounds still to come, out to the Final.
+    const last = rounds[rounds.length - 1];
     const future = [];
-    if (!isFinal && last) {
-      let left = last.matches.length + last.byes.length;
-      let n = br.upper.length;
+    if (last) {
+      let left = last.matches.length + last.byes.length + last.waiting; // winners + byes + teams not drawn yet
+      let n = rounds.length;
       while (left > 1) {
         n++;
         const games = Math.floor(left / 2);
-        future.push({ name: left === 2 ? 'Final' : `Round ${n}`, games, bye: left % 2 === 1 });
+        future.push({ name: `Round ${n}`, games, bye: left % 2 === 1, teams: left });
         left = games + (left % 2);
       }
     }
-    const all = [...rounds.map((r) => ({ r })), ...(isFinal ? [{ r: { ...last, name: 'Final' }, final: true }] : []), ...future.map((r) => ({ r, future: true, final: r.name === 'Final' }))];
-    const champ = isFinal ? winnerOf(b, last.matches[0]) : null;
+    // Name rounds by how many teams are in them, and mark the big ones.
+    const stage = (name, teams) => (!/^Round \d+$/.test(name) ? name : teams === 2 ? 'Final' : teams === 4 ? 'Semi-finals' : teams === 8 ? 'Quarter-finals' : name);
+    const all = [...rounds.map((r) => ({ r })), ...future.map((r) => ({ r, future: true }))];
+    for (const x of all) {
+      x.r = { ...x.r, name: stage(x.r.name, x.r.teams) };
+      x.final = x.r.teams === 2 || x.r.name === 'Final';
+      x.semi = !x.final && (x.r.teams === 4 || x.r.name === 'Semi-finals');
+    }
+    const finalRound = all.find((x) => x.final && !x.future);
+    const champ = finalRound?.r.matches?.length === 1 ? winnerOf(b, finalRound.r.matches[0]) : null;
     // Teams already through to the first round not drawn yet: winners so far, then byes.
-    const through = !isFinal && last ? [...last.matches.map((f) => winnerOf(b, f)).filter(Boolean), ...last.byes] : [];
+    const through = last ? [...last.matches.map((f) => winnerOf(b, f)).filter(Boolean), ...last.byes, ...(last.waiting % 2 === 1 ? last.waitingIds.slice(-1) : [])] : [];
+    const tpl = all.length > 1 && all[all.length - 1].final
+      ? `repeat(${Math.min(all.length - 1, 4)}, minmax(0, 1fr)) minmax(0, 1.4fr)`
+      : `repeat(${Math.min(all.length, 5)}, minmax(0, 1fr))`;
     let firstFuture = true;
     return `
       ${ebChampion(b, champ)}
-      <div class="eb" style="--eb-cols:${Math.min(all.length, 5)}">
-        ${all.map((x, i) => { const opts = { future: x.future, final: x.final, through: x.future && firstFuture ? through : [] }; if (x.future) firstFuture = false; return ebRound(b, x.r, all[i + 1]?.r.name, opts); }).join('')}
+      <div class="eb" style="--eb-tpl:${tpl}">
+        ${all.map((x, i) => {
+          const opts = { future: x.future, final: x.final, semi: x.semi, through: x.future && firstFuture ? through : [] };
+          if (x.future) firstFuture = false;
+          // A round still being drawn: its missing places show as "not drawn yet".
+          const r = !x.future && x.r.waiting ? { ...x.r, extra: Math.floor(x.r.waiting / 2), extraBye: x.r.waiting % 2 === 1, waitingIds: x.r.waitingIds } : x.r;
+          return ebRound(b, r, all[i + 1]?.r.name, opts);
+        }).join('')}
       </div>
-      ${br.third.length ? `<div class="eb"><div class="eb-round"><div class="eb-head"><h3>🥉 3rd place</h3></div><div class="eb-cards">${ebMatch(b, br.third[0])}</div></div></div>` : ''}
+      ${br.third.length ? `<div class="eb" style="--eb-tpl:minmax(0, 1fr)"><div class="eb-round semi"><div class="eb-head"><h3>🥉 3rd place</h3></div><div class="eb-cards">${ebMatch(b, br.third[0])}</div></div></div>` : ''}
       ${others}`;
   }
 

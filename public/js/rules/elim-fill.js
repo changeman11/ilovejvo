@@ -219,8 +219,17 @@ export function elimBracket({ kind = 'single', fixtures, byes = {} }) {
   for (const r of Object.keys(byes ?? {})) if (!order.includes(r)) order.push(r);
   const round = (name) => ({ name, matches: real.filter((f) => roundOf.get(f.id) === name), byes: byes?.[name] ?? [] });
   const isGrand = (n) => /^Grand Final/.test(n);
+  const upper = order.filter((n) => !/^Lower /.test(n) && !isGrand(n) && !/^3rd place/.test(n)).map(round);
+  // Byes nobody saved (matches made by hand): a team playing in an upper round that didn't play in
+  // the round before went through on a bye there.
+  for (let i = 1; i < upper.length; i++) {
+    const before = new Set(upper[i - 1].matches.flatMap((f) => [f.homeTeamId, f.awayTeamId]));
+    const now = upper[i].matches.flatMap((f) => [f.homeTeamId, f.awayTeamId]);
+    const added = now.filter((t) => !before.has(t) && !upper[i - 1].byes.includes(t));
+    if (added.length) upper[i - 1] = { ...upper[i - 1], byes: [...upper[i - 1].byes, ...added] };
+  }
   return {
-    upper: order.filter((n) => !/^Lower /.test(n) && !isGrand(n) && !/^3rd place/.test(n)).map(round),
+    upper,
     lower: order.filter((n) => /^Lower /.test(n)).map(round),
     grand: order.filter(isGrand).flatMap((n) => round(n).matches),
     third: order.filter((n) => /^3rd place/.test(n)).flatMap((n) => round(n).matches),
