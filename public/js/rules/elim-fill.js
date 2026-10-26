@@ -11,6 +11,9 @@
 // Existing matches are never renamed. Pure, tested.
 import { elimRound } from './bracket-labels.js';
 
+// Admins number matches, but may write "FINALS" / "Finals 2" / "Grand final" on the last ones.
+const finalish = (label) => /final|reset|decider/i.test(String(label ?? ''));
+const numberedStyle = (list) => list.length > 0 && list.some((f) => numberOnly(f.label)) && list.every((f) => numberOnly(f.label) || finalish(f.label));
 const numberOnly = (label) => !String(label ?? '').trim() || /^#?\d+$/.test(String(label).trim());
 
 function upperName(kind, teams, index) {
@@ -37,7 +40,7 @@ function shuffle(ids, seed) {
 //      notes: [text], done: bool, problem: text | null }
 export function fillElimination({ kind = 'single', fixtures, teamIds, outcome, seed = '', byes = {}, giveByes = [] }) {
   const real = [...fixtures].filter((f) => !f.virtual && f.homeTeamId && f.awayTeamId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const numbered = real.length > 0 && real.every((f) => numberOnly(f.label));
+  const numbered = numberedStyle(real);
   const saveByes = Object.fromEntries(Object.entries(byes ?? {}).map(([k, v]) => [k, [...(v ?? [])]]));
   const notes = [];
   const add = [];
@@ -204,7 +207,7 @@ export function elimView(event, fixtures) {
 // -> { kind, upper, lower, grand, third, other }
 export function elimBracket({ kind = 'single', fixtures, byes = {}, outcome = null }) {
   const real = [...fixtures].filter((f) => !f.virtual && f.homeTeamId && f.awayTeamId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const numbered = real.length > 0 && real.every((f) => numberOnly(f.label));
+  const numbered = numberedStyle(real);
   const roundOf = new Map();
   // Losses before each match (by the order matches were made).
   let losersPlayAgain = false;
@@ -227,8 +230,11 @@ export function elimBracket({ kind = 'single', fixtures, byes = {}, outcome = nu
     for (const f of real) {
       const [lh, la] = before.get(f.id);
       const side = !lh && !la ? 'Upper' : lh && la ? 'Lower' : 'Grand';
+      const gfMatch = real.find((x) => roundOf.get(x.id) === 'Grand Final');
+      const samePair = gfMatch && [gfMatch.homeTeamId, gfMatch.awayTeamId].sort().join() === [f.homeTeamId, f.awayTeamId].sort().join();
+      if (samePair) { roundOf.set(f.id, 'Grand Final Reset'); continue; }
       if (side === 'Grand') {
-        roundOf.set(f.id, real.some((x) => roundOf.get(x.id) === 'Grand Final') ? 'Grand Final Reset' : 'Grand Final');
+        roundOf.set(f.id, gfMatch ? 'Grand Final Reset' : 'Grand Final');
         continue;
       }
       const m = last[side];

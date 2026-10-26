@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · bracket fix: "FINALS" labels · site (v85) DEPLOYED
+- Live bug: with the admin's bracket switched on (double), all 17 matches showed in "Upper Round 1". Cause: the last two matches are labelled "FINALS" / "FINALS 2", so the plain-number reading didn't apply. Now labels with final / reset / decider are allowed among numbers (`finalish`, `numberedStyle`), and a rematch of the Grand Final pair is the Grand Final Reset. Tested; checked live: Upper R1-2, Upper Semi-finals, Upper Final, Lower R1-4, Lower Final, Grand Final (FINALS + FINALS 2).
+
 ### 2026-10-26 · Claude (owner's PC) · bracket follows tonight's real double elimination · site (v84) DEPLOYED
 - Tonight's "3v3 elimination tournament!!" is double elimination with plain-number labels (17 matches). `elimBracket({ outcome })` now tells from the results: a team that already lost playing again = double; two unbeaten teams = upper, two with a loss = lower, unbeaten v one loss = Grand Final (then Reset). Rounds follow each team's path (a match is one round after its teams' last round in that bracket), not creation order, and are listed in number order. Tested.
 - Double drawing names Upper Semi-finals / Upper Final / Lower Final, and always shows the Grand Final (big gold) with whoever is known (tonight: Unprotected Sets v TBD) until it's made.

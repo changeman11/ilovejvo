@@ -123,3 +123,15 @@ test('plain-number matches: a loser playing again means double elimination, plac
   // Without results it can't tell: stays single.
   assert.equal(elimBracket({ kind: 'single', fixtures: fx.slice(0, 2), outcome: () => null }).kind, 'single');
 });
+
+test('numbered matches with "FINALS" / "FINALS 2" on the last ones still read as a bracket (Grand Final + reset)', async () => {
+  const { elimBracket } = await import('../public/js/rules/elim-fill.js');
+  const m = (id, o, label, h, a) => ({ id, order: o, label, homeTeamId: h, awayTeamId: a });
+  const fx = [m('u1', 1, '1', 'a', 'b'), m('u2', 2, '2', 'c', 'd'), m('u3', 3, '3', 'a', 'c'), m('l1', 4, '4', 'b', 'd'), m('l2', 5, '5', 'c', 'b'), m('g', 6, 'FINALS', 'c', 'a'), m('r', 7, 'FINALS 2', 'a', 'c')];
+  const outcome = (f) => ({ winner: f.homeTeamId, loser: f.awayTeamId }); // c beats a in the Grand Final -> reset
+  const br = elimBracket({ kind: 'double', fixtures: fx, outcome });
+  assert.equal(br.kind, 'double');
+  assert.deepEqual(br.grand.map((f) => f.id), ['g', 'r']);
+  assert.equal(br.upper.length, 2);
+  assert.equal(br.lower.length, 2);
+});
