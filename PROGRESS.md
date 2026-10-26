@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · bracket follows tonight's real double elimination · site (v84) DEPLOYED
+- Tonight's "3v3 elimination tournament!!" is double elimination with plain-number labels (17 matches). `elimBracket({ outcome })` now tells from the results: a team that already lost playing again = double; two unbeaten teams = upper, two with a loss = lower, unbeaten v one loss = Grand Final (then Reset). Rounds follow each team's path (a match is one round after its teams' last round in that bracket), not creation order, and are listed in number order. Tested.
+- Double drawing names Upper Semi-finals / Upper Final / Lower Final, and always shows the Grand Final (big gold) with whoever is known (tonight: Unprotected Sets v TBD) until it's made.
+- Checked with tonight's live data drawn locally (nothing saved). The live event still shows no bracket until the admin switches "Bracket on the event page" on (single or double: either way it draws double from the results).
+
 ### 2026-10-26 · Claude (owner's PC) · bracket: byes shown, finals emphasised · site (v83) DEPLOYED
 - Byes nobody saved are worked out: a team in an upper round that didn't play the round before gets a bye card there (`elimBracket`, tested). Each round counts the teams it should have (round 1 = all event teams; later = winners + byes of the round before), so a round with an odd team isn't mistaken for the Final; teams already through but not drawn show by name (bye card / next round), the rest "TBD".
 - Plain "Round N" rounds are named by teams left: Quarter-finals (8), Semi-finals (4, silver header), Final (2: gold banner, trophy, big gold card, wider column). Champion banner bigger.

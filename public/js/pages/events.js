@@ -268,8 +268,8 @@ async function signupBox(b) {
 }
 
 // "Single elimination · 10 teams" for the bracket heading.
-function elimSubtitle(b) {
-  const kind = elimView(b.event, b.fixtures);
+function elimSubtitle(b, html = '') {
+  const kind = html.includes('Upper bracket') ? 'double' : elimView(b.event, b.fixtures);
   return `${kind === 'double' ? 'Double elimination' : 'Single elimination'} · ${b.teams.length} teams`;
 }
 
@@ -337,7 +337,7 @@ export const eventPage = {
     const elim = elimBracketHtml(b);
     const elimSection = elim ? `
       <section class="finals-section">
-        <div class="finals-head"><h2>Bracket</h2><span>${esc(elimSubtitle(b))}</span></div>
+        <div class="finals-head"><h2>Bracket</h2><span>${esc(elimSubtitle(b, elim))}</span></div>
         ${elim}
       </section>` : '';
     const listed = hasGroups ? items.filter(({ f }) => !f.group) : items;

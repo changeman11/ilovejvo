@@ -108,3 +108,18 @@ test('bracket view: byes nobody saved are worked out from who turns up in the ne
   assert.deepEqual(br.upper[0].byes.sort(), ['t10', 't9']);
   assert.deepEqual(br.upper[1].byes, []);
 });
+
+test('plain-number matches: a loser playing again means double elimination, placed by each team’s path', async () => {
+  const { elimBracket } = await import('../public/js/rules/elim-fill.js');
+  const m = (id, o, h, a) => ({ id, order: o, label: String(o), homeTeamId: h, awayTeamId: a });
+  // 4 teams. Upper R1: a-b, c-d (home wins). Lower R1 (made later, numbered first): b-d. Upper final a-c. Lower final c-b.
+  const fx = [m('u1', 1, 'a', 'b'), m('u2', 2, 'c', 'd'), m('u3', 3, 'a', 'c'), m('l1', 4, 'b', 'd'), m('l2', 5, 'c', 'b'), m('g', 6, 'a', 'c')];
+  const outcome = (f) => ({ winner: f.homeTeamId, loser: f.awayTeamId });
+  const br = elimBracket({ kind: 'single', fixtures: fx, outcome });
+  assert.equal(br.kind, 'double');
+  assert.deepEqual(br.upper.map((r) => [r.name, r.matches.map((f) => f.id)]), [['Upper Round 1', ['u1', 'u2']], ['Upper Round 2', ['u3']]]);
+  assert.deepEqual(br.lower.map((r) => [r.name, r.matches.map((f) => f.id)]), [['Lower Round 1', ['l1']], ['Lower Round 2', ['l2']]]);
+  assert.deepEqual(br.grand.map((f) => f.id), ['g']);
+  // Without results it can't tell: stays single.
+  assert.equal(elimBracket({ kind: 'single', fixtures: fx.slice(0, 2), outcome: () => null }).kind, 'single');
+});

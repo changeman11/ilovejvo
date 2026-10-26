@@ -198,11 +198,45 @@ export function elimView(event, fixtures) {
 
 // The bracket as rounds: { upper: [{ name, matches, byes }], lower: [...], grand: [matches], other: [matches] }.
 // Rounds as the fill button sees them (plain numbers: a new round starts when a team plays again).
-export function elimBracket({ kind = 'single', fixtures, byes = {} }) {
+// outcome(f) -> { winner, loser } | null (optional): with plain-number labels it tells the brackets
+// apart. A team that already lost playing again = double elimination; then two unbeaten teams =
+// upper bracket, two teams with a loss = lower bracket, unbeaten v one loss = Grand Final.
+// -> { kind, upper, lower, grand, third, other }
+export function elimBracket({ kind = 'single', fixtures, byes = {}, outcome = null }) {
   const real = [...fixtures].filter((f) => !f.virtual && f.homeTeamId && f.awayTeamId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const numbered = real.length > 0 && real.every((f) => numberOnly(f.label));
   const roundOf = new Map();
-  if (numbered) {
+  // Losses before each match (by the order matches were made).
+  let losersPlayAgain = false;
+  const before = new Map();
+  if (outcome) {
+    const losses = new Map();
+    for (const f of real) {
+      const lh = losses.get(f.homeTeamId) ?? 0; const la = losses.get(f.awayTeamId) ?? 0;
+      before.set(f.id, [lh, la]);
+      if (lh || la) losersPlayAgain = true;
+      const o = outcome(f);
+      if (o) losses.set(o.loser, (losses.get(o.loser) ?? 0) + 1);
+    }
+  }
+  if (numbered && (kind === 'double' || losersPlayAgain) && outcome) {
+    kind = 'double';
+    // Each bracket gets its own rounds: a match is one round after the later of its two teams'
+    // last rounds in that bracket (so it follows each team's path, whatever order matches were made in).
+    const last = { Upper: new Map(), Lower: new Map() };
+    for (const f of real) {
+      const [lh, la] = before.get(f.id);
+      const side = !lh && !la ? 'Upper' : lh && la ? 'Lower' : 'Grand';
+      if (side === 'Grand') {
+        roundOf.set(f.id, real.some((x) => roundOf.get(x.id) === 'Grand Final') ? 'Grand Final Reset' : 'Grand Final');
+        continue;
+      }
+      const m = last[side];
+      const n = Math.max(m.get(f.homeTeamId) ?? 0, m.get(f.awayTeamId) ?? 0) + 1;
+      m.set(f.homeTeamId, n); m.set(f.awayTeamId, n);
+      roundOf.set(f.id, `${side} Round ${n}`);
+    }
+  } else if (numbered) {
     let i = 0;
     let seen = new Set(byes?.['Round 1'] ?? []);
     for (const f of real) {
@@ -217,6 +251,9 @@ export function elimBracket({ kind = 'single', fixtures, byes = {} }) {
   const order = [];
   for (const f of real) { const r = roundOf.get(f.id); if (r && !order.includes(r)) order.push(r); }
   for (const r of Object.keys(byes ?? {})) if (!order.includes(r)) order.push(r);
+  // "X Round n" rounds in number order (matches may be made out of order).
+  const num = (n) => Number((/Round (d+)$/.exec(n) ?? [])[1] ?? NaN);
+  order.sort((x, y) => (/^Lower/.test(x) - /^Lower/.test(y)) || ((Number.isNaN(num(x)) || Number.isNaN(num(y))) ? 0 : num(x) - num(y)));
   const round = (name) => ({ name, matches: real.filter((f) => roundOf.get(f.id) === name), byes: byes?.[name] ?? [] });
   const isGrand = (n) => /^Grand Final/.test(n);
   const upper = order.filter((n) => !/^Lower /.test(n) && !isGrand(n) && !/^3rd place/.test(n)).map(round);
@@ -229,6 +266,7 @@ export function elimBracket({ kind = 'single', fixtures, byes = {} }) {
     if (added.length) upper[i - 1] = { ...upper[i - 1], byes: [...upper[i - 1].byes, ...added] };
   }
   return {
+    kind,
     upper,
     lower: order.filter((n) => /^Lower /.test(n)).map(round),
     grand: order.filter(isGrand).flatMap((n) => round(n).matches),

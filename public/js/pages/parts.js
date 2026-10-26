@@ -393,11 +393,13 @@ const ebChampion = (b, teamId) => {
 export function elimBracketHtml(b) {
   const kind = elimView(b.event, b.fixtures);
   if (!kind) return '';
-  const br = elimBracket({ kind, fixtures: b.fixtures, byes: b.event.elimByes ?? {} });
+  const outcome = (f) => { const w = winnerOf(b, f); return w ? { winner: w, loser: w === f.homeTeamId ? f.awayTeamId : f.homeTeamId } : null; };
+  // The results can show it's really double elimination (a team that lost plays again).
+  const br = elimBracket({ kind, fixtures: b.fixtures, byes: b.event.elimByes ?? {}, outcome });
   if (!br.upper.length && !br.lower.length && !br.grand.length) return '';
   const others = br.other.length ? `<div class="panel flush fixtures" style="margin-top:14px">${br.other.map((x) => fixtureRow(b, x)).join('')}</div>` : '';
 
-  if (kind === 'single') {
+  if (br.kind === 'single') {
     // How many teams each round should have: everyone in round 1, then whoever came through the
     // round before (its winners and byes). A round can be short of that while it's still being
     // drawn, or when its bye isn't known yet; the rest show as "not drawn yet".
@@ -459,13 +461,31 @@ export function elimBracketHtml(b) {
   const gf = br.grand;
   const champ = gf.length ? winnerOf(b, gf[gf.length - 1]) : null;
   const done = champ && (gf.length > 1 || winnerOf(b, gf[0]) === gf[0].homeTeamId);
-  const row = (rounds, end) => `<div class="eb" style="--eb-cols:${Math.min(rounds.length, 5)}">${rounds.map((r, i) => ebRound(b, r, rounds[i + 1]?.name ?? end)).join('')}</div>`;
+  // Late rounds by name: the upper round with 2 teams is the Upper Final, 4 the Upper Semi-finals;
+  // the lower bracket's last round (once the Upper Final is drawn) is the Lower Final.
+  const upperFinal = br.upper.length && br.upper[br.upper.length - 1].matches.length === 1 && !br.upper[br.upper.length - 1].byes.length ? br.upper[br.upper.length - 1] : null;
+  const named = (rounds, lower) => rounds.map((r, i) => {
+    const teams = r.matches.length * 2 + r.byes.length;
+    const lastOne = i === rounds.length - 1;
+    let name = r.name;
+    if (!lower && /^Upper Round \d+$/.test(name)) name = teams === 2 && lastOne ? 'Upper Final' : teams === 4 && rounds.length > 1 ? 'Upper Semi-finals' : name;
+    if (lower && /^Lower Round \d+$/.test(name) && lastOne && upperFinal && r.matches.length === 1) name = 'Lower Final';
+    return { ...r, name, semi: /Final|Semi/.test(name) };
+  });
+  const up = named(br.upper, false);
+  const low = named(br.lower, true);
+  const row = (rounds, end) => `<div class="eb" style="--eb-cols:${Math.min(rounds.length, 5)}">${rounds.map((r, i) => ebRound(b, r, rounds[i + 1]?.name ?? end, { semi: r.semi })).join('')}</div>`;
+  // The Grand Final before it's made: the upper bracket's winner (once known) v the lower's.
+  const upperChamp = upperFinal ? winnerOf(b, upperFinal.matches[0]) : null;
+  const lowLast = low[low.length - 1];
+  const lowerChamp = lowLast?.name === 'Lower Final' ? winnerOf(b, lowLast.matches[0]) : null;
+  const gfCards = gf.length ? gf.map((x) => ebMatch(b, x, { big: true })).join('') : ebTbd(b, upperChamp, lowerChamp);
   return `
     ${done ? ebChampion(b, champ) : ''}
-    <div class="eb-section"><h3 class="eb-bracket">⬆️ Upper bracket <small>lose once and you drop to the lower bracket</small></h3>${row(br.upper, 'Grand Final')}</div>
-    ${br.lower.length ? `<div class="eb-section"><h3 class="eb-bracket">⬇️ Lower bracket <small>lose here and you’re out</small></h3>${row(br.lower, 'Grand Final')}</div>` : ''}
-    ${gf.length ? `<div class="eb-section"><h3 class="eb-bracket">🏆 Grand Final <small>upper bracket winner v lower bracket winner</small></h3>
-      <div class="eb" style="--eb-cols:1"><div class="eb-round final"><div class="eb-cards">${gf.map((x) => ebMatch(b, x, { big: true })).join('')}</div></div></div></div>` : ''}
+    <div class="eb-section"><h3 class="eb-bracket">⬆️ Upper bracket <small>lose once and you drop to the lower bracket</small></h3>${row(up, 'Grand Final')}</div>
+    ${low.length ? `<div class="eb-section"><h3 class="eb-bracket">⬇️ Lower bracket <small>lose here and you’re out</small></h3>${row(low, 'Grand Final')}</div>` : ''}
+    <div class="eb-section"><h3 class="eb-bracket">🏆 Grand Final <small>upper bracket winner v lower bracket winner${gf.length ? '' : ' · not drawn yet'}</small></h3>
+      <div class="eb" style="--eb-tpl:minmax(0, 1fr)"><div class="eb-round final"><div class="eb-head"><h3>🏆 Grand Final</h3><span>${gf.length ? 'winner is champion 🏆' : 'once both brackets are finished'}</span></div><div class="eb-cards">${gfCards}</div></div></div></div>
     ${others}`;
 }
 
