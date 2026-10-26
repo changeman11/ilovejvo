@@ -61,6 +61,7 @@ export async function render({ eventId, fixtureId }) {
     const statsWaiting = result.statsStatus === 'pending' && !Object.keys(result.playerStats ?? {}).length;
     body = `
       ${statsWaiting ? notice('Stats coming soon', ' The score is in. An admin is checking the end-of-match screenshot for everyone’s stats.') : ''}
+      ${result.noStats && !Object.keys(result.playerStats ?? {}).length ? notice('No stats for this match', ' There was no end-of-match screenshot, so only the score counts.') : ''}
       ${boxScore(b, f.homeTeamId, result)}
       ${boxScore(b, f.awayTeamId, result)}
       ${vod || shots.length ? `<section class="panel">

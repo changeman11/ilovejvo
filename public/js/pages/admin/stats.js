@@ -110,6 +110,7 @@ function card(it, i) {
           <span class="muted small">${esc(b.event.title)}${f.label ? ` · ${esc(f.label)}` : ''}</span></span>
         <span class="sl-side">${status}
           ${it.ready && it.group !== 'clean' ? `<button class="btn btn-sm" type="button" data-one="${i}">Publish anyway</button>` : ''}
+          ${it.group !== 'clean' ? `<button class="btn btn-sm" type="button" data-nostats="${i}" title="No screenshot and no way to get one: keep the score, no player stats">Publish with no stats</button>` : ''}
           <a class="btn btn-sm" href="${urls.adminResult(b.event.id, f.id)}" data-link>✏️ Edit</a></span>
       </div>
       ${it.flags.length ? `<ul class="sl-flags">${it.flags.map((x) => `<li>🚩 ${esc(x.text)}</li>`).join('')}</ul>` : ''}
@@ -129,7 +130,7 @@ export function waitingItems(bundles) {
 const GROUPS = [
   { key: 'clean', title: '✅ Ready to publish', note: 'Read from the screenshot, every player placed, nothing unusual. Publish them all in one go.' },
   { key: 'flagged', title: '🚩 Check before publishing', note: 'Something could be cheating or a mistake. Compare with the screenshot, then publish or fix with Edit.' },
-  { key: 'waiting', title: '⏳ Waiting', note: 'Waiting for a screenshot, for players to answer Who’s who, or for unsure numbers to be confirmed. Publish anyway if you’ve checked them.' },
+  { key: 'waiting', title: '⏳ Waiting', note: 'Waiting for a screenshot, for players to answer Who’s who, or for unsure numbers to be confirmed. Publish anyway if you’ve checked them. No screenshot and no way to get one? “Publish with no stats” keeps the score and leaves the stats out.' },
 ];
 
 export async function render() {
@@ -207,6 +208,27 @@ async function publish(root, items) {
   refresh(); // the published matches drop off the list
 }
 
+// No screenshot and no way to get one: publish the score on its own. No player stat lines are saved
+// (everyone's totals stay as they are, as if they scored 0 here) and the match says "No stats".
+async function publishNoStats(root, it) {
+  const msg = root.querySelector('.sl-msg');
+  const { b, f, result } = it;
+  const { id, statsDraft, updatedAt, updatedBy, enteredAt, enteredBy, ...keep } = result;
+  try {
+    await saveResult({
+      eventId: b.event.id,
+      fixture: f,
+      uid: page.user.uid,
+      existing: result,
+      result: { ...keep, playerStats: {}, mvpPlayerId: null, statsStatus: 'reviewed', noStats: true },
+    });
+    refresh();
+  } catch (err) {
+    console.error(err);
+    msg.textContent = `Couldn’t save: ${err.message}`;
+  }
+}
+
 export function mount(el) {
   const root = el.querySelector('.admin-root');
   if (!root) return;
@@ -215,6 +237,15 @@ export function mount(el) {
   root.addEventListener('click', (e) => {
     if (e.target.closest('[data-all-clean]')) {
       publish(root, page.items.filter((it) => it.group === 'clean'));
+      return;
+    }
+    const none = e.target.closest('[data-nostats]');
+    if (none) {
+      const it = page.items[Number(none.dataset.nostats)];
+      const name = (id) => it.b.teamsById[id]?.name ?? '?';
+      if (!window.confirm(`Publish ${name(it.f.homeTeamId)} v ${name(it.f.awayTeamId)} with NO player stats?\n\nThe score stays. Nobody gets stats from this match (as if they were all 0), and it shows "No stats" on the site. You can still add stats later with Edit.`)) return;
+      none.disabled = true;
+      publishNoStats(root, it);
       return;
     }
     const one = e.target.closest('[data-one]');

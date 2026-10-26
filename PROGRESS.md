@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · "Publish with no stats" · site (v81) DEPLOYED
+- /admin/stats: every match not in "Ready to publish" has **Publish with no stats** (confirm first): keeps the score, saves no player lines (nobody's totals change, as if 0), `statsStatus: 'reviewed', noStats: true`, MVP cleared. It drops off the waiting list, the admin bell and the bot's reading. The match page says "No stats for this match"; fixture rows show a ➖ No stats badge (`statsState` 'none'). Stats can still be added later with Edit (that save drops `noStats`). Tested locally.
+
 ### 2026-10-26 · Claude (owner's PC) · elimination brackets drawn on the event + Fixtures pages · site (v80) DEPLOYED
 - `elimBracketHtml(b)` (pages/parts.js) draws hand-made brackets in the same dark "finals" style: **single** = a column per round (bye cards, dashed), TBD columns for rounds still to come out to the Final, trophy + champion; **double** = ⬆️ Upper bracket, ⬇️ Lower bracket, 🏆 Grand Final (+ reset) with champion. On the event page ("Bracket" section) and the Fixtures page's 🏆 Groups & bracket view.
 - Which events: `elimView()` (rules/elim-fill.js): `event.bracketView` single/double/off, or automatic (Upper/Lower labels = double; elimination round labels or saved byes = single). Admin switch "Bracket on the event page" in the 🪄 box (saved straight away). Tonight's event is plain-numbered with no saved byes, so it needs the switch set to "Show as single elimination"; its rounds read correctly (Round 1 = 1-4, Round 2 = 5, 6, 8 with Chikchester City and Orchids).

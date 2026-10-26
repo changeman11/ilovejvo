@@ -53,6 +53,7 @@ function shortLabel(f, hideRound) {
 //   'missing'   = no screenshot yet
 export function statsState(b, f, result) {
   if (!result || result.forfeit) return null;
+  if (result.noStats && !Object.keys(result.playerStats ?? {}).length) return 'none';
   if (result.statsStatus === 'reviewed' || Object.keys(result.playerStats ?? {}).length) return 'confirmed';
   const shot = (b.submissions ?? []).some((s) => s.fixtureId === f.id && s.screenshotPaths?.length)
     || (b.corrections ?? []).some((c) => c.fixtureId === f.id && c.screenshotPaths?.length)
@@ -63,6 +64,7 @@ const STATS_BADGE = {
   confirmed: ['✅', 'Stats confirmed', 'Staff have checked the stats'],
   submitted: ['📸', 'Stats submitted', 'Screenshot in: staff are checking the stats'],
   missing: ['⏳', 'No stats yet', 'Nobody has sent the end-of-match screenshot yet'],
+  none: ['➖', 'No stats', 'Published without stats: there was no screenshot'],
 };
 export function statsBadge(state) {
   if (!state) return '';

@@ -1776,3 +1776,4 @@ body.char-menu-open .trophy { display: none; }
 .br-grand { justify-content: center; }
 .br-grand .br-col-final { flex: 0 1 380px; }
 .br-future { opacity: 0.75; }
+.stats-badge.none { background: var(--line); color: var(--muted); font-style: italic; }
