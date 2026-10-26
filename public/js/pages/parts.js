@@ -333,11 +333,11 @@ const winnerOf = (b, f) => {
   return check.winner === 'home' ? f.homeTeamId : f.awayTeamId;
 };
 
-function ebMatch(b, f, { big = false } = {}) {
+function ebMatch(b, f, { big = false, title: forceTitle = null, note = null, dim = false } = {}) {
   const { result, check } = resultOf(b, f);
   const played = Boolean(check?.ok);
   const plain = /^#?\d+$/.test(String(f.label ?? '').trim());
-  const title = f.label ? (plain ? `Match ${String(f.label).replace('#', '')}` : String(f.label).split(' · ').pop()) : 'Match';
+  const title = forceTitle ?? (f.label ? (plain ? `Match ${String(f.label).replace('#', '')}` : String(f.label).split(' · ').pop()) : 'Match');
   const status = played ? '<span class="eb-st done">✓ Final score</span>'
     : result ? '<span class="eb-st check">Score being checked</span>'
       : '<span class="eb-st todo">To play</span>';
@@ -349,10 +349,11 @@ function ebMatch(b, f, { big = false } = {}) {
     </span>`;
   };
   return `
-    <a class="eb-match${big ? ' big' : ''}${played ? ' played' : ''}" href="${urls.match(b.event.id, f.id)}" data-link>
+    <a class="eb-match${big ? ' big' : ''}${played ? ' played' : ''}${dim ? ' dim' : ''}" href="${urls.match(b.event.id, f.id)}" data-link>
       <span class="eb-top"><b>${esc(title)}</b>${status}</span>
       ${side(f.homeTeamId, check?.homeSets, check?.winner === 'home')}
       ${side(f.awayTeamId, check?.awaySets, check?.winner === 'away')}
+      ${note ? `<span class="eb-note">${esc(note)}</span>` : ''}
     </a>`;
 }
 const ebBye = (b, teamId, next) => {
@@ -459,8 +460,11 @@ export function elimBracketHtml(b) {
 
   // Double elimination.
   const gf = br.grand;
-  const champ = gf.length ? winnerOf(b, gf[gf.length - 1]) : null;
-  const done = champ && (gf.length > 1 || winnerOf(b, gf[0]) === gf[0].homeTeamId);
+  // Champion: the upper team winning the Grand Final ends it; otherwise the reset decides it.
+  const upperOfGf = () => { const u = br.upper.length ? br.upper[br.upper.length - 1] : null; return (u && u.matches.length === 1 ? winnerOf(b, u.matches[0]) : null) ?? gf[0]?.homeTeamId; };
+  const gf1 = gf.length ? winnerOf(b, gf[0]) : null;
+  const champ = !gf.length ? null : gf1 && gf1 === upperOfGf() ? gf1 : gf.length > 1 ? winnerOf(b, gf[1]) : null;
+  const done = Boolean(champ);
   // Late rounds by name: the upper round with 2 teams is the Upper Final, 4 the Upper Semi-finals;
   // the lower bracket's last round (once the Upper Final is drawn) is the Lower Final.
   const upperFinal = br.upper.length && br.upper[br.upper.length - 1].matches.length === 1 && !br.upper[br.upper.length - 1].byes.length ? br.upper[br.upper.length - 1] : null;
@@ -479,7 +483,19 @@ export function elimBracketHtml(b) {
   const upperChamp = upperFinal ? winnerOf(b, upperFinal.matches[0]) : null;
   const lowLast = low[low.length - 1];
   const lowerChamp = lowLast?.name === 'Lower Final' ? winnerOf(b, lowLast.matches[0]) : null;
-  const gfCards = gf.length ? gf.map((x) => ebMatch(b, x, { big: true })).join('') : ebTbd(b, upperChamp, lowerChamp);
+  // The Grand Final, and its reset: only played if the lower bracket's team wins the first one.
+  const gfCard = (x, i) => {
+    if (i === 0) return ebMatch(b, x, { big: true, title: 'Grand Final' });
+    const first = winnerOf(b, gf[0]);
+    const upperTeam = upperChamp ?? gf[0].homeTeamId;
+    const lowerTeam = [gf[0].homeTeamId, gf[0].awayTeamId].find((t) => t !== upperTeam);
+    const lowerName = b.teamsById[lowerTeam]?.name ?? 'the lower bracket team';
+    if (winnerOf(b, x)) return ebMatch(b, x, { big: true, title: 'Grand Final reset' });
+    if (first && first === upperTeam) return ebMatch(b, x, { title: 'Grand Final reset', dim: true, note: 'Not needed: the upper bracket team won the Grand Final.' });
+    if (first && first === lowerTeam) return ebMatch(b, x, { big: true, title: 'Grand Final reset', note: `${lowerName} won the first, so one more decides it.` });
+    return ebMatch(b, x, { title: 'Grand Final reset (if needed)', dim: true, note: `Only played if ${lowerName} win the Grand Final (each team then has one loss).` });
+  };
+  const gfCards = gf.length ? gf.map(gfCard).join('') : ebTbd(b, upperChamp, lowerChamp);
   return `
     ${done ? ebChampion(b, champ) : ''}
     <div class="eb-section"><h3 class="eb-bracket">⬆️ Upper bracket <small>lose once and you drop to the lower bracket</small></h3>${row(up, 'Grand Final')}</div>

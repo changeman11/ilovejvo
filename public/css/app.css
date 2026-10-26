@@ -1832,3 +1832,7 @@ a.eb-match:hover { border-color: var(--yellow); }
 .eb-round.final .eb-sets { font-size: 22px; }
 .eb-champ { background: radial-gradient(circle at 50% 0%, rgba(255, 226, 0, 0.18), transparent 70%); font-size: 34px; padding: 16px; }
 .eb-champ b { font-size: 30px; }
+.eb-match.dim { opacity: 0.6; border-style: dashed; }
+.eb-round.final .eb-match.dim { border: 2px dashed #8a8fa8; box-shadow: none; padding: 8px 10px; }
+.eb-round.final .eb-match.dim .eb-name { font-size: 15px; }
+.eb-note { font-size: 12px; color: #c4c8db; }

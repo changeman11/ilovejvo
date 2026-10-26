@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · Grand Final + "if needed" reset · site (v86) DEPLOYED
+- Owner: "finals 1 and finals 2?" looked broken (two equal "To play" finals). The Grand Final section now shows the first as **Grand Final** (big gold) and the second as **Grand Final reset (if needed)**, greyed and dashed, "Only played if <lower team> win the Grand Final". It turns big if the lower team wins the first, or says "Not needed" if the upper team does. Champion: the upper team winning the Grand Final ends it; otherwise the reset's winner. Checked live.
+
 ### 2026-10-26 · Claude (owner's PC) · bracket fix: "FINALS" labels · site (v85) DEPLOYED
 - Live bug: with the admin's bracket switched on (double), all 17 matches showed in "Upper Round 1". Cause: the last two matches are labelled "FINALS" / "FINALS 2", so the plain-number reading didn't apply. Now labels with final / reset / decider are allowed among numbers (`finalish`, `numberedStyle`), and a rematch of the Grand Final pair is the Grand Final Reset. Tested; checked live: Upper R1-2, Upper Semi-finals, Upper Final, Lower R1-4, Lower Final, Grand Final (FINALS + FINALS 2).
 
