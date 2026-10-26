@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · elimination bracket redone: no sideways scroll, clearer · site (v82) DEPLOYED
+- Owner said the bracket was terrible. `elimBracketHtml` (parts.js) now uses its own `.eb` grid: rounds side by side when they fit (equal columns, never wider than the page), stacked one under another on narrow screens. Each round has a header ("1/3 played · winners → Round 2", "winner is champion 🏆"); each match card says ✓ Final score / Score being checked / To play, ticks the winner and fades the loser; byes say "Goes straight through → to <next round>"; rounds not drawn yet show teams already through (e.g. a round 1 winner) and TBD for the rest. Champion banner on top. Double: Upper (lose once → lower), Lower (lose → out), Grand Final, each explained. "Swipe" hints removed. Checked desktop and phone (no horizontal scroll).
+
 ### 2026-10-26 · Claude (owner's PC) · "Publish with no stats" · site (v81) DEPLOYED
 - /admin/stats: every match not in "Ready to publish" has **Publish with no stats** (confirm first): keeps the score, saves no player lines (nobody's totals change, as if 0), `statsStatus: 'reviewed', noStats: true`, MVP cleared. It drops off the waiting list, the admin bell and the bot's reading. The match page says "No stats for this match"; fixture rows show a ➖ No stats badge (`statsState` 'none'). Stats can still be added later with Edit (that save drops `noStats`). Tested locally.
 

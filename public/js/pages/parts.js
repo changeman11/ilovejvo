@@ -320,46 +320,88 @@ export function bracketHtml(b) {
     ${extra.length ? `<div class="panel flush fixtures" style="margin-top:14px">${extra.map((f) => fixtureRow(b, f)).join('')}</div>` : ''}`;
 }
 
-// ---------- Elimination brackets made by hand (added 2026-10-26) ----------
-// Single elimination: one row of rounds ending in the Final + champion. Double elimination: the
-// upper bracket, the lower bracket, then the Grand Final (+ reset). Byes show as their own cards.
+// ---------- Elimination brackets made by hand (added 2026-10-26, redone for clarity) ----------
+// Never scrolls sideways: rounds sit side by side when there's room and stack (one round under the
+// other) on narrow screens. Each match card says where it's up to (✓ final score / being checked /
+// to play), ticks the winner, and each round says how many play and where the winners go.
+// Single elimination: rounds to the Final (rounds still to come as "to be decided"), then the
+// champion. Double elimination: Upper bracket, Lower bracket, Grand Final.
 // rules/elim-fill.js decides if an event gets one (elimView) and splits the rounds (elimBracket).
 const winnerOf = (b, f) => {
   const { check } = f ? resultOf(b, f) : {};
   if (!check?.ok) return null;
   return check.winner === 'home' ? f.homeTeamId : f.awayTeamId;
 };
-function byeCard(b, teamId) {
-  const t = b.teamsById[teamId];
+
+function ebMatch(b, f, { big = false } = {}) {
+  const { result, check } = resultOf(b, f);
+  const played = Boolean(check?.ok);
+  const plain = /^#?\d+$/.test(String(f.label ?? '').trim());
+  const title = f.label ? (plain ? `Match ${String(f.label).replace('#', '')}` : String(f.label).split(' · ').pop()) : 'Match';
+  const status = played ? '<span class="eb-st done">✓ Final score</span>'
+    : result ? '<span class="eb-st check">Score being checked</span>'
+      : '<span class="eb-st todo">To play</span>';
+  const side = (teamId, sets, won) => {
+    const t = b.teamsById[teamId];
+    return `<span class="eb-team${played ? (won ? ' won' : ' lost') : ''}">
+      ${teamDot(t)}<span class="eb-name">${esc(t?.name ?? 'TBD')}</span>
+      ${played ? `<b class="eb-sets num">${sets}</b>${won ? '<span class="eb-tick" aria-label="winner">✓</span>' : ''}` : ''}
+    </span>`;
+  };
   return `
-    <div class="br-match br-bye">
-      <span class="br-label">Bye<span>straight through</span></span>
-      <div class="br-team won">${teamDot(t)}<span class="br-name">${esc(t?.name ?? teamId)}</span><b class="br-sets">→</b></div>
+    <a class="eb-match${big ? ' big' : ''}${played ? ' played' : ''}" href="${urls.match(b.event.id, f.id)}" data-link>
+      <span class="eb-top"><b>${esc(title)}</b>${status}</span>
+      ${side(f.homeTeamId, check?.homeSets, check?.winner === 'home')}
+      ${side(f.awayTeamId, check?.awaySets, check?.winner === 'away')}
+    </a>`;
+}
+const ebBye = (b, teamId, next) => {
+  const t = b.teamsById[teamId];
+  return `<div class="eb-match bye"><span class="eb-top"><b>Bye</b><span class="eb-st done">Goes straight through</span></span>
+    <span class="eb-team won">${t ? teamDot(t) : '<i class="dot"></i>'}<span class="eb-name">${esc(t?.name ?? teamId ?? 'TBD')}</span><span class="eb-tick">→</span></span>
+    ${next ? `<span class="eb-next">to ${esc(next)}</span>` : ''}</div>`;
+};
+// A match not drawn yet; teams already through are shown in it, the rest say TBD.
+const ebTbd = (b, a = null, c = null) => {
+  const slot = (id) => (id ? `<span class="eb-team">${teamDot(b.teamsById[id])}<span class="eb-name">${esc(b.teamsById[id]?.name ?? id)}</span></span>` : '<span class="eb-team"><i class="dot"></i><span class="eb-name unknown">TBD</span></span>');
+  return `<div class="eb-match tbd"><span class="eb-top"><b>Match</b><span class="eb-st todo">Not drawn yet</span></span>${slot(a)}${slot(c)}</div>`;
+};
+
+// One round: heading (name, how many matches, where winners go), then its cards.
+function ebRound(b, r, next, { future = false, final = false, through = [] } = {}) {
+  const games = r.matches?.length ?? r.games ?? 0;
+  const done = (r.matches ?? []).filter((f) => winnerOf(b, f)).length;
+  const sub = [
+    future ? 'not drawn yet' : `${done}/${games} played`,
+    final ? 'winner is champion 🏆' : next ? `winners → ${next}` : '',
+  ].filter(Boolean).join(' · ');
+  const cards = future
+    ? `${Array.from({ length: r.games }, (_, i) => ebTbd(b, through[i * 2], through[i * 2 + 1])).join('')}${r.bye ? ebBye(b, through[r.games * 2] ?? null, next) : ''}`
+    : `${(r.matches ?? []).map((f) => ebMatch(b, f, { big: final })).join('')}${(r.byes ?? []).map((id) => ebBye(b, id, next)).join('')}`;
+  return `
+    <div class="eb-round${future ? ' future' : ''}${final ? ' final' : ''}">
+      <div class="eb-head"><h3>${final ? '🏆 ' : ''}${esc(r.name)}</h3><span>${esc(sub)}</span></div>
+      <div class="eb-cards">${cards || '<p class="muted small">No matches yet.</p>'}</div>
     </div>`;
 }
-const elimCols = (b, rounds) => rounds.map((r) => `
-  <div class="br-col">
-    <h3 class="br-round">${esc(r.name)}</h3>
-    <div class="br-matches">${r.matches.map((f) => bracketMatch(b, f)).join('')}${r.byes.map((id) => byeCard(b, id)).join('')}</div>
-  </div>`).join('');
+
+const ebChampion = (b, teamId) => {
+  const t = teamId ? b.teamsById[teamId] : null;
+  return t ? `<div class="eb-champ">🏆 <span>Champions</span><b>${teamDot(t, 'lg')}${esc(t.name)}</b></div>` : '';
+};
 
 export function elimBracketHtml(b) {
   const kind = elimView(b.event, b.fixtures);
   if (!kind) return '';
   const br = elimBracket({ kind, fixtures: b.fixtures, byes: b.event.elimByes ?? {} });
   if (!br.upper.length && !br.lower.length && !br.grand.length) return '';
-  const champCard = (teamId) => {
-    const t = teamId ? b.teamsById[teamId] : null;
-    return t ? `<div class="br-champion">Champions<b>${teamDot(t, 'lg')}${esc(t.name)}</b></div>` : '';
-  };
+  const others = br.other.length ? `<div class="panel flush fixtures" style="margin-top:14px">${br.other.map((x) => fixtureRow(b, x)).join('')}</div>` : '';
+
   if (kind === 'single') {
-    // The last round is the Final once it's one match with no byes left.
     const last = br.upper[br.upper.length - 1];
     const isFinal = last && last.matches.length === 1 && !last.byes.length && br.upper.length > 1;
-    const rounds = isFinal ? br.upper.slice(0, -1) : br.upper;
-    const final = isFinal ? last.matches[0] : null;
-    // Rounds still to come, as TBD cards, out to the Final.
-    const tbd = `<div class="br-match draft"><span class="br-label">To be decided</span><div class="br-team tbc"><i class="dot"></i><span class="br-name">TBD</span></div><div class="br-team tbc"><i class="dot"></i><span class="br-name">TBD</span></div></div>`;
+    const rounds = isFinal ? br.upper.slice(0, -1) : [...br.upper];
+    // Rounds still to come, out to the Final.
     const future = [];
     if (!isFinal && last) {
       let left = last.matches.length + last.byes.length;
@@ -371,53 +413,34 @@ export function elimBracketHtml(b) {
         left = games + (left % 2);
       }
     }
-    const finalTbd = future.length && future[future.length - 1].name === 'Final' ? future.pop() : null;
-    const futureCols = future.map((r) => `
-      <div class="br-col br-future">
-        <h3 class="br-round">${esc(r.name)}</h3>
-        <div class="br-matches">${tbd.repeat(r.games)}${r.bye ? `<div class="br-match br-bye draft"><span class="br-label">Bye<span>to be decided</span></span><div class="br-team tbc"><i class="dot"></i><span class="br-name">TBD</span></div></div>` : ''}</div>
-      </div>`).join('');
+    const all = [...rounds.map((r) => ({ r })), ...(isFinal ? [{ r: { ...last, name: 'Final' }, final: true }] : []), ...future.map((r) => ({ r, future: true, final: r.name === 'Final' }))];
+    const champ = isFinal ? winnerOf(b, last.matches[0]) : null;
+    // Teams already through to the first round not drawn yet: winners so far, then byes.
+    const through = !isFinal && last ? [...last.matches.map((f) => winnerOf(b, f)).filter(Boolean), ...last.byes] : [];
+    let firstFuture = true;
     return `
-      <div class="bracket">
-        ${elimCols(b, rounds)}
-        ${futureCols}
-        ${finalTbd ? `<div class="br-col br-col-final br-future"><h3 class="br-round">Final</h3><div class="br-matches"><div class="br-trophy" aria-hidden="true">🏆</div>${tbd}</div></div>` : ''}
-        ${final ? `
-          <div class="br-col br-col-final">
-            <h3 class="br-round">${esc(/^\d+$/.test(String(final.label ?? '').trim()) ? 'Final' : final.label ?? 'Final')}</h3>
-            <div class="br-matches">
-              <div class="br-trophy" aria-hidden="true">🏆</div>
-              ${bracketMatch(b, final, { big: true })}
-              ${champCard(winnerOf(b, final))}
-              ${br.third.length ? `<h3 class="br-round br-third">🥉 3rd place</h3>${bracketMatch(b, br.third[0])}` : ''}
-            </div>
-          </div>` : ''}
+      ${ebChampion(b, champ)}
+      <div class="eb" style="--eb-cols:${Math.min(all.length, 5)}">
+        ${all.map((x, i) => { const opts = { future: x.future, final: x.final, through: x.future && firstFuture ? through : [] }; if (x.future) firstFuture = false; return ebRound(b, x.r, all[i + 1]?.r.name, opts); }).join('')}
       </div>
-      ${br.other.length ? `<div class="panel flush fixtures" style="margin-top:14px">${br.other.map((x) => fixtureRow(b, x)).join('')}</div>` : ''}`;
+      ${br.third.length ? `<div class="eb"><div class="eb-round"><div class="eb-head"><h3>🥉 3rd place</h3></div><div class="eb-cards">${ebMatch(b, br.third[0])}</div></div></div>` : ''}
+      ${others}`;
   }
+
   // Double elimination.
   const gf = br.grand;
-  const lastGf = gf[gf.length - 1];
-  const champ = gf.length ? winnerOf(b, lastGf) : null;
-  // The reset only counts once played; a Grand Final won by the upper team ends it.
+  const champ = gf.length ? winnerOf(b, gf[gf.length - 1]) : null;
   const done = champ && (gf.length > 1 || winnerOf(b, gf[0]) === gf[0].homeTeamId);
+  const row = (rounds, end) => `<div class="eb" style="--eb-cols:${Math.min(rounds.length, 5)}">${rounds.map((r, i) => ebRound(b, r, rounds[i + 1]?.name ?? end)).join('')}</div>`;
   return `
-    <h3 class="br-bracket-name">⬆️ Upper bracket</h3>
-    <div class="bracket">${elimCols(b, br.upper)}</div>
-    ${br.lower.length ? `<h3 class="br-bracket-name">⬇️ Lower bracket <small>one more loss and you’re out</small></h3><div class="bracket">${elimCols(b, br.lower)}</div>` : ''}
-    ${gf.length ? `
-      <h3 class="br-bracket-name">🏆 Grand Final</h3>
-      <div class="bracket br-grand">
-        <div class="br-col br-col-final">
-          <div class="br-matches">
-            <div class="br-trophy" aria-hidden="true">🏆</div>
-            ${gf.map((x) => bracketMatch(b, x, { big: true })).join('')}
-            ${done ? champCard(champ) : ''}
-          </div>
-        </div>
-      </div>` : ''}
-    ${br.other.length ? `<div class="panel flush fixtures" style="margin-top:14px">${br.other.map((x) => fixtureRow(b, x)).join('')}</div>` : ''}`;
+    ${done ? ebChampion(b, champ) : ''}
+    <div class="eb-section"><h3 class="eb-bracket">⬆️ Upper bracket <small>lose once and you drop to the lower bracket</small></h3>${row(br.upper, 'Grand Final')}</div>
+    ${br.lower.length ? `<div class="eb-section"><h3 class="eb-bracket">⬇️ Lower bracket <small>lose here and you’re out</small></h3>${row(br.lower, 'Grand Final')}</div>` : ''}
+    ${gf.length ? `<div class="eb-section"><h3 class="eb-bracket">🏆 Grand Final <small>upper bracket winner v lower bracket winner</small></h3>
+      <div class="eb" style="--eb-cols:1"><div class="eb-round final"><div class="eb-cards">${gf.map((x) => ebMatch(b, x, { big: true })).join('')}</div></div></div></div>` : ''}
+    ${others}`;
 }
+
 
 // ---------- Seeding map (Fixtures page, bracket view) ----------
 // Each first-round knockout match with the two places that feed it, and who's in each place now.

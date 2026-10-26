@@ -1777,3 +1777,40 @@ body.char-menu-open .trophy { display: none; }
 .br-grand .br-col-final { flex: 0 1 380px; }
 .br-future { opacity: 0.75; }
 .stats-badge.none { background: var(--line); color: var(--muted); font-style: italic; }
+
+/* Hand-made elimination bracket, redone (pages/parts.js elimBracketHtml): never scrolls sideways. */
+.eb { display: grid; grid-template-columns: repeat(var(--eb-cols, 3), minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) { .eb { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+.eb-round { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.eb-head { display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); }
+.eb-head h3 { margin: 0; font: 700 16px var(--font-head); color: var(--yellow); text-transform: uppercase; letter-spacing: 0.05em; }
+.eb-head span { font-size: 12px; color: #c4c8db; }
+.eb-cards { display: flex; flex-direction: column; justify-content: space-around; gap: 10px; flex: 1; }
+.eb-round.future { opacity: 0.7; }
+.eb-match { display: grid; gap: 4px; padding: 8px 10px; border-radius: 12px; background: #1f2130; border: 2px solid #3a3f63; color: #fff; text-decoration: none; min-width: 0; }
+a.eb-match:hover { border-color: var(--yellow); }
+.eb-match.played { border-color: #4c5482; }
+.eb-match.big { border: 3px solid var(--yellow); box-shadow: 0 0 0 4px rgba(255, 226, 0, 0.12); }
+.eb-match.bye, .eb-match.tbd { border-style: dashed; background: #181a26; }
+.eb-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; }
+.eb-top b { color: #dfe2f0; font-weight: 700; }
+.eb-st { padding: 1px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; font-size: 11px; }
+.eb-st.done { background: rgba(25, 201, 177, 0.18); color: #6ff0dc; }
+.eb-st.check { background: rgba(255, 226, 0, 0.16); color: var(--yellow); }
+.eb-st.todo { background: rgba(255, 255, 255, 0.1); color: #c4c8db; }
+.eb-team { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 2px 0; }
+.eb-team .dot { flex: none; border-color: rgba(255, 255, 255, 0.5); }
+.eb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px var(--font-head); }
+.eb-name.unknown { color: #9aa0b8; font: italic 500 13px var(--font-body); }
+.eb-team.lost { opacity: 0.45; }
+.eb-team.won .eb-name { color: #fff; }
+.eb-sets { font: 700 17px var(--font-num); color: var(--yellow); }
+.eb-team.lost .eb-sets { color: #b9bdd0; }
+.eb-tick { color: #6ff0dc; font-weight: 800; }
+.eb-next { font-size: 11px; color: #9aa0b8; }
+.eb-champ { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin: 0 0 16px; padding: 12px; border-radius: 14px; border: 3px solid var(--yellow); color: var(--yellow); font-size: 26px; }
+.eb-champ span { font: 700 13px var(--font-body); text-transform: uppercase; letter-spacing: 0.1em; color: #c4c8db; }
+.eb-champ b { display: inline-flex; align-items: center; gap: 8px; font: 700 24px var(--font-head); }
+.eb-section + .eb-section { margin-top: 22px; }
+.eb-bracket { margin: 0 0 10px; color: #fff; font: 700 20px var(--font-head); }
+.eb-bracket small { display: block; color: #b9bdd0; font: 500 13px var(--font-body); margin-top: 2px; }

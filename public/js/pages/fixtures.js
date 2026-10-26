@@ -77,7 +77,7 @@ function bracketView(bundles) {
         ${hasGroups ? `<h3 class="fx-sub">Group tables</h3>${groupTablesHtml(b)}` : ''}
         ${map ? `<h3 class="fx-sub">Seeding map</h3>${seedingMapHtml(b, map)}` : ''}
         ${bracket ? `<div class="finals-section" style="margin-top:18px"><div class="finals-head"><h2>Finals</h2><span class="br-swipe">Swipe to see the final →</span></div>${bracket}</div>` : ''}
-        ${elim ? `<div class="finals-section" style="margin-top:18px"><div class="finals-head"><h2>Bracket</h2><span class="br-swipe">Swipe to see more rounds →</span></div>${elim}</div>` : ''}
+        ${elim ? `<div class="finals-section" style="margin-top:18px"><div class="finals-head"><h2>Bracket</h2></div>${elim}</div>` : ''}
         ${!hasGroups && !map && !bracket && !elim ? `<p class="muted">${esc(b.plan.finalsNote ?? 'Nothing to show yet: teams appear here once they’re in.')}</p>` : ''}
         ${b.plan.finalsNote && (map || bracket) ? `<p class="muted small">${esc(b.plan.finalsNote)}</p>` : ''}
       </section>`;

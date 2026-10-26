@@ -337,7 +337,7 @@ export const eventPage = {
     const elim = elimBracketHtml(b);
     const elimSection = elim ? `
       <section class="finals-section">
-        <div class="finals-head"><h2>Bracket</h2><span>${esc(elimSubtitle(b))}</span><span class="br-swipe">Swipe to see more rounds →</span></div>
+        <div class="finals-head"><h2>Bracket</h2><span>${esc(elimSubtitle(b))}</span></div>
         ${elim}
       </section>` : '';
     const listed = hasGroups ? items.filter(({ f }) => !f.group) : items;
