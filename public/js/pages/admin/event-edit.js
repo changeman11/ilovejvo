@@ -12,6 +12,8 @@ import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, isLocked, sch
 import { syncSchedules } from '../../admin-sync.js';
 import { FLOW_DEFAULTS, flowOf, eventPhase, liveSummary } from '../../rules/flow.js';
 import { zoneLabel } from '../../rules/events.js';
+import { ELIM_PREFIXES, nextLabel, elimRound } from '../../rules/bracket-labels.js';
+import { fillElimination } from '../../rules/elim-fill.js';
 import { saveEvent, saveFlow, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures, makeMixTeams, breakUpMixTeam } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
@@ -312,7 +314,13 @@ function fixtureForm(f) {
   const { dateStr, timeStr } = inputsFromDate(f?.scheduledAt ?? null, f?.timeTbd ?? !f?.scheduledAt);
   return `
     <form class="inline-form" data-form="fixture" data-id="${esc(f?.id ?? '')}" novalidate>
-      <label class="field"><span>Label (optional)</span><input type="text" name="label" maxlength="60" value="${esc(f?.label ?? '')}" placeholder="e.g. Match 1, Semi-final, Showmatch"></label>
+      <div class="field-row">
+        <label class="field"><span>Round</span><select name="prefix" data-fixture-id="${esc(f?.id ?? '')}">
+          <option value="">Pick a round (fills in the label)…</option>
+          ${Object.values(ELIM_PREFIXES).map((g) => `<optgroup label="${esc(g.label)}">${g.rounds.map((r) => opt(r, r, elimRound(f?.label))).join('')}</optgroup>`).join('')}
+        </select></label>
+        <label class="field"><span>Label (optional)</span><input type="text" name="label" maxlength="60" value="${esc(f?.label ?? '')}" placeholder="e.g. Upper Round 1 · Match 2, Semi-final, Showmatch"></label>
+      </div>
       <div class="field-row">
         <label class="field"><span>Home</span><select name="home">${teamOptions(f?.homeTeamId)}</select></label>
         <label class="field"><span>Away</span><select name="away">${teamOptions(f?.awayTeamId)}</select></label>
@@ -443,11 +451,32 @@ function fixturesHtml(editId) {
       <div class="event-links">
         <a class="btn btn-primary" href="${urls.adminEvent(b.event.id, 'fixtures')}&edit=new" data-link data-keep-scroll>+ Add fixture</a>
       </div>
+      ${elimBoxHtml()}
       ${editId === 'new' ? `<section class="panel flush">${fixtureForm(null)}</section>` : ''}
       <section class="panel flush rows">${rows || '<p class="muted" style="padding:16px">No fixtures yet.</p>'}</section>
       <p class="muted small">Times are entered in your own time zone; visitors see them in theirs.</p>
       <p class="form-error" role="alert" hidden></p>
     </div>`;
+}
+
+// Elimination bracket helper (rules/elim-fill.js): fills in the rest of the current round from the
+// matches already made, and the next round once a round has all its scores.
+function elimBoxHtml() {
+  const { b } = page;
+  if (b.event.autoFixtures && b.event.autoFixtures !== 'off') return '';
+  const double = b.fixtures.some((f) => /^(Upper|Lower) |^Grand Final/.test(f.label ?? ''));
+  return `
+    <section class="panel elim-box">
+      <div class="bot-action">
+        <b>🪄 Elimination bracket</b>
+        <select data-elim-kind aria-label="Bracket type">
+          <option value="single"${double ? '' : ' selected'}>Single elimination</option>
+          <option value="double"${double ? ' selected' : ''}>Double elimination</option>
+        </select>
+        <button class="btn btn-primary btn-sm" type="button" data-act="elim-fill">Fill in the next matches</button>
+      </div>
+      <p class="muted small" style="margin:6px 0 0">Keeps every match already made. Pairs up the teams not yet in the current round (an odd one out gets a bye), and once a round has all its scores, makes the next round from the winners. Double elimination also drops losers into the lower bracket, then makes the Grand Final. Shows you the list before saving. Press it again after each round.</p>
+    </section>`;
 }
 
 // ---------- Page ----------
@@ -512,6 +541,13 @@ export function mount(el) {
   });
 
   root.addEventListener('change', (e) => {
+    // Fixture form: picking a round (single / double elimination) fills in the label, numbered
+    // after the matches already in that round ("Upper Round 1 · Match 3").
+    if (e.target.matches('[data-form="fixture"] [name=prefix]') && e.target.value) {
+      const label = e.target.form.querySelector('[name=label]');
+      label.value = nextLabel(e.target.value, page.b.fixtures.filter((x) => !x.virtual), e.target.dataset.fixtureId || null);
+      return;
+    }
     // Switching type redraws the details form (tournaments have extra fields).
     // Group / fixture choices: update the "how many matches" hint straight away.
     if (e.target.matches('[data-form="details"] [name=groupCount], [data-form="details"] [name=autoFixtures]')) {
@@ -579,6 +615,48 @@ export function mount(el) {
     const button = e.target.closest('[data-act]');
     if (!button) return;
     const act = button.dataset.act;
+
+    if (act === 'elim-fill') {
+      const { b } = page;
+      const kind = root.querySelector('[data-elim-kind]')?.value ?? 'single';
+      const saved = b.fixtures.filter((f) => !f.virtual);
+      const outcome = (f) => {
+        const { check } = resultOf(b, f);
+        if (!check?.ok) return null;
+        const home = check.winner === 'home';
+        return { winner: home ? f.homeTeamId : f.awayTeamId, loser: home ? f.awayTeamId : f.homeTeamId };
+      };
+      if (b.teams.length < 2) { window.alert('This event needs at least 2 teams first (Teams tab, or club sign-ups).'); return; }
+      const plan = fillElimination({ kind, fixtures: saved, teamIds: b.teams.map((t) => t.id), outcome, seed: b.event.id });
+      const name = (id) => b.teamsById[id]?.name ?? id;
+      if (!plan.add.length && !plan.relabel.length) {
+        window.alert(plan.done ? 'The bracket is finished: there’s a champion.' : 'Nothing to add yet: the current round still has matches without a score. Press it again once they’re in.');
+        return;
+      }
+      const lines = [
+        ...plan.add.map((m) => `+ ${m.label}: ${name(m.homeTeamId)} v ${name(m.awayTeamId)}`),
+        ...(plan.relabel.length ? [`(and ${plan.relabel.length} match${plan.relabel.length === 1 ? '' : 'es'} made by hand get round labels, e.g. "${plan.relabel[0].label}")`] : []),
+        ...plan.notes.map((n) => `Note: ${n}`),
+      ];
+      if (!window.confirm(`Add these?\n\n${lines.join('\n')}`)) return;
+      button.disabled = true;
+      try {
+        for (const r of plan.relabel) {
+          const existing = saved.find((f) => f.id === r.id);
+          if (existing && existing.label !== r.label) await saveFixture({ eventId: page.id, id: existing.id, uid, fixture: { ...existing, label: r.label }, existing });
+        }
+        let order = Math.max(0, ...saved.map((f) => f.order ?? 0));
+        for (const m of plan.add) {
+          await saveFixture({ eventId: page.id, id: null, uid, fixture: { label: m.label, homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId, scheduledAt: null, timeTbd: true, bestOf: null, order: ++order, status: 'scheduled' }, existing: null });
+        }
+        refresh();
+      } catch (err) {
+        console.error(err);
+        button.disabled = false;
+        window.alert(`That didn’t save: ${err.message}`);
+      }
+      return;
+    }
 
     if (act === 'tick-squad') {
       const ids = new Set(button.dataset.ids.split(','));

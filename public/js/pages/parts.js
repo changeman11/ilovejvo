@@ -6,6 +6,7 @@ import { checkResult } from '../rules/match.js';
 import { formatFor } from '../rules/season.js';
 import { byTime } from '../rules/standings.js';
 import { flowOf, matchState } from '../rules/flow.js';
+import { elimRound } from '../rules/bracket-labels.js';
 
 export { byTime };
 
@@ -116,6 +117,10 @@ export function fixtureRow(b, f, { showEvent = false, timeOnly = false, href = n
 // The round a fixture belongs to, from its label ("Round 3", "Semi-final 1", "Grand final"), or null.
 export function roundName(f) {
   const label = (f.label ?? '').trim();
+  // Single / double elimination rounds (rules/bracket-labels.js): "Upper Round 1", "Lower Final",
+  // "Grand Final Reset", "Quarter-final"... (plural for rounds with several matches).
+  const elim = elimRound(label);
+  if (elim) return { 'Quarter-final': 'Quarter-finals', 'Semi-final': 'Semi-finals', 'Upper Semi-final': 'Upper Semi-finals', 'Lower Semi-final': 'Lower Semi-finals' }[elim] ?? elim;
   let m = label.match(/^(round|week|matchday|game ?day)\s*(\d+)/i);
   if (m) return `${m[1][0].toUpperCase()}${m[1].slice(1).toLowerCase()} ${m[2]}`;
   if (/^quarter[- ]?finals?\b/i.test(label)) return 'Quarter-finals';
