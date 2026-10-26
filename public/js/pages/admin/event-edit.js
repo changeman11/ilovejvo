@@ -13,7 +13,8 @@ import { syncSchedules } from '../../admin-sync.js';
 import { FLOW_DEFAULTS, flowOf, eventPhase, liveSummary } from '../../rules/flow.js';
 import { zoneLabel } from '../../rules/events.js';
 import { ELIM_PREFIXES, nextLabel, elimRound } from '../../rules/bracket-labels.js';
-import { fillElimination } from '../../rules/elim-fill.js';
+import { fillElimination, pendingRound } from '../../rules/elim-fill.js';
+import { saveElimByes } from '../../admin-data.js';
 import { saveEvent, saveFlow, deleteEvent, saveRoster, saveFixture, deleteFixture, saveSchedule, removeEntry, clearFixtures, makeMixTeams, breakUpMixTeam } from '../../admin-data.js';
 import { navigate, refresh } from '../../nav.js';
 import { esc, skeleton, fmtDay, fmtTime, teamDot, urls } from '../../ui.js';
@@ -461,10 +462,23 @@ function fixturesHtml(editId) {
 
 // Elimination bracket helper (rules/elim-fill.js): fills in the rest of the current round from the
 // matches already made, and the next round once a round has all its scores.
+function elimOutcome(b) {
+  return (f) => {
+    const { check } = resultOf(b, f);
+    if (!check?.ok) return null;
+    const home = check.winner === 'home';
+    return { winner: home ? f.homeTeamId : f.awayTeamId, loser: home ? f.awayTeamId : f.homeTeamId };
+  };
+}
+const elimArgs = (b, kind) => ({ kind, fixtures: b.fixtures.filter((f) => !f.virtual), teamIds: b.teams.map((t) => t.id), outcome: elimOutcome(b), seed: b.event.id, byes: b.event.elimByes ?? {} });
+
 function elimBoxHtml() {
   const { b } = page;
   if (b.event.autoFixtures && b.event.autoFixtures !== 'off') return '';
   const double = b.fixtures.some((f) => /^(Upper|Lower) |^Grand Final/.test(f.label ?? ''));
+  // Teams waiting for a match in the current round: tick the ones that get a bye.
+  const waiting = b.teams.length >= 2 ? pendingRound(elimArgs(b, double ? 'double' : 'single')) : null;
+  const saved = Object.entries(b.event.elimByes ?? {}).filter(([, ids]) => ids?.length);
   return `
     <section class="panel elim-box">
       <div class="bot-action">
@@ -475,7 +489,10 @@ function elimBoxHtml() {
         </select>
         <button class="btn btn-primary btn-sm" type="button" data-act="elim-fill">Fill in the next matches</button>
       </div>
-      <p class="muted small" style="margin:6px 0 0">Keeps every match already made. Pairs up the teams not yet in the current round (an odd one out gets a bye), and once a round has all its scores, makes the next round from the winners. Double elimination also drops losers into the lower bracket, then makes the Grand Final. Shows you the list before saving. Press it again after each round.</p>
+      ${waiting?.free.length ? `<div class="elim-byes small"><b>Not in a match yet (${esc(waiting.round)}):</b> tick any that get a bye
+        ${waiting.free.map((id) => `<label class="check"><input type="checkbox" data-elim-bye value="${esc(id)}"> ${esc(b.teamsById[id]?.name ?? id)}</label>`).join('')}</div>` : ''}
+      ${saved.length ? `<p class="small" style="margin:6px 0 0">Byes so far: ${saved.map(([r, ids]) => `${esc(r)}: ${ids.map((id) => esc(b.teamsById[id]?.name ?? id)).join(', ')}`).join(' · ')}</p>` : ''}
+      <p class="muted small" style="margin:6px 0 0">Keeps every match already made, and your numbering. Pairs up the teams not yet in the current round, apart from the ones you tick for a bye (an odd one out gets a bye too), and once a round has all its scores, makes the next round from the winners and the byes. Double elimination also drops losers into the lower bracket, then makes the Grand Final. Shows you the list before saving. Press it again after each round.</p>
     </section>`;
 }
 
@@ -620,31 +637,25 @@ export function mount(el) {
       const { b } = page;
       const kind = root.querySelector('[data-elim-kind]')?.value ?? 'single';
       const saved = b.fixtures.filter((f) => !f.virtual);
-      const outcome = (f) => {
-        const { check } = resultOf(b, f);
-        if (!check?.ok) return null;
-        const home = check.winner === 'home';
-        return { winner: home ? f.homeTeamId : f.awayTeamId, loser: home ? f.awayTeamId : f.homeTeamId };
-      };
       if (b.teams.length < 2) { window.alert('This event needs at least 2 teams first (Teams tab, or club sign-ups).'); return; }
-      const plan = fillElimination({ kind, fixtures: saved, teamIds: b.teams.map((t) => t.id), outcome, seed: b.event.id });
+      const giveByes = [...root.querySelectorAll('[data-elim-bye]:checked')].map((i) => i.value);
+      const plan = fillElimination({ ...elimArgs(b, kind), giveByes });
       const name = (id) => b.teamsById[id]?.name ?? id;
-      if (!plan.add.length && !plan.relabel.length) {
+      if (plan.problem) { window.alert(plan.problem); return; }
+      const byesChanged = JSON.stringify(plan.byes) !== JSON.stringify(b.event.elimByes ?? {});
+      const newByes = Object.entries(plan.byes).flatMap(([r, ids]) => ids.filter((id) => !(b.event.elimByes?.[r] ?? []).includes(id)).map((id) => `Bye (${r}): ${name(id)}`));
+      if (!plan.add.length && !byesChanged) {
         window.alert(plan.done ? 'The bracket is finished: there’s a champion.' : 'Nothing to add yet: the current round still has matches without a score. Press it again once they’re in.');
         return;
       }
       const lines = [
-        ...plan.add.map((m) => `+ ${m.label}: ${name(m.homeTeamId)} v ${name(m.awayTeamId)}`),
-        ...(plan.relabel.length ? [`(and ${plan.relabel.length} match${plan.relabel.length === 1 ? '' : 'es'} made by hand get round labels, e.g. "${plan.relabel[0].label}")`] : []),
-        ...plan.notes.map((n) => `Note: ${n}`),
+        ...plan.add.map((m) => `+ Match ${m.label}: ${name(m.homeTeamId)} v ${name(m.awayTeamId)}`),
+        ...newByes,
       ];
       if (!window.confirm(`Add these?\n\n${lines.join('\n')}`)) return;
       button.disabled = true;
       try {
-        for (const r of plan.relabel) {
-          const existing = saved.find((f) => f.id === r.id);
-          if (existing && existing.label !== r.label) await saveFixture({ eventId: page.id, id: existing.id, uid, fixture: { ...existing, label: r.label }, existing });
-        }
+        if (byesChanged) await saveElimByes({ uid, event: b.event, byes: plan.byes });
         let order = Math.max(0, ...saved.map((f) => f.order ?? 0));
         for (const m of plan.add) {
           await saveFixture({ eventId: page.id, id: null, uid, fixture: { label: m.label, homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId, scheduledAt: null, timeTbd: true, bestOf: null, order: ++order, status: 'scheduled' }, existing: null });

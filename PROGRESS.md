@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · elimination fill: byes + keeps the admin's numbering · site (v77) DEPLOYED
+- Admin feedback: wanted Orchids and Chikchester City on byes, and their own numbered labels kept. Now: never renames matches; with plain-number labels new matches carry on the numbers (5, 6, …) and rounds are told apart by order (a new round starts when a team plays again). The box lists the teams not in a match yet in the current round with "bye" tick boxes; ticked teams go through (saved as `event.elimByes` { round: [teamIds] }), an odd one out also gets a bye. Double elimination needs round names (it says so with plain numbers).
+- Dry run on tonight's event: ticking Orchids + Chikchester City adds no matches and saves both byes; after round 1 it makes round 2 from the 4 winners + 2 byes (3 matches, numbered 5-7).
+
 ### 2026-10-26 · Claude (owner's PC) · single / double elimination: round labels + "Fill in the next matches" · site (v76) DEPLOYED
 - Admin fixture form: a **Round** picker (Single elimination: Round 1-3, Round of 16, Quarter-final, Semi-final, 3rd place match, Final; Double: Upper Round 1-4 / Semi-final / Final, Lower Round 1-6 / Semi-final / Final, Grand Final, Grand Final Reset) that fills the label as "<round> · Match n" (`rules/bracket-labels.js`, tested). Fixture lists head each of these rounds (`roundName` in parts.js).
 - Fixtures tab (events with automatic fixtures off): **🪄 Elimination bracket** box, Single/Double + "Fill in the next matches" (`rules/elim-fill.js`, tested): keeps the matches already made (plain-number labels count as round 1 and get round labels), pairs teams not yet in the current round (bye for an odd one), next round from winners once a round has all its scores; double also builds the lower bracket (upper losers drop down) and the Grand Final / Reset. Confirm lists what it adds. For tonight's "3v3 elimination tournament!!" (10 clubs, 4 hand-made matches) it adds Round 1 · Match 5 (Chikchester City v Orchids).

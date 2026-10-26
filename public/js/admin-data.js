@@ -46,6 +46,13 @@ export async function staffCheckOut({ uid, eventId, checkin }) {
   invalidate(`event:${eventId}`);
 }
 
+// Byes in a hand-made elimination bracket (rules/elim-fill.js): event.elimByes = { round: [teamIds] }.
+export async function saveElimByes({ uid, event, byes }) {
+  await commit(uid, [{ type: 'update', path: `events/${event.id}`, before: event, data: { elimByes: byes } }]);
+  invalidate(`event:${event.id}`);
+  invalidate('events');
+}
+
 // Starts a match without waiting for the check-ins (rules/flow.js): fixture.startedAt.
 export async function startMatchNow({ uid, eventId, fixture }) {
   await commit(uid, [{ type: 'update', path: `events/${eventId}/fixtures/${fixture.id}`, before: fixture, data: { startedAt: serverTimestamp() } }]);
