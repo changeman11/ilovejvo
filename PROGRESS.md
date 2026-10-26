@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-10-26 · Claude (owner's PC) · stats per event + rotating awards; once-per-event check-in · site (v75) + rules DEPLOYED, bot UPLOADED
+- **Stats per event:** /stats opens on the newest event with stats; "All events combined" is a choice (`?event=all`). Award holders (cards + the bot's 1st/2nd/3rd roles) come from the **award event** = the newest completed event (admin marked finished, or podium decided), held until the next event completes, then rotate (`rules/award-event.js`, tested; shared with the bot, which now reads each event's fixtures too and logs "[stat roles] awards now come from …", meta `statRoleEvent`). Live: DEMO EXHIBITION NIGHT holds them.
+- **Check-in (replaces per-match ready-up, `flow.readyUp` events only):** players check in ONCE per event (`events/{e}/checkins/{playerId}`, from the event page or any of their match pages). A match opens when `readyCount` (default team size) of each team have checked in (club, or the event roster for mix teams). Staff (admins) see every squad on the event page with "Check in for them" / undo (`by: 'staff'`, `staffName`), and "start this match now" stays. Rules: player creates own (current club), admin creates/updates stamped, own/admin delete. Bell: one "Check in for <event>" reminder until done. Bot watches `checkins` + `rosters` instead of `ready`. Old `ready` docs are ignored.
+- Tonight's "3v3 elimination tournament!!" has ready-up off, so it's not affected.
+
 ### 2026-10-26 · Claude (owner's PC) · #pickup queue card stays at the bottom · bot UPLOADED
 - The bot checks #pickup every 30 s and right after posting a "ready check cancelled" notice: if the queue card isn't the newest message (a notice or a player's message under it), it posts it again at the bottom (`keepCardAtBottom`, `armCardWatch`, `io.latestMessageId`). On start it edits the card if it's already the newest, so restarts don't mark #pickup unread for nothing. Checked live: card moved back under two cancel notices.
 - Players can still type in #pickup (no @everyone send block); each message there makes the card jump back under it within 30 s.

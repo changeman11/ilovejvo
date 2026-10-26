@@ -68,7 +68,7 @@ export function matchesToReport(bundles, player) {
 const at = (ms) => `${fmtDay(ms)} at ${fmtTime(ms)} ${zoneLabel(ms)}`;
 export function closedText(b, st) {
   if (st.state === 'before') return st.opensAt ? `Reporting opens when the event starts: <b>${esc(at(st.opensAt))}</b>.` : 'Reporting opens when the event starts.';
-  if (st.state === 'ready') return '✋ Ready up first: press Ready on this page. The match starts when enough players from each team are ready.';
+  if (st.state === 'ready') return '✋ Waiting for check-ins: the match starts when enough players from each team have checked in for the event (once is enough).';
   if (st.state === 'paused') return '⏸ Admins have paused the event. Reporting opens again when they restart it.';
   if (st.state === 'break') return st.opensAt ? `☕ Break before the finals. Finals open at <b>${esc(fmtTime(st.opensAt))} ${esc(zoneLabel(st.opensAt))}</b>.` : '☕ Break before the finals. An admin will open them shortly.';
   if (st.state === 'waiting') {

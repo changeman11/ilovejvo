@@ -135,7 +135,7 @@ function flowConfigHtml(e) {
           <h4>Match night</h4>
           <label class="check"><input type="checkbox" name="flowOn" ${flow.on !== false ? 'checked' : ''}> Run matches by themselves: reporting opens at the start time, each team’s next match opens once its last score is confirmed, then a break before the finals</label>
           <label class="check"><input type="checkbox" name="matchThreads" ${e.matchThreads !== false ? 'checked' : ''}> Discord match threads: the bot opens a thread per match where players report the score with a form (also on the 🤖 Bot page)</label>
-          <label class="check"><input type="checkbox" name="readyUp" ${flow.readyUp === true ? 'checked' : ''}> Ready-up: before each match, players press Ready on its match page; it starts (reporting + Discord thread) once ${Number(e.teamSize) || 4} from each team are ready</label>
+          <label class="check"><input type="checkbox" name="readyUp" ${flow.readyUp === true ? 'checked' : ''}> Check-in: players check in once for the event (staff can check them in); a team's matches start (reporting + Discord thread) once ${Number(e.teamSize) || 4} of its players have checked in</label>
           <div class="field-row">
             <label class="field"><span>Break before the finals</span><select name="breakMinutes">${mins([5, 10, 15, 20, 30, 45, 60], flow.breakMinutes ?? '', opt('', 'Until an admin opens them', flow.breakMinutes ?? ''))}</select></label>
             <label class="field"><span>Ping admins about a stuck match after</span><select name="stuckMinutes">${mins([5, 10, 15, 20, 30], flow.stuckMinutes)}</select></label>

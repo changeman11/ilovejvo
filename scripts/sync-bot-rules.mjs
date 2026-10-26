@@ -10,6 +10,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SHARED_RULES = ['flow.js', 'votes.js', 'match.js', 'results.js', 'defaults.js', 'season.js', 'standings.js', 'stat-style.js',
+  // Award event (bot/src/stat-roles.js): which event holds the awards.
+  'podium.js', 'award-event.js',
   // The stats reader (bot/src/stats-read.js): table layout, digits, name pictures, who's who.
   'endscreen.js', 'glyphs.js', 'namepics.js', 'whois.js'];
 

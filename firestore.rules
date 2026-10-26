@@ -277,7 +277,25 @@ service cloud.firestore {
         allow delete: if isAdmin() || (signedIn() && resource.data.uid == uid());
       }
 
+      // ---------- Check-in (id = playerId, public/js/rules/flow.js; once per event, 2026-10-26) ----------
+      // A player checks in for the event themselves (signed in as that player, their current club),
+      // or staff (admins) check them in. They or an admin can take it back.
+      match /checkins/{playerId} {
+        allow read: if eventPublished(eventId) || isAdmin();
+        allow create: if signedIn() && eventPublished(eventId)
+          && request.resource.data.playerId == playerId && request.resource.data.uid == uid() && ownsPlayer(playerId)
+          && request.resource.data.teamId == playerDoc(playerId).get('teamId', '')
+          && request.resource.data.at == request.time
+          && request.resource.data.keys().hasOnly(['playerId', 'teamId', 'uid', 'at']);
+        allow create, update: if isAdmin() && stampedByMe() && request.resource.data.playerId == playerId
+          && request.resource.data.by == 'staff'
+          && request.resource.data.teamId is string
+          && request.resource.data.keys().hasOnly(['playerId', 'teamId', 'uid', 'at', 'by', 'staffName', 'updatedBy', 'updatedAt']);
+        allow delete: if isAdmin() || (signedIn() && resource.data.uid == uid());
+      }
+
       // ---------- Ready-up (id "<fixtureId>__<playerId>", public/js/rules/flow.js) ----------
+      // Replaced by check-ins on 2026-10-26 (kept so old docs can still be read and removed).
       // A player presses Ready for a match their club is in, before it has a score; they can take it
       // back (delete). Admins can clear any.
       match /ready/{readyId} {

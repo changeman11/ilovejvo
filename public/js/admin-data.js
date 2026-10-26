@@ -33,7 +33,20 @@ export async function saveFlow({ eventId, uid, event, changes }) {
   invalidate('events');
 }
 
-// Starts a match without waiting for the ready-up (rules/flow.js): fixture.startedAt.
+// Staff check a player in for the event (rules/flow.js check-in) when they can't do it themselves.
+// teamId: the team they play for here (their club, or a mix team).
+export async function staffCheckIn({ uid, eventId, player, teamId, staffName = null }) {
+  await commit(uid, [{ type: 'set', path: `events/${eventId}/checkins/${player.id}`, data: {
+    playerId: player.id, teamId: teamId ?? '', uid: player.uid ?? null, at: serverTimestamp(), by: 'staff', staffName,
+  } }]);
+  invalidate(`event:${eventId}`);
+}
+export async function staffCheckOut({ uid, eventId, checkin }) {
+  await commit(uid, [{ type: 'delete', path: `events/${eventId}/checkins/${checkin.id}`, before: checkin }]);
+  invalidate(`event:${eventId}`);
+}
+
+// Starts a match without waiting for the check-ins (rules/flow.js): fixture.startedAt.
 export async function startMatchNow({ uid, eventId, fixture }) {
   await commit(uid, [{ type: 'update', path: `events/${eventId}/fixtures/${fixture.id}`, before: fixture, data: { startedAt: serverTimestamp() } }]);
   invalidate(`event:${eventId}`);

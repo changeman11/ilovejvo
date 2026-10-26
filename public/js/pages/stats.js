@@ -1,12 +1,15 @@
-// Player stats, across all events or one event: award cards (each stat's 1st, 2nd and 3rd, with the same
-// names as the Discord award roles, rules/stat-style.js), then one sortable table.
-// URL options: ?event=<id>  ?per=total|match|set  ?sort=<stat key>
+// Player stats per event (changed 2026-10-26: opens on the newest event; "All events" is still a
+// choice): award cards (each stat's 1st, 2nd and 3rd, the same names as the Discord award roles,
+// rules/stat-style.js) from the AWARD EVENT (rules/award-event.js: the last completed event; they
+// rotate when the next event finishes), then one sortable table for the chosen event.
+// URL options: ?event=<id>|all  ?per=total|match|set  ?sort=<stat key>
 
 import { loadAllBundles } from '../data.js';
 import { seasonMatches } from '../rules/season.js';
 import { esc, skeleton, notice, pageTitle, fmtNum, pct, teamDot, playerLink, avatarImg, urls } from '../ui.js';
 import { statStyle, hex } from '../rules/stat-style.js';
 import { careerStats, statDefsFor, statValue } from './career.js';
+import { awardEvent, latestStatsEvent } from '../rules/award-event.js';
 
 export const title = 'Stats';
 
@@ -19,8 +22,15 @@ const PERS = [['total', 'Totals'], ['match', 'Per match'], ['set', 'Per set']];
 export async function render() {
   const params = new URLSearchParams(location.search);
   const all = await loadAllBundles();
-  const eventId = all.some((b) => b.event.id === params.get('event')) ? params.get('event') : null;
+  // No choice in the address: the newest event with stats. "all" = every event combined.
+  const asked = params.get('event');
+  const eventId = asked === 'all' ? null
+    : all.some((b) => b.event.id === asked) ? asked : (latestStatsEvent(all)?.event.id ?? null);
   const bundles = eventId ? all.filter((b) => b.event.id === eventId) : all;
+  // Award holders: the last completed event's totals, whatever event the table shows.
+  const awardB = awardEvent(all);
+  const awardStats = awardB ? careerStats([awardB]) : new Map();
+  const awardDefs = awardB ? statDefsFor([awardB]) : [];
   const mode = PERS.some(([v]) => v === params.get('per')) ? params.get('per') : 'total';
   const defs = statDefsFor(bundles);
   const stats = careerStats(bundles);
@@ -74,32 +84,33 @@ export async function render() {
     </tr>`;
   }).join('');
 
-  // Award cards: each stat's 1st, 2nd and 3rd right now (same titles as the Discord award roles,
-  // one role per place). Ties share a place and skip the next, like the bot (9, 9, 5 = 1st, 1st, 3rd).
+  // Award cards: each stat's 1st, 2nd and 3rd at the award event (totals; the same as the Discord
+  // award roles, one role per place). Ties share a place and skip the next (9, 9, 5 = 1st, 1st, 3rd).
   const PLACE = ['🥇 1st', '🥈 2nd', '🥉 3rd'];
-  const cards = cols.map((c) => {
+  const awardCols = [{ key: 'mvps', label: 'MVP', name: 'Match MVPs' }, ...awardDefs];
+  const cards = awardCols.map((c) => {
     const st = look(c);
-    const sorted = [...stats.values()].filter((p) => p.matches >= minMatches && statValue(p, c.key, mode) > 0)
-      .sort((a, b) => statValue(b, c.key, mode) - statValue(a, c.key, mode));
+    const value = (p) => statValue(p, c.key, 'total');
+    const sorted = [...awardStats.values()].filter((p) => value(p) > 0).sort((a, b) => value(b) - value(a));
     const ranked = [];
     let place = 0;
     sorted.forEach((p, i) => {
-      if (i === 0 || statValue(p, c.key, mode) < statValue(sorted[i - 1], c.key, mode)) place = i + 1;
+      if (i === 0 || value(p) < value(sorted[i - 1])) place = i + 1;
       if (place <= 3) ranked.push({ ...p, place });
     });
     if (!ranked.length) return '';
     const [lead, ...rest] = ranked;
     const leader = people.playersById[lead.playerId];
     return `
-      <a class="award-card${st.ink ? ' ink' : ''}${c.key === sortKey ? ' on' : ''}" style="${vars(c)}" href="${esc(url({ sort: c.key }))}" data-link data-keep-scroll>
-        <span class="ac-top"><span class="ac-emoji" aria-hidden="true">${st.emoji}</span><span class="ac-title">${esc(st.title)}<small>${esc(st.name)}${mode === 'total' ? '' : mode === 'match' ? ' per match' : ' per set'}</small></span></span>
-        <span class="ac-lead">${avatarImg(leader ?? { displayName: '?' }, 'avatar')}<span class="ac-name"><small class="ac-place">${PLACE[0]}</small>${esc(leader?.displayName ?? lead.playerId)}</span><b class="ac-num num">${fmt(statValue(lead, c.key, mode))}</b></span>
-        ${rest.length ? `<span class="ac-rest">${rest.map((p) => `<span><i class="ac-place">${PLACE[p.place - 1]}</i> ${esc(people.playersById[p.playerId]?.displayName ?? p.playerId)} <b class="num">${fmt(statValue(p, c.key, mode))}</b></span>`).join('')}</span>` : ''}
+      <a class="award-card${st.ink ? ' ink' : ''}${c.key === sortKey && eventId === awardB.event.id ? ' on' : ''}" style="${vars(c)}" href="${esc(url({ sort: c.key, event: awardB.event.id, per: null }))}" data-link data-keep-scroll>
+        <span class="ac-top"><span class="ac-emoji" aria-hidden="true">${st.emoji}</span><span class="ac-title">${esc(st.title)}<small>${esc(st.name)}</small></span></span>
+        <span class="ac-lead">${avatarImg(leader ?? { displayName: '?' }, 'avatar')}<span class="ac-name"><small class="ac-place">${PLACE[0]}</small>${esc(leader?.displayName ?? lead.playerId)}</span><b class="ac-num num">${value(lead)}</b></span>
+        ${rest.length ? `<span class="ac-rest">${rest.map((p) => `<span><i class="ac-place">${PLACE[p.place - 1]}</i> ${esc(people.playersById[p.playerId]?.displayName ?? p.playerId)} <b class="num">${value(p)}</b></span>`).join('')}</span>` : ''}
       </a>`;
   }).join('');
 
   const eventOptions = [
-    `<option value="${esc(url({ event: null }))}">All events</option>`,
+    `<option value="${esc(url({ event: 'all' }))}"${eventId ? '' : ' selected'}>All events combined</option>`,
     ...all.map((b) => `<option value="${esc(url({ event: b.event.id }))}"${b.event.id === eventId ? ' selected' : ''}>${esc(b.event.title)}</option>`),
   ].join('');
 
@@ -115,7 +126,9 @@ export async function render() {
         <div class="tile"><b>${points}</b><span>Points scored</span></div>
         <div class="tile"><b>${stats.size}</b><span>Players</span></div>
       </div>
-      ${cards ? `<section><div class="section-head"><h2>🏆 Award holders</h2><span class="muted small">1st, 2nd and 3rd each get their own Discord role</span></div><div class="award-grid">${cards}</div></section>` : ''}
+      ${cards ? `<section><div class="section-head"><h2>🏆 Award holders · ${esc(awardB.event.title)}</h2><span class="muted small">From the last finished event, until the next one finishes. 1st, 2nd and 3rd each get their own Discord role.</span></div><div class="award-grid">${cards}</div></section>`
+        : '<p class="panel muted small">🏆 Awards are handed out when an event finishes, and held until the next one finishes.</p>'}
+      <div class="section-head"><h2>📊 ${eventId ? esc(bundles[0].event.title) : 'All events combined'}</h2></div>
       <div>
         <nav class="chips">${PERS.map(([v, label]) => `<a class="chip-link" href="${esc(url({ per: v === 'total' ? null : v }))}" data-link data-keep-scroll${v === mode ? ' aria-current="true"' : ''}>${label}</a>`).join('')}</nav>
         ${mode !== 'total' ? `<p class="muted small" style="margin-bottom:8px">Averages include players with at least ${minMatches} match${minMatches === 1 ? '' : 'es'}.</p>` : ''}

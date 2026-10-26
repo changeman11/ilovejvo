@@ -97,7 +97,7 @@ test('stuck matches: disputed or one-sided votes for 10 minutes, or no votes for
   assert.equal(live.stuck.length, 2);
 });
 
-test('ready-up: a free match waits for enough players from each team, then opens; admins can start it', () => {
+test('check-in: a free match waits until enough of each team have checked in (once per event), then opens; admins can start it', () => {
   const b = bundle({ flow: { readyUp: true } });
   b.event.teamSize = 2;
   const ab = b.fixtures[0];
@@ -105,13 +105,17 @@ test('ready-up: a free match waits for enough players from each team, then opens
   const st = matchState(b, ab, now);
   assert.equal(st.state, 'ready');
   assert.equal(st.need, 2);
-  const r = (team, player, at) => ({ fixtureId: 'r1-ab', teamId: team, playerId: player, at });
-  b.ready = [r('A', 'a1', T0 + MIN), r('A', 'a2', T0 + 2 * MIN), r('B', 'b1', T0 + 3 * MIN)];
+  const r = (team, player, at) => ({ id: player, teamId: team, playerId: player, at });
+  b.checkins = [r('A', 'a1', T0 + MIN), r('A', 'a2', T0 + 2 * MIN), r('B', 'b1', T0 + 3 * MIN)];
   assert.equal(matchState(b, ab, now).state, 'ready', 'B still needs one more');
-  b.ready.push(r('B', 'b2', T0 + 4 * MIN));
+  // A mix team's player counts through the event roster (their own club is something else).
+  b.rosters = { B: { playerIds: ['m1'] } };
+  b.checkins.push(r('club-x', 'm1', T0 + 4 * MIN));
   const open = matchState(b, ab, now);
   assert.equal(open.state, 'open');
-  assert.equal(open.since, T0 + 4 * MIN, 'open since the last needed player readied');
+  assert.equal(open.since, T0 + 4 * MIN, 'open since the last needed player checked in');
+  // Once checked in, every later match of theirs opens without another check-in (no per-match ready).
+  assert.ok(b.fixtures.filter((x) => [x.homeTeamId, x.awayTeamId].every((t) => ['A', 'B'].includes(t))).length >= 1);
   // Not switched on (events already running): no ready-up.
   assert.equal(matchState(bundle(), bundle().fixtures[0], now).state, 'open');
   // Admin start, or a vote already in, skips it.

@@ -58,8 +58,9 @@ test('stat roles end to end: made once, 1st/2nd/3rd given, moved when overtaken'
   };
   const results = [{ playerStats: { a: { pts: 9 }, b: { pts: 7 }, c: { pts: 5 }, d: { pts: 1 } } }];
   const site = {
-    async query() { return [{ id: 'night', data: { published: true } }]; },
+    async query() { return [{ id: 'night', data: { published: true, status: 'finished', date: 1 } }]; },
     async list(path) {
+      if (path.endsWith('/fixtures')) return [];
       if (path === 'players') return ['a', 'b', 'c', 'd'].map((p, i) => ({ id: p, data: { discordId: id(i + 1) } }));
       return results.map((data, i) => ({ id: `f${i}`, data }));
     },
@@ -121,4 +122,41 @@ test('stat roles: gradient and role icon where the server has them; old roles re
   assert.equal(edits, 1);
   await roles.sync();
   assert.equal(edits, 1, 'restyled once, not every check');
+});
+
+test('stat roles come from the last finished event only, and rotate when the next one finishes', async () => {
+  const roleList = new Map();
+  const members = new Map([[id(1), new Set()], [id(2), new Set()]]);
+  let n = 0;
+  const io = {
+    async roles() { return new Map(roleList); },
+    async createRole(r) { const rid = `r${++n}`; roleList.set(rid, r); return rid; },
+    async editRole(rid, r) { roleList.set(rid, r); },
+    async addRole(u, r) { members.get(u).add(r); },
+    async removeRole(u, r) { members.get(u).delete(r); },
+  };
+  const events = [
+    { id: 'old', data: { published: true, status: 'finished', date: 1 } },
+    { id: 'now', data: { published: true, status: 'upcoming', date: 2 } },
+  ];
+  const results = { old: [{ id: 'm', data: { playerStats: { a: { pts: 9 } } } }], now: [{ id: 'm', data: { playerStats: { b: { pts: 50 } } } }] };
+  const site = {
+    async query() { return events; },
+    async list(path) {
+      if (path === 'players') return [{ id: 'a', data: { discordId: id(1) } }, { id: 'b', data: { discordId: id(2) } }];
+      const [, ev, kind] = path.split('/');
+      return kind === 'results' ? results[ev] : [];
+    },
+  };
+  const store = new FileStore();
+  const roles = new StatRoles({ io, site, store, config: { statRolesMinutes: 30, statRolesTop: 3 }, log: { info() {}, warn() {}, error() {} } });
+  await roles.sync();
+  const p1 = store.getMeta('statRoles')['pts:1'];
+  assert.ok(members.get(id(1)).has(p1), 'the finished event holds the awards');
+  assert.ok(!members.get(id(2)).has(p1), 'the event still on doesn’t count yet');
+  assert.equal(store.getMeta('statRoleEvent'), 'old');
+  events[1].data.status = 'finished';
+  await roles.sync();
+  assert.ok(members.get(id(2)).has(p1) && !members.get(id(1)).has(p1), 'rotated to the newer event');
+  assert.equal(store.getMeta('statRoleEvent'), 'now');
 });

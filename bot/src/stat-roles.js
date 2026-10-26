@@ -9,6 +9,7 @@
 // take them from). Before 2026-10-25 the keys were just "statKey" (one Top 3 role): that role becomes
 // the 1st place one, renamed. It never touches any other role.
 // roleIo: the same as club roles (discord-io.js).
+import { awardEvent, seasonOf } from './site-rules/award-event.js';
 import { STAT_ROLE_STATS, STAT_ROLE_LOOK, PLACE_MEDAL, statRoleName, statRoleStyle, roleKey, statTotals, wantedHolders, planHolders } from './logic/stat-roles.js';
 
 // Old single-role keys ("pts") move to the 1st place key ("pts:1").
@@ -38,9 +39,23 @@ export class StatRoles {
 
   async syncNow() {
     // Every published event's results, and every player (for their Discord ID).
+    // Since 2026-10-26 the awards come from one event: the last completed one (site-rules/award-event.js),
+    // held until the next event completes.
     const events = await this.site.query('events', 'published', true);
-    const results = [];
-    for (const e of events) for (const r of await this.site.list(`events/${e.id}/results`)) results.push(r.data);
+    const bundles = [];
+    for (const e of events) {
+      const event = { id: e.id, ...e.data };
+      const results = Object.fromEntries((await this.site.list(`events/${e.id}/results`)).map((r) => [r.id, r.data]));
+      const fixtures = (await this.site.list(`events/${e.id}/fixtures`)).map((x) => ({ id: x.id, ...x.data }));
+      const teamIds = [...new Set(fixtures.flatMap((x) => [x.homeTeamId, x.awayTeamId]).filter(Boolean))];
+      bundles.push({ event, season: seasonOf(event), fixtures, results, teams: teamIds.map((id) => ({ id })) });
+    }
+    const award = awardEvent(bundles);
+    const results = award ? Object.values(award.results) : [];
+    if ((award?.event.id ?? null) !== (this.store.getMeta('statRoleEvent') ?? null)) {
+      await this.store.setMeta('statRoleEvent', award?.event.id ?? null);
+      this.log.info?.(`[stat roles] awards now come from ${award ? award.event.title : 'no event (none finished yet)'}`);
+    }
     const players = new Map((await this.site.list('players')).map((d) => [d.id, d.data]));
     const top = this.config.statRolesTop;
     const want = wantedHolders(statTotals(results), players, top);

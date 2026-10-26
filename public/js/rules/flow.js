@@ -21,16 +21,23 @@ import { tallyVotes } from './votes.js';
 
 export const FLOW_DEFAULTS = { on: true, breakMinutes: 15, stuckMinutes: 10, matchMinutes: 20 };
 
-// Ready-up (flow.readyUp, added 2026-10-24; off unless switched on, so events already running
-// aren't affected): a match whose teams are free waits until enough players from each team have
-// pressed Ready on its match page (events/{e}/ready/{fixtureId}__{playerId}), then opens (reporting,
-// Discord thread). flow.readyCount, else the event's team size, else 4. An admin can start it
-// anyway (fixture.startedAt). A match that already has a score vote counts as started.
+// Check-in (flow.readyUp; off unless switched on, so events already running aren't affected).
+// Changed 2026-10-26: players check in ONCE per event (events/{e}/checkins/{playerId}), not before
+// every match; staff can check a player in for them. A match whose teams are free waits until
+// enough of each team's players have checked in, then opens (reporting, Discord thread).
+// flow.readyCount, else the event's team size, else 4. An admin can start a match anyway
+// (fixture.startedAt). A match that already has a score vote counts as started.
+// A team's players: check-ins saved with that club, or players on the event's roster for it (mix teams).
 export const readyNeeded = (event) => Number(event?.flow?.readyCount) || Number(event?.teamSize) || 4;
+export function checkedIn(b, teamId) {
+  if (!teamId) return [];
+  const roster = new Set(b.rosters?.[teamId]?.playerIds ?? []);
+  return (b.checkins ?? [])
+    .filter((c) => c.teamId === teamId || roster.has(c.playerId))
+    .sort((x, y) => (x.at ?? 0) - (y.at ?? 0));
+}
 export function readyState(b, f) {
-  const ready = (b.ready ?? []).filter((r) => r.fixtureId === f.id);
-  const side = (teamId) => ready.filter((r) => r.teamId === teamId).sort((x, y) => (x.at ?? 0) - (y.at ?? 0));
-  return { need: readyNeeded(b.event), home: side(f.homeTeamId), away: side(f.awayTeamId) };
+  return { need: readyNeeded(b.event), home: checkedIn(b, f.homeTeamId), away: checkedIn(b, f.awayTeamId) };
 }
 const MIN = 60000;
 
@@ -135,7 +142,7 @@ export function matchState(b, f, now) {
   if (flow.readyUp === true && !f.startedAt && !subs.length) {
     const r = readyState(b, f);
     if (r.home.length < r.need || r.away.length < r.need) return { state: 'ready', since, ...r };
-    // Open since the last player needed pressed Ready.
+    // Open since the last player needed checked in.
     since = Math.max(since, r.home[r.need - 1].at ?? 0, r.away[r.need - 1].at ?? 0);
   }
   if (f.startedAt) since = Math.max(since, f.startedAt);

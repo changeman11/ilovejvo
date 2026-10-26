@@ -106,12 +106,18 @@ async function gather(uid) {
   items.push(...eventReminders(bundles, me, now));
   if (isApprovedTeam(me.team)) {
     // Only matches open now (rules/flow.js): ready-ups first, then results to report.
+    const askedCheckin = new Set();
     for (const { b, f, ready, since } of matchesToReport(bundles, me.player).filter((x) => !x.voted)) {
       if (f.scheduledAt && f.scheduledAt > now) continue;
       const vs = `<b>${team(f.homeTeamId)}</b> v <b>${team(f.awayTeamId)}</b>`;
-      items.push(ready
-        ? { id: `ready-${b.event.id}-${f.id}`, at: since || now, icon: '✋', text: `Ready up for your match: ${vs}`, href: urls.match(b.event.id, f.id) }
-        : { id: `vote-${b.event.id}-${f.id}`, at: f.scheduledAt ?? (since || now), icon: '🏐', text: `Report the result: ${vs}`, href: urls.match(b.event.id, f.id) });
+      if (ready) {
+        // Check-in is once per event: one reminder per event, only until you've checked in.
+        if (askedCheckin.has(b.event.id) || (b.checkins ?? []).some((c) => c.playerId === me.player.id)) continue;
+        askedCheckin.add(b.event.id);
+        items.push({ id: `checkin-${b.event.id}`, at: since || now, icon: '✋', text: `Check in for <b>${esc(b.event.title)}</b> so your matches can start`, href: urls.event(b.event.id) });
+        continue;
+      }
+      items.push({ id: `vote-${b.event.id}-${f.id}`, at: f.scheduledAt ?? (since || now), icon: '🏐', text: `Report the result: ${vs}`, href: urls.match(b.event.id, f.id) });
     }
     // The other team sent a fix to a result (rules/corrections.js): one tap from us applies it.
     for (const b of bundles) {

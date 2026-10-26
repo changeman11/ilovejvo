@@ -12,6 +12,7 @@ import { formatFor } from '../rules/season.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag, staffTag } from '../ui.js';
 import { livePanelsHtml } from './live-parts.js';
 import { eventRulesHtml } from './event-rules.js';
+import { checkinPanel, mountReady } from './ready-up.js';
 import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupTablesHtml, groupFixturesHtml, bracketHtml, stageOrder } from './parts.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
@@ -269,6 +270,7 @@ export const eventPage = {
   title: 'Event',
   loading: () => skeleton([180, 320]),
   mount(el) {
+    mountReady(el); // check-in panel (once per event)
     if (!signupCtx) return;
     const { user, team, entry, eventId, adminUid, entries, me, solo } = signupCtx;
     el.querySelector('.signup-box')?.addEventListener('click', async (ev) => {
@@ -299,6 +301,7 @@ export const eventPage = {
     const b = await loadEventBundle(eventId, { fresh: true });
     const e = b.event;
     const signups = await signupBox(b);
+    const checkins = await checkinPanel(b);
     const items = [...b.fixtures].sort((x, y) => (x.scheduledAt ?? Infinity) - (y.scheduledAt ?? Infinity) || stageOrder(x, y)).map((f) => ({ b, f }));
     const stats = careerStats([b]);
     const signup = safeUrl(e.signupUrl);
@@ -342,6 +345,7 @@ export const eventPage = {
             </div>` : ''}
           </section>
           ${signups}
+          ${checkins}
           ${eventRulesHtml(e)}
 
           ${groupStage}

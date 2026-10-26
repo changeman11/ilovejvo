@@ -37,7 +37,7 @@ export async function render() {
   // 1. Open for a score vote now.
   const toReport = matchesToReport(bundles, me.player);
   const reportRows = toReport.map(({ b, f, voted, ready }) => withTag(fixtureRow(b, f, { showEvent: true }),
-    ready ? '<span class="tag tag-draft">ready up</span>' : voted ? '<span class="tag tag-live">voted</span>' : '<span class="tag tag-draft">vote</span>')).join('');
+    ready ? '<span class="tag tag-draft">waiting for check-ins</span>' : voted ? '<span class="tag tag-live">voted</span>' : '<span class="tag tag-draft">vote</span>')).join('');
 
   // 2. Results in: anything that needs a hand (no screenshot, fixes waiting).
   const played = bundles.flatMap((b) => b.fixtures.filter((f) => !f.virtual && ours(f) && b.results[f.id])

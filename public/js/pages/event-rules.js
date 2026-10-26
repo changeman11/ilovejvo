@@ -53,7 +53,7 @@ export function eventRulesSections(e, { teams = 0 } = {}) {
     sections.push(['On the night', [
       `Reporting opens at the start time${e.date && !e.timeTbd ? ` (${esc(at(e.date))})` : ''}.`,
       'Each team plays one match at a time: your next match opens as soon as both teams have finished their previous one and its score is confirmed.',
-      flow.readyUp === true ? `Ready up: when your next match comes up, go to its match page and press Ready. It starts (score reporting and the Discord match thread) once ${Number(e.flow?.readyCount) || size} players from each team are ready.` : '',
+      flow.readyUp === true ? `Check in: every player checks in once for the event (✋ Check in on the event page or any of your match pages). A match starts (score reporting and the Discord match thread) once ${Number(e.flow?.readyCount) || size} players from each team have checked in. Can't do it yourself? Ask a staff member to check you in.` : '',
       ko ? (flow.breakMinutes != null ? `When the ${groups > 1 ? 'group stage' : 'round robin'} is done there’s a ${flow.breakMinutes}-minute break, then the knockout opens by itself.` : `When the ${groups > 1 ? 'group stage' : 'round robin'} is done there’s a break until an admin opens the knockout.`) : '',
       'Admins can pause the event, open matches early, or step in on any match.',
     ]]);
