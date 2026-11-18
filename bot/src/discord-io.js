@@ -437,7 +437,32 @@ export async function setupDiscord(client, config, log = console) {
     },
   };
 
-  return { guild, text, category, io, roleIo, rankedIo, matchIo, charIo };
+  // Site admins from the Staff role (staff-admins.js): who has a STAFF_ROLE_IDS role right now.
+  // Reading the member list needs the Server Members intent switched on (welcomes need it too);
+  // without it this returns null and nothing changes.
+  const staffIo = {
+    async staffMembers() {
+      if (!config.staffRoleIds.length) return null;
+      try {
+        const out = [];
+        let after;
+        for (;;) {
+          const page = await guild.members.list({ limit: 1000, ...(after ? { after } : {}) });
+          for (const m of page.values()) {
+            if (!m.user.bot && config.staffRoleIds.some((id) => m.roles.cache.has(id))) out.push({ id: m.id, name: m.displayName });
+          }
+          if (page.size < 1000) break;
+          after = page.lastKey();
+        }
+        return out;
+      } catch (err) {
+        log.warn(`[staff admins] couldn't read the member list (${err.message}). Is "Server Members Intent" on?`);
+        return null;
+      }
+    },
+  };
+
+  return { guild, text, category, io, roleIo, rankedIo, matchIo, charIo, staffIo };
 }
 
 // Admins: anyone with Manage Server, or one of ADMIN_ROLE_IDS.

@@ -28,7 +28,7 @@ service cloud.firestore {
     // Admin powers need a password sign-in. Discord sign-ins use tokens from our Worker
     // ("custom" provider); if its signing key ever leaked, it still couldn't act as an admin.
     // A Discord sign-in only counts when its /admins entry is explicitly marked `discord: true`
-    // (added by hand in the Firebase console for named people).
+    // (added by hand in the Firebase console, or by the bot for members with the Discord Staff role).
     function isAdmin() {
       return signedIn()
           && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
@@ -679,9 +679,24 @@ service cloud.firestore {
     }
 
     // ---------- Who is an admin. A signed-in user may check their own entry only. ----------
+    // Admins: added by hand in the Firebase console, or (since 2026-11-18) kept in step with the
+    // Discord Staff role by the bot (bot/src/staff-admins.js). The bot may only add and remove
+    // Discord-sign-in entries it marks 'source: staff-role'; hand-made entries are out of its reach.
     match /admins/{adminUid} {
-      allow read: if signedIn() && uid() == adminUid;
-      allow write: if false;
+      allow read: if (signedIn() && uid() == adminUid) || isPickupBot();
+      allow create: if isPickupBot()
+        && adminUid.matches('discord:[0-9]{15,22}')
+        && request.resource.data.keys().hasOnly(['discord', 'name', 'source', 'discordId', 'updatedBy', 'updatedAt'])
+        && request.resource.data.discord == true
+        && request.resource.data.source == 'staff-role'
+        && 'discord:' + request.resource.data.discordId == adminUid
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60;
+      allow update: if isPickupBot() && resource.data.get('source', '') == 'staff-role'
+        && request.resource.data.keys().hasOnly(['discord', 'name', 'source', 'discordId', 'updatedBy', 'updatedAt'])
+        && request.resource.data.discord == true && request.resource.data.source == 'staff-role'
+        && request.resource.data.discordId == resource.data.discordId
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60;
+      allow delete: if isPickupBot() && resource.data.get('source', '') == 'staff-role';
     }
 
     // ---------- Audit log: append-only, signed with the writer's own uid. Admins read it. ----------

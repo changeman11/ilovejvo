@@ -20,6 +20,7 @@ import { StatRoles } from './stat-roles.js';
 import { Characters } from './characters.js';
 import { checkMembersIntent, checkMessageContent } from './login.js';
 import { BotControl, applySettings } from './control.js';
+import { StaffAdmins } from './staff-admins.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -105,6 +106,7 @@ let matchSite = null;
 let statRoles = null;
 let characters = null;
 let control = null;
+let staffAdmins = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -154,6 +156,12 @@ client.once(Events.ClientReady, async () => {
       log.info(`[characters] watching #${config.charactersChannel} every ${config.charactersMinutes} min`);
       characters.start().catch((err) => log.error(`[characters] ${err.message}`));
     }
+    // Site admins from the Discord Staff role (needs STORE=firebase).
+    if (store.rest && config.staffAdmins) {
+      staffAdmins = new StaffAdmins({ io: discord.staffIo, rest: store.rest, config, log });
+      staffAdmins.start().catch((err) => log.error(`[staff admins] ${err.message}`));
+      log.info(`[staff admins] Staff role members are site admins (checked every ${config.staffAdminsMinutes} min)`);
+    }
     // The site's Bot panel: settings, commands and status (needs STORE=firebase).
     if (store.rest) {
       control = new BotControl({ rest: store.rest, firebase: config.firebase, config, env: envConfig, log, modules: () => ({ pickup, ranked, matches, clubRoles, statRoles }) });
@@ -177,6 +185,14 @@ client.on(Events.VoiceStateUpdate, (before, after) => {
   if (before.channelId) pickup.left(before.channelId, after.id);
   if (before.channelId) ranked?.voiceLeft(before.channelId, after.id);
   if (after.channelId) pickup.joined(after.channelId, after.id);
+});
+
+// Someone's roles changed (needs the Server Members intent): re-check site admins straight away.
+client.on(Events.GuildMemberUpdate, (before, after) => {
+  if (!staffAdmins || after.guild.id !== config.guildId) return;
+  const had = config.staffRoleIds.some((id) => before.roles?.cache?.has(id));
+  const has = config.staffRoleIds.some((id) => after.roles.cache.has(id));
+  if (had !== has || before.partial) staffAdmins.sync();
 });
 
 client.on(Events.GuildMemberAdd, (member) => {
@@ -315,6 +331,7 @@ async function stop(signal) {
   siteQueue?.stop();
   rankedSite?.stop();
   control?.stop();
+  staffAdmins?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-18 · Claude (owner's PC) · Discord Staff role = site admin, automatically · rules DEPLOYED, bot UPLOADED
+- `bot/src/staff-admins.js` (tested): every 5 min, at start and when a member's roles change, everyone with a STAFF_ROLE_IDS role (the "Staff" role) gets `admins/discord:<id>` { discord: true, source: 'staff-role', name, discordId }; losing the role removes it. Hand-made /admins entries (no source) are never touched; a failed/empty member read removes nobody. Needs the Server Members intent (already on). `STAFF_ADMINS=0` turns it off.
+- firestore.rules: the bot (isPickupBot) can read /admins and create/update/delete only 'staff-role' Discord entries. Live: Botty Binz was added on start; Volkaineo, changeman, Jum and sydress already had hand-made entries.
+
 ### 2026-10-26 · Claude (owner's PC) · Grand Final + "if needed" reset · site (v86) DEPLOYED
 - Owner: "finals 1 and finals 2?" looked broken (two equal "To play" finals). The Grand Final section now shows the first as **Grand Final** (big gold) and the second as **Grand Final reset (if needed)**, greyed and dashed, "Only played if <lower team> win the Grand Final". It turns big if the lower team wins the first, or says "Not needed" if the upper team does. Champion: the upper team winning the Grand Final ends it; otherwise the reset's winner. Checked live.
 

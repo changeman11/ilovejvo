@@ -138,6 +138,9 @@ export function loadConfig(env = process.env) {
     dataFile: text('DATA_FILE', 'data/pickup.json'),
     firebase,
   };
+  // Site admins from the Staff role (staff-admins.js, 2026-11-18): on unless STAFF_ADMINS=0.
+  config.staffAdmins = text('STAFF_ADMINS') !== '0';
+  config.staffAdminsMinutes = number('STAFF_ADMINS_MINUTES', 5, 1, 1440);
   // Staff (see the 1v1 results channel, decide disputes): STAFF_ROLE_IDS, or the admin roles.
   config.staffRoleIds = text('STAFF_ROLE_IDS').split(/[\s,]+/).filter(Boolean);
   if (!config.staffRoleIds.length) config.staffRoleIds = [...config.adminRoleIds];
