@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Stats page redone: Overview / Players / Teams · site DEPLOYED (sw v88)
+- /stats keeps the Last event / All time / Archived views and adds tabs (`?tab=`): ✨ Overview (6 headline tiles incl. points per set and "went the distance", award holders on Last event or leaders elsewhere with ties capped at 3 + "more tied", 🔥 single-match records per stat linking to the match, ⚡ points-per-set top 5, 🛡️ top 4 teams), 👤 Players (full table + team filter `?team=`), 🛡️ Teams (W–L, sets, points, stat totals or per set, sortable, each team's top scorer). All in `pages/stats.js`; styles at the end of app.css.
+
 ### 2026-11-21 · Claude (owner's PC) · Club colours on names, award roles = last event, Stats views · site DEPLOYED (sw v87), bot UPLOADED
 - Discord names now show the club colour: club roles sit as one block right under the bot's role (`raiseClubs` in club-roles.js, checked every 5 min; `raiseRoles` in discord-io.js re-numbers everything under the bot in one call). Award roles (🥇🥈🥉) have no colour and no icon (`STAT_ROLE_LOOK` 5). Black clubs (#000000 = "no colour" on Discord) show dark grey #3b3b3b; a club with no colour uses its page theme colour (`clubColor`).
 - Club logos after names: built (`applyIcons`, logo → 128 px PNG via sharp, meta `clubRoleIcons`) but only switches on when the server has ROLE_ICONS = boost level 2 (7 boosts). Now level 1 (5 boosts), so it waits.

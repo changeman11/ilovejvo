@@ -1842,3 +1842,49 @@ a.eb-match:hover { border-color: var(--yellow); }
 .stats-viewbar .chips { padding-bottom: 0; }
 .stats-viewbar .chip-link { font-size: 0.95rem; padding: 8px 14px; }
 .stats-viewbar .picker { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Stats page sections (2026-11-21): tabs, records, mini boards, team table */
+.stats-tabs { display: flex; gap: 4px; padding: 4px; border: var(--outline); border-radius: 16px; background: var(--surface); box-shadow: 0 3px 0 var(--ink); }
+.stats-tabs a { flex: 1; text-align: center; padding: 10px 8px; border-radius: 12px; font: 600 16px/1.1 var(--font-head); text-decoration: none; color: var(--ink); white-space: nowrap; }
+.stats-tabs a:hover { background: color-mix(in srgb, var(--blue) 10%, transparent); }
+.stats-tabs a[aria-current] { background: var(--blue); color: #fff; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25); }
+.stats-tiles { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.record-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.record-card { display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 10px; border: var(--outline); border-radius: 16px; background: var(--surface); text-decoration: none; color: var(--ink); box-shadow: 0 3px 0 var(--ink); border-left: 8px solid var(--stat); transition: transform 0.12s; }
+.record-card:hover { transform: translateY(-2px); }
+.rc-emoji { display: grid; place-items: center; width: 40px; height: 40px; flex: none; font-size: 22px; border-radius: 12px; background: linear-gradient(135deg, var(--stat), var(--stat2)); }
+.rc-text { display: grid; min-width: 0; flex: 1; line-height: 1.2; }
+.rc-text small { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.rc-text b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-num { font: 30px/1 var(--font-num); color: var(--stat); -webkit-text-stroke: 1px var(--ink); }
+.stats-duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.mini-board .section-head { margin-bottom: 6px; }
+.mini-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.mini-list li { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 1px dashed color-mix(in srgb, var(--ink) 20%, transparent); }
+.mini-list li:last-child { border-bottom: 0; }
+.mini-list .ml-rank { width: 22px; text-align: center; font: 16px var(--font-num); }
+.mini-list li:first-child .ml-rank { color: #c98a00; }
+.mini-list .avatar.sm { width: 26px; height: 26px; flex: none; }
+.mini-list .ml-name { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; font-weight: 700; overflow: hidden; white-space: nowrap; }
+.mini-list .ml-bar { flex: 0 1 90px; height: 8px; border-radius: 8px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.mini-list .ml-bar i { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, #ffc533, #ff8a00); }
+.mini-list b.num { min-width: 3.2em; text-align: right; font-family: var(--font-num); }
+.more-link { display: inline-block; margin-top: 8px; font-weight: 800; font-size: 13px; }
+.stats-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.stats-toolbar .chips { padding-bottom: 0; }
+.teams-table td.first { white-space: nowrap; }
+.teams-table td.first .team { display: inline-flex; }
+.team-star { display: block; margin-left: 30px; font-size: 11px; font-weight: 700; }
+@media (max-width: 600px) {
+  .stats-tabs a { font-size: 14px; padding: 9px 4px; }
+  .mini-list .ml-bar { display: none; }
+}
+.stats-tiles { grid-template-columns: repeat(3, 1fr); }
+@media (min-width: 1100px) { .stats-tiles { grid-template-columns: repeat(6, 1fr); } }
+.ac-rest .ac-more { font-size: 12px; opacity: 0.85; }
+@media (max-width: 600px) {
+  .stats-viewbar .chip-link { font-size: 13px; padding: 6px 10px; min-height: 32px; }
+  .stats-page .section-head { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .record-card { padding: 8px 12px 8px 8px; }
+  .rc-num { font-size: 26px; }
+}
