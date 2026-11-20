@@ -35,6 +35,7 @@ import * as teamsList from './pages/teams.js';
 import * as help from './pages/help.js';
 import * as pickup from './pages/pickup.js';
 import * as helpEdit from './pages/admin/help-edit.js';
+import * as adminGuide from './pages/admin/guide.js';
 import * as charactersAdmin from './pages/admin/characters.js';
 import * as myMatches from './pages/my-matches.js';
 import * as botAdmin from './pages/admin/bot.js';
@@ -66,6 +67,7 @@ const routes = [
   { path: '/admin/requests', page: requests, section: '/admin', up: toAdmin },
   { path: '/admin/stats', page: statsList, section: '/admin', up: toAdmin },
   { path: '/admin/people', page: people, section: '/admin', up: toAdmin },
+  { path: '/admin/guide', page: adminGuide, section: '/admin', up: toAdmin },
   { path: '/admin/help', page: helpEdit, section: '/admin', up: toAdmin, tabbed: true },
   { path: '/admin/characters', page: charactersAdmin, section: '/admin', up: toAdmin },
   { path: '/admin/bot', page: botAdmin, section: '/admin', up: toAdmin },

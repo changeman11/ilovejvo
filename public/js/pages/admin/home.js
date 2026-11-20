@@ -75,6 +75,7 @@ export async function render() {
     ['/admin/people', '👥', 'Edit a team or player', ''],
     ['/admin/bot', '🤖', 'Bot control panel', ''],
     ['/admin/help', '📜', 'Edit the FAQ & rules', ''],
+    ['/admin/guide', '📘', 'Admin guide: how to do everything', ''],
   ];
 
   const row = (e) => `

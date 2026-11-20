@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Stats search + Compare, FAQ rewrite, Roles guide, Admin guide · site DEPLOYED (sw v89)
+- /stats: a search box (live filter on Players and Teams, `?q=`, kept when sorting; Enter on Overview opens Players) and a **⚖️ Compare** tab (`?tab=compare&a=&b=`: stat-by-stat tug-of-war bars, "stats ahead" score, head to head and played together, Swap). `compareHtml` + `mount` in pages/stats.js.
+- /help: FAQ rewritten (events, check-in, clubs, results/fixes, awards & roles, pickup) with jump links; rules are general and point to each event's 📜 Event rules (team size etc. per event); new **🧭 Roles** tab (`DEFAULT_ROLES` in help-defaults.js: who does what, Discord roles, before/during/after for players, managers, staff). Live site had no saved FAQ/rules, so the new defaults show.
+- **/admin/guide** (pages/admin/guide.js, admins only, in the admin bar and Quick jobs): every admin job step by step, searchable.
+
 ### 2026-11-21 · Claude (owner's PC) · Stats page redone: Overview / Players / Teams · site DEPLOYED (sw v88)
 - /stats keeps the Last event / All time / Archived views and adds tabs (`?tab=`): ✨ Overview (6 headline tiles incl. points per set and "went the distance", award holders on Last event or leaders elsewhere with ties capped at 3 + "more tied", 🔥 single-match records per stat linking to the match, ⚡ points-per-set top 5, 🛡️ top 4 teams), 👤 Players (full table + team filter `?team=`), 🛡️ Teams (W–L, sets, points, stat totals or per set, sortable, each team's top scorer). All in `pages/stats.js`; styles at the end of app.css.
 

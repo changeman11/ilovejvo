@@ -84,6 +84,7 @@ export function adminBar(user, admin, current = '') {
     ['/admin/characters', '🎭', 'Characters', 'Approve or remove characters on the Home court'],
     ['/admin/bot', '🤖', 'Bot', 'The Discord bot: status, switches, timings, match threads and quick fixes'],
     ['/admin/help', '📜', 'FAQ & rules', 'Edit the help pages players read'],
+    ['/admin/guide', '📘', 'Guide', 'How to do every admin job, step by step'],
   ];
   return `
     <div class="admin-bar">
