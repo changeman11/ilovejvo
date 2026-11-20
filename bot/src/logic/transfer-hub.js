@@ -57,9 +57,11 @@ export function transferPost(t, { players, teams, siteUrl = '', bucket = '' }) {
   const clubId = club === to ? t.toTeamId : t.fromTeamId;
   const avatar = storageUrl(bucket, p?.avatarPath) ?? (/^https:\/\//.test(p?.avatarUrl ?? '') ? p.avatarUrl : null);
   const logo = storageUrl(bucket, club?.logoPath);
+  // The player's own message (e.g. when leaving), as a quote under the news.
+  const note = String(t.note ?? '').trim().slice(0, 200).replace(/\s*\n\s*/g, ' ').replace(/@(everyone|here)/gi, '@​$1');
   const embed = {
     title,
-    description: line,
+    description: note ? `${line}\n> ${note}\n> — ${who}` : line,
     color: colorOf(club),
     ...(avatar && t.kind !== 'disbanded' ? { author: { name: who, icon_url: avatar } } : {}),
     ...(logo ? { thumbnail: { url: logo } } : {}),

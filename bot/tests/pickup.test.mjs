@@ -771,3 +771,26 @@ test('the queue card is kept as the newest message in #pickup', async () => {
   assert.equal(await io.latestMessageId(), env.pickup.queueMessageId, 'card under the cancel notice');
   assert.ok([...io.messages.values()].some((m) => /cancelled/.test(m.content ?? '')));
 });
+
+test('AFK check: a long wait gets a ping; no answer = out of the queue; answering keeps you in', async () => {
+  const env = setup({ cfg: { ...config, pickupAfkMinutes: 30, pickupAfkSeconds: 120, pickupChatChannelId: 'chat' } });
+  await env.pickup.start();
+  await env.pickup.join('u1', 'Player 1');
+  await env.pickup.join('u2', 'Player 2');
+  await env.pickup.idle();
+  await env.clock.advance(31 * 60_000, env.pickup);
+  const pings = env.io.posted.filter((id) => env.io.where.get(id) === 'chat');
+  assert.equal(pings.length, 2, 'both get an AFK check in #pickup-chat');
+  assert.match(env.io.messages.get(pings[0]).content, /still there/);
+  // u1 answers, u2 doesn't.
+  const reply = await env.pickup.button('afk:u1', { id: 'u1', name: 'Player 1' });
+  assert.match(reply.ephemeral, /still #1/);
+  assert.equal((await env.pickup.button('afk:u2', { id: 'u1', name: 'Player 1' })).ephemeral, 'That check is for someone else.');
+  await env.clock.advance(121_000, env.pickup);
+  assert.ok(env.pickup.queue.has('u1'));
+  assert.ok(!env.pickup.queue.has('u2'), 'no answer: taken out');
+  assert.ok(Object.values(Object.fromEntries(env.io.messages)).some((m) => /taken out of the pickup queue/.test(m.content ?? '')));
+  // u1 waits another 30 minutes: asked again.
+  await env.clock.advance(31 * 60_000, env.pickup);
+  assert.equal(env.io.posted.filter((id) => env.io.where.get(id) === 'chat').length, 3);
+});

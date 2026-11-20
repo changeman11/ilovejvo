@@ -22,7 +22,7 @@ export const FEATURES = {
   matchThreads: { label: 'Match threads', key: 'matchThreads' },
   readStats: { label: 'Read stats screenshots', key: 'readStats' },
   characters: { label: 'Characters from Discord', key: 'characters' },
-  statRoles: { label: 'Award roles (1st/2nd/3rd)', key: 'statRoles' },
+  statRoles: { label: 'Award roles (1st place)', key: 'statRoles' },
   clubRoles: { label: 'Club roles', key: 'clubRoles' },
   welcome: { label: 'Welcome new members', key: 'welcomeChannelId' },
 };
@@ -34,6 +34,8 @@ export const TIMINGS = {
   readySeconds: [10, 600],
   pickSeconds: [10, 600],
   rankedReadySeconds: [30, 3600],
+  pickupAfkMinutes: [0, 1440],
+  pickupAfkSeconds: [30, 900],
 };
 export const ACTIONS = ['syncRoles', 'repostCards', 'checkThreads', 'closeThreads', 'clearEventThreads', 'restart',
   'pickupStart', 'pickupCancelMatch', 'pickupResult', 'pickupRemove'];

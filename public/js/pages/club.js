@@ -20,6 +20,7 @@ import { allFixtures, resultOf, fixtureRow } from './parts.js';
 import { matchesToReport } from './report.js';
 import { chatBlock, mountChat } from './team-chat.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
+import { checkText } from '../rules/profanity.js';
 import { signUpTeam, withdrawTeam, handOverClub } from '../player-data.js';
 
 export const title = 'Club hub';
@@ -210,6 +211,7 @@ function overviewTab({ me, team, isManager, squad, toReport, upcoming }) {
                 <button class="btn btn-sm" data-act="cancel-leave" data-id="${esc(pendingLeave.id)}" style="margin-top:10px">Cancel request</button></div>` : ''}
           <section class="panel">
             ${isManager ? '<p class="small" style="margin:0 0 8px"><b>You’re the only player left.</b> If you leave, the club disbands (its results are kept).</p>' : '<p class="small" style="margin:0 0 8px">You can leave any time, except while an event is on. You become a free agent straight away.</p>'}
+            <label class="field"><span>Message for transfer news (optional)</span><textarea name="leave-note" maxlength="200" rows="2" placeholder="Say goodbye or thanks. Shown under your move in #transfer-news and on the site."></textarea></label>
             <button class="btn" type="button" data-act="leave-now">${isManager ? `Leave and disband ${esc(team.name)}` : `Leave ${esc(team.name)}`}</button>
             <p class="form-error" role="alert" hidden></p>
           </section>
@@ -489,7 +491,9 @@ export function mount(el) {
       }
       if (act === 'leave-now') {
         const squad = me.players.filter((p) => p.teamId === team.id);
-        await leaveClub({ uid: user.uid, player: me.player, team, alone: squad.length === 1 });
+        const note = b.closest('section')?.querySelector('[name="leave-note"]')?.value?.trim() ?? '';
+        if (note && checkText(note).level === 'severe') throw new Error('That message has a word that isn’t allowed. Please change it.');
+        await leaveClub({ uid: user.uid, player: me.player, team, alone: squad.length === 1, note });
       }
       if (act === 'cancel-leave') await cancelLeave({ uid: user.uid, request: me.leaves.find((l) => l.id === id) });
       refresh();

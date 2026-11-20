@@ -6,10 +6,13 @@
 import { newId, serverTimestamp } from './writes.js';
 
 // A save step for commit(): add it to the same commit as the player's teamId change.
-export function transferOp({ playerId, from = null, to = null, kind }) {
+// note: an optional message from the player (up to 200 characters, e.g. when they leave), shown
+// under the news on the site's ticker and in Discord's #transfer-news.
+export function transferOp({ playerId, from = null, to = null, kind, note = '' }) {
+  const text = String(note ?? '').trim().slice(0, 200);
   return {
     type: 'set',
     path: `transfers/${newId('transfers')}`,
-    data: { playerId, fromTeamId: from ?? null, toTeamId: to ?? null, kind, at: serverTimestamp() },
+    data: { playerId, fromTeamId: from ?? null, toTeamId: to ?? null, kind, at: serverTimestamp(), ...(text ? { note: text } : {}) },
   };
 }

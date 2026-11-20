@@ -4,6 +4,7 @@
 // it waited for the next event to be complete, which a never-played "if needed" final could block).
 // Pure, shared with the bot (bot/src/site-rules/).
 import { podium } from './podium.js';
+import { isPreLaunch } from './eras.js';
 import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './defaults.js';
 
 // The engine's "season" for an event (the same as data.js engineSeason), for code without data.js.
@@ -35,10 +36,11 @@ export function eventComplete(b) {
 
 const when = (b) => b.event.date ?? b.event.createdAt ?? 0;
 
-// Every published, not cancelled event with stats, newest first.
-export function statsEvents(bundles) {
+// Every published, not cancelled event with stats, newest first. Pre-launch events (rules/eras.js)
+// are left out unless { preLaunch: true }: awards and live stats start from launch day.
+export function statsEvents(bundles, { preLaunch = false } = {}) {
   return [...bundles]
-    .filter((b) => b.event?.published !== false && b.event?.status !== 'cancelled' && hasStats(b))
+    .filter((b) => b.event?.published !== false && b.event?.status !== 'cancelled' && hasStats(b) && isPreLaunch(b.event) === preLaunch)
     .sort((x, y) => when(y) - when(x));
 }
 

@@ -10,6 +10,7 @@ import { mediaUrl } from '../media.js';
 import { seasonMatches } from '../rules/season.js';
 import { teamCareer, teamXp, playerXp, levelFor } from '../rules/badges.js';
 import { careerStats } from './career.js';
+import { liveBundles } from '../rules/eras.js';
 import { trophyIcons } from './profile-parts.js';
 import { trophiesByTeam } from '../rules/podium.js';
 import { SQUAD_MAX, squadSize } from '../rules/defaults.js';
@@ -149,7 +150,7 @@ export async function render() {
     const records = teamCareer(bundles.map((b) => ({ eventId: b.event.id, matches: seasonMatches(b).matches })));
     body = teamCards(teams, people, records, trophiesByTeam(bundles));
   } else {
-    const careers = careerStats(bundles);
+    const careers = careerStats(liveBundles(bundles));
     body = view === 'free'
       ? `<p class="muted small" style="margin:0 0 10px">Players without a club (LFT = looking for a team, shown first). Managers can invite them from the Club hub.</p>${playerList(free, people, careers, 'No free agents right now')}`
       : playerList(players, people, careers, 'No players yet');

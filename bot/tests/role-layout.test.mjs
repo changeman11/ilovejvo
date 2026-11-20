@@ -95,3 +95,54 @@ test('transfer hub: backfills a few the first time, then only new ones, never tw
   assert.equal(posted.at(-1).embeds[0].title, '📤 Left');
   assert.equal(await hub.sync(), 0);
 });
+
+test('a leave message shows as a quote under the news', () => {
+  const post = transferPost({ playerId: 'p', fromTeamId: 'reef', kind: 'left', note: 'Thanks for the games @everyone' }, { players, teams });
+  assert.equal(post.embeds[0].description, '**Zuza** left **Reef Raiders** and is now a free agent.\n> Thanks for the games @​everyone\n> — Zuza');
+});
+
+test('staff desk cards: clubs, characters, fixes and a stats count; buttons only where they apply', async () => {
+  const { deskCards, deskMessage, shortKey } = await import('../src/logic/staff-desk.js');
+  const cards = deskCards({
+    teams, players, siteUrl: 'https://site', bucket: 'b',
+    pendingTeams: [{ id: 'new', data: { name: 'New FC', managerPlayerId: 'p', invitePlayerIds: [] } }],
+    characters: [{ id: 'discord-1-0', data: { path: 'characters/x.png', author: 'Ann' } }],
+    fixes: [
+      { eventId: 'e', id: 'f1__p', data: { playerId: 'p', teamId: 'reef', sets: [{ home: 10, away: 8 }, { home: 10, away: 5 }] }, fixture: { id: 'f1', homeTeamId: 'reef', awayTeamId: 'tide' }, result: { sets: [{ home: 8, away: 10 }, { home: 10, away: 5 }, { home: 10, away: 7 }] }, event: { title: 'Night' } },
+      { eventId: 'e', id: 'f2__p', data: { playerId: 'p', teamId: 'reef', sets: [], note: 'my stats are wrong' }, fixture: { id: 'f2', homeTeamId: 'reef', awayTeamId: 'tide' }, result: { sets: [] }, event: {} },
+    ],
+    statsWaiting: 3,
+  });
+  assert.deepEqual([...cards.keys()], ['team:new', 'char:discord-1-0', 'fix:e/f1__p', 'fix:e/f2__p', 'stats']);
+  assert.equal(cards.get('fix:e/f1__p').yes, '✅ Use this score');
+  assert.equal(cards.get('fix:e/f2__p').yes, null, 'no new score: only Close');
+  const msg = deskMessage(cards.get('team:new'), shortKey('team:new'));
+  assert.deepEqual(msg.components[0].components.map((c) => c.label), ['✅ Approve', '❌ Decline', 'Requests']);
+  const done = deskMessage(cards.get('team:new'), 'x', { text: '✅ Approved by Sam' });
+  assert.deepEqual(done.components[0].components.map((c) => c.label), ['Requests'], 'decided: buttons gone');
+  assert.equal(done.embeds[0].footer.text, '✅ Approved by Sam');
+});
+
+test('staff desk: approving a club saves it, its founder, the news and invites in one go; non-staff can’t', async () => {
+  const { StaffDesk } = await import('../src/staff-desk.js');
+  const commits = [];
+  const docs = {
+    'teams/new': { name: 'New FC', status: 'pending', managerPlayerId: 'p', managerUid: 'uidP', invitePlayerIds: ['q', 'r'] },
+    'players/q': { uid: 'uidQ', teamId: null },
+    'players/r': { uid: 'uidR', teamId: 'reef' },
+  };
+  const rest = { uid: 'bot', async token() {}, async get(p) { return docs[p] ?? null; }, async commit(w) { commits.push(w); } };
+  const store = new FileStore();
+  await store.setMeta('staffDesk', { abc: { key: 'team:new', messageId: 'm1', card: { embed: { title: 'x' } } } });
+  const desk = new StaffDesk({ io: {}, site: {}, rest, store, config: {}, log: quiet });
+  assert.equal((await desk.button('desk:yes:abc', { id: '1', name: 'Pat', isStaff: false })).reply, 'Only staff can use these.');
+  const out = await desk.button('desk:yes:abc', { id: '1', name: 'Sam', isStaff: true });
+  assert.match(out.done, /Approved New FC \(1 invite sent\)/);
+  const paths = commits[0].map((w) => w.path.split('/')[0]);
+  assert.deepEqual(paths.filter((p) => p !== 'auditLog'), ['teams', 'players', 'transfers', 'offers']);
+  assert.equal(paths.filter((p) => p === 'auditLog').length, 4, 'an audit entry per change');
+  assert.equal(commits[0][0].data.status, 'approved');
+  assert.deepEqual(commits[0][0].mask, ['status', 'updatedBy']);
+  assert.equal(store.getMeta('staffDesk').abc, undefined);
+  assert.equal((await desk.button('desk:yes:abc', { id: '1', name: 'Sam', isStaff: true })).reply, 'That card is already dealt with.');
+});

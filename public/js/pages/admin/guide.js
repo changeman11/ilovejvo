@@ -122,7 +122,7 @@ Players send fixes with **🛠 Fix this result**. If both teams send the same sc
 - Publish any stats still waiting, and clear result fixes.
 - Set **Status** to finished if it doesn't show finished by itself (the podium is worked out from the final, or the table).
 - Trophies, podiums and the Champions card update by themselves.
-- Award roles move to this event's top 3s as soon as its stats are in.
+- 🥇 award roles move to this event's stat leaders as soon as its stats are in.
 - **🤖 Bot → 🧹 Clear an event's threads** tidies its Discord match threads (this deletes them).
 
 # Clubs and players
@@ -142,6 +142,14 @@ In a player's form, set **Staff** to Admin, Mod or Caster. It's a badge only: ad
 ## Bot control panel
 **🤖 Bot** shows whether the bot is online, and lets you switch features on and off (match threads, stats reading, ranked, stat roles, club roles, characters, welcomes) and change timings. Feature changes restart the bot; timings apply straight away.
 
+## Staff desk on Discord
+**#staff-desk** (staff only) gets a card for each quick job, every 90 seconds:
+- **🆕 New club:** ✅ Approve (founder becomes manager, their invites are sent) or ❌ Decline.
+- **🎭 New character:** ✅ Approve (on the Home court) or ❌ Deny.
+- **🛠 Result fix:** ✅ Use this score (when the fix has a new score) or ❌ Close, no change. **Open result** goes to the site for anything bigger.
+- **📸 Stats waiting:** how many matches need a stats check, with a link to the site.
+Pressing a button saves straight to the site and the card shows who did it. Anything dealt with on the site is marked done on Discord too. Every change is in the audit log with the staff member's name.
+
 ## Quick fixes
 - **🎨 Sync roles now:** fixes everyone's club and award roles.
 - **🔄 Check match threads now** and **🔒 Close all open threads**.
@@ -152,7 +160,7 @@ In a player's form, set **Staff** to Admin, Mod or Caster. It's a badge only: ad
 The **🏐 Pickup** section shows the live queue, ready checks, drafts and games. Start a game, cancel a match, set or correct a result, or remove someone from the queue. Discord's **/pickup** admin commands do the same, plus **/pickup setmode** to fix the mode.
 
 ## Roles on Discord
-Club roles (club colour), Captain (managers), award roles (🥇🥈🥉, from the last event with stats) and site admin from the Staff role are all automatic. Club logos will show after names once the server reaches boost level 2.
+Club roles (club colour), Captain (managers), award roles (🥇 1st per stat, from the last event with stats), the TEAM / AWARDS divider roles and site admin from the Staff role are all automatic. Club logos will show after names once the server reaches boost level 2.
 
 # Help pages and characters
 ## Edit the FAQ and rules

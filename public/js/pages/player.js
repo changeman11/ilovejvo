@@ -7,6 +7,7 @@ import { esc, fmtNum, skeleton, avatarImg, teamLink, urls, managerTag, isLft, lf
 import { playerBadges, playerXp, levelFor } from '../rules/badges.js';
 import { statHeads, statCells, allFixtures, resultOf, fixtureRow } from './parts.js';
 import { careerStats, statDefsFor } from './career.js';
+import { liveBundles, preLaunchBundles, PRE_LAUNCH_LABEL } from '../rules/eras.js';
 import { profileShell, showcaseTiles, badgesBlock, aboutBlock, sideBlock } from './profile-parts.js';
 import { commentsBlock, mountComments } from './comments.js';
 
@@ -27,7 +28,9 @@ export async function render({ playerId }) {
   const [pickup, rp] = await Promise.all([loadPickupRank(player.discordId), loadRankedRank(player.discordId)]);
 
   const defs = statDefsFor(bundles);
-  const career = careerStats(bundles).get(playerId) ?? null;
+  // Live career from launch day; pre-launch numbers are shown separately (rules/eras.js).
+  const career = careerStats(liveBundles(bundles)).get(playerId) ?? null;
+  const pre = careerStats(preLaunchBundles(bundles)).get(playerId) ?? null;
   const current = player.teamId ? people.teamsById[player.teamId] : null;
   const team = isApprovedTeam(current) ? current : null;
   const lvl = levelFor(playerXp(career));
@@ -43,7 +46,7 @@ export async function render({ playerId }) {
   if (career) {
     const perMatch = Object.fromEntries(defs.map((d) => [d.key, career.matches ? (career.totals[d.key] ?? 0) / career.matches : 0]));
     const perSet = Object.fromEntries(defs.map((d) => [d.key, career.sets ? (career.totals[d.key] ?? 0) / career.sets : 0]));
-    const byEvent = bundles
+    const byEvent = liveBundles(bundles)
       .map((b) => {
         const one = careerStats([b]).get(playerId);
         return one ? { b, s: one } : null;
@@ -90,10 +93,26 @@ export async function render({ playerId }) {
       </section>`;
   }
 
+  if (!career && pre) stats = `<div class="notice"><strong>Fresh start</strong> The game launched on 21 November 2026, so everyone's stats started again from 0. This player's earlier numbers are in their pre-launch stats below.</div>`;
+  // Pre-launch numbers (before the game launched), kept as an archive.
+  const preBlock = pre ? `
+      <details class="panel prelaunch-block">
+        <summary><b>🧪 ${esc(PRE_LAUNCH_LABEL)}</b> <span class="muted small">${pre.matches} match${pre.matches === 1 ? '' : 'es'} before launch · not counted in live stats</span></summary>
+        <div class="table-wrap"><table class="data">
+          <thead><tr><th class="first">Event</th><th title="Matches">M</th><th title="Matches won">W</th><th>MVP</th>${statHeads(defs)}</tr></thead>
+          <tbody>
+            ${preLaunchBundles(bundles).map((b) => ({ b, s: careerStats([b]).get(playerId) })).filter((x) => x.s).reverse()
+              .map(({ b, s }) => `<tr><td class="first"><a class="plink" href="${urls.event(b.event.id)}" data-link>${esc(b.event.title)}</a></td><td>${s.matches}</td><td>${s.wins}</td><td>${s.mvps}</td>${statCells(s.totals, defs)}</tr>`).join('')}
+            <tr class="total"><td class="first"><b>Total</b></td><td>${pre.matches}</td><td>${pre.wins}</td><td>${pre.mvps}</td>${statCells(pre.totals, defs)}</tr>
+          </tbody>
+        </table></div>
+      </details>` : '';
+
   const main = `
     ${career ? showcaseTiles('player', player.showcase, defs, { ...career, sweeps, level: lvl.level }) : ''}
     ${aboutBlock(player.bio)}
     ${stats}
+    ${preBlock}
     ${await commentsBlock({ kind: 'player', targetId: player.id, ownerUid: player.uid ?? null })}`;
 
   const side = `

@@ -242,6 +242,17 @@ service cloud.firestore {
         allow create: if agreedResult(eventId, fixtureId);
         // ... and change its score only when both teams send the same fix (see agreedCorrection).
         allow update: if agreedCorrection(eventId, fixtureId);
+        // ... or staff press ✅ "Use this score" on a result fix in Discord's staff desk
+        // (bot/src/staff-desk.js): the bot copies that one open fix's set scores and closes it.
+        allow update: if isPickupBot() && stampedByMe() && eventPublished(eventId) && validResult()
+          && resource.data.get('forfeit', null) == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sets', 'correctedBy', 'updatedBy', 'updatedAt'])
+          && request.resource.data.correctedBy is list && request.resource.data.correctedBy.size() == 1
+          && get(/databases/$(database)/documents/events/$(eventId)/corrections/$(request.resource.data.correctedBy[0])).data.fixtureId == fixtureId
+          && get(/databases/$(database)/documents/events/$(eventId)/corrections/$(request.resource.data.correctedBy[0])).data.status == 'open'
+          && get(/databases/$(database)/documents/events/$(eventId)/corrections/$(request.resource.data.correctedBy[0])).data.sets == request.resource.data.sets
+          && request.resource.data.sets.size() > 0
+          && fixAfter(eventId, request.resource.data.correctedBy[0]).status == 'done';
         // The Discord bot fills in who's who on the automatic stats reading (statsDraft) when a
         // player answers in the match thread, and adds screenshots players posted in the thread
         // (threadShots, paths in Storage). Only those, and only before staff check the stats.
@@ -274,6 +285,10 @@ service cloud.firestore {
         allow update: if isAdmin() && stampedByMe()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedBy', 'updatedAt'])
           && request.resource.data.status in ['open', 'done'];
+        // Staff close one from Discord's staff desk (the bot).
+        allow update: if isPickupBot() && stampedByMe() && resource.data.status == 'open'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedBy', 'updatedAt'])
+          && request.resource.data.status == 'done';
         allow delete: if isAdmin() || (signedIn() && resource.data.uid == uid());
       }
 
@@ -350,6 +365,14 @@ service cloud.firestore {
     match /players/{playerId} {
       allow read: if true;
 
+      // Staff desk (bot): approving a new club makes its founder (a free agent) its first player.
+      allow update: if isPickupBot() && stampedByMe()
+        && changedOnly(['teamId', 'updatedBy', 'updatedAt'])
+        && resource.data.get('teamId', null) == null
+        && get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.get('status', '') == 'pending'
+        && getAfter(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.status == 'approved'
+        && get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.managerPlayerId == playerId;
+
       allow create: if
         (isAdmin() && stampedByMe() && validName('displayName'))
         // A Discord user creates their own profile, one per Discord account, as a free agent.
@@ -416,6 +439,12 @@ service cloud.firestore {
     match /teams/{teamId} {
       allow read: if true;
 
+      // Staff approve or decline a new club from Discord's staff desk (bot/src/staff-desk.js).
+      allow update: if isPickupBot() && stampedByMe()
+        && resource.data.get('status', '') == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && changedOnly(['status', 'updatedBy', 'updatedAt']);
+
       allow create: if
         (isAdmin() && stampedByMe() && validName('name'))
         // A free-agent player registers a team. It waits for an admin.
@@ -464,9 +493,18 @@ service cloud.firestore {
     match /transfers/{transferId} {
       allow read: if true;
       allow create: if signedIn() && stampedByMe()
-        && request.resource.data.keys().hasOnly(['playerId', 'fromTeamId', 'toTeamId', 'kind', 'at', 'updatedBy', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['playerId', 'fromTeamId', 'toTeamId', 'kind', 'at', 'updatedBy', 'updatedAt', 'note'])
         && request.resource.data.at == request.time
+        // An optional message from the player (e.g. when leaving): up to 200 characters, no slurs.
+        && (!('note' in request.resource.data)
+            || (request.resource.data.note is string && request.resource.data.note.size() <= 200 && noSlurs(request.resource.data.note)))
         && (isAdmin()
+            // Staff desk (bot) approving a new club: its founder's "founded" news.
+            || (isPickupBot() && request.resource.data.kind == 'founded'
+                && request.resource.data.fromTeamId == null
+                && get(/databases/$(database)/documents/teams/$(request.resource.data.toTeamId)).data.get('status', '') == 'pending'
+                && getAfter(/databases/$(database)/documents/teams/$(request.resource.data.toTeamId)).data.status == 'approved'
+                && get(/databases/$(database)/documents/teams/$(request.resource.data.toTeamId)).data.managerPlayerId == request.resource.data.playerId)
             || (request.resource.data.kind in ['joined', 'released', 'left', 'disbanded']
                 && exists(/databases/$(database)/documents/players/$(request.resource.data.playerId))
                 && playerDoc(request.resource.data.playerId).get('teamId', null) == request.resource.data.fromTeamId
@@ -614,6 +652,17 @@ service cloud.firestore {
         && request.resource.data.fromUid == uid()
         && managesTeam(request.resource.data.teamId)
         && request.resource.data.status == 'pending'
+        && playerDoc(request.resource.data.playerId).get('teamId', null) == null
+        && playerDoc(request.resource.data.playerId).get('uid', null) != null
+        && request.resource.data.playerUid == playerDoc(request.resource.data.playerId).uid
+        && request.resource.data.keys().hasOnly(['teamId', 'playerId', 'playerUid', 'fromUid', 'status', 'createdAt', 'updatedBy', 'updatedAt']);
+      // Staff desk (bot) approving a new club: the invites its founder picked, from the founder.
+      allow create: if isPickupBot() && stampedByMe()
+        && request.resource.data.status == 'pending'
+        && get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.get('status', '') == 'pending'
+        && getAfter(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.status == 'approved'
+        && request.resource.data.fromUid == get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.managerUid
+        && request.resource.data.playerId in get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.get('invitePlayerIds', [])
         && playerDoc(request.resource.data.playerId).get('teamId', null) == null
         && playerDoc(request.resource.data.playerId).get('uid', null) != null
         && request.resource.data.playerUid == playerDoc(request.resource.data.playerId).uid
@@ -840,6 +889,11 @@ service cloud.firestore {
       // Admins approve, deny or take one off the court (/admin/characters). New ones wait as 'pending'.
       allow update: if isAdmin() && stampedByMe()
         && request.resource.data.status in ['pending', 'approved', 'denied']
+        && changedOnly(['status', 'updatedBy', 'updatedAt']);
+      // Staff approve or deny a waiting one from Discord's staff desk (the bot).
+      allow update: if isPickupBot() && stampedByMe()
+        && resource.data.get('status', 'pending') == 'pending'
+        && request.resource.data.status in ['approved', 'denied']
         && changedOnly(['status', 'updatedBy', 'updatedAt']);
       allow delete: if isPickupBot() || isAdmin();
     }

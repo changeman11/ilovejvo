@@ -23,6 +23,7 @@ import { BotControl, applySettings } from './control.js';
 import { StaffAdmins } from './staff-admins.js';
 import { RoleLayout } from './role-layout.js';
 import { TransferHub } from './transfer-hub.js';
+import { StaffDesk } from './staff-desk.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -111,6 +112,7 @@ let control = null;
 let staffAdmins = null;
 let roleLayout = null;
 let transferHub = null;
+let staffDesk = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -171,6 +173,12 @@ client.once(Events.ClientReady, async () => {
       transferHub = new TransferHub({ io: discord.transferIo, site, store, config, log });
       transferHub.start().catch((err) => log.error(`[transfer hub] ${err.message}`));
     }
+    // #staff-desk: quick admin jobs with ✅ / ❌ (needs STORE=firebase: the bot saves the decisions).
+    if (config.staffDesk && discord.deskIo && store.rest) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      staffDesk = new StaffDesk({ io: discord.deskIo, site, rest: store.rest, store, config, log });
+      staffDesk.start().catch((err) => log.error(`[staff desk] ${err.message}`));
+    }
     // Site admins from the Discord Staff role (needs STORE=firebase).
     if (store.rest && config.staffAdmins) {
       staffAdmins = new StaffAdmins({ io: discord.staffIo, rest: store.rest, config, log });
@@ -226,6 +234,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const roleIds = Array.isArray(interaction.member?.roles) ? interaction.member.roles : [...(interaction.member?.roles?.cache?.keys() ?? [])];
   user.isStaff = user.isAdmin || roleIds.some((id) => config.staffRoleIds.includes(id));
   try {
+    // Staff desk: ✅ / ❌ on a card in #staff-desk.
+    if (staffDesk && interaction.isButton() && interaction.customId.startsWith('desk:')) {
+      const out = await staffDesk.button(interaction.customId, user);
+      if (out.body) return interaction.update(out.body);
+      return interaction.reply({ content: out.reply, flags: MessageFlags.Ephemeral });
+    }
     // Match threads: "Report score" (answers with the form), "Confirm their score", and the form.
     if (matches && interaction.isButton() && interaction.customId.startsWith('mt:')) {
       if (interaction.customId.startsWith('mt:vote:') || interaction.customId.startsWith('mt:fix:')) {
@@ -349,6 +363,7 @@ async function stop(signal) {
   staffAdmins?.stop();
   roleLayout?.stop();
   transferHub?.stop();
+  staffDesk?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

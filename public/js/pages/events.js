@@ -21,6 +21,7 @@ import { adminAddEntry, removeEntry } from '../admin-data.js';
 import { signUpTeam, withdrawTeam, signUpSolo, withdrawSolo } from '../player-data.js';
 import { refresh } from '../nav.js';
 import { careerStats, topPlayers, statDefsFor } from './career.js';
+import { liveBundles } from '../rules/eras.js';
 
 // ---------- Shared bits ----------
 
@@ -85,7 +86,7 @@ export const home = {
     const upcoming = items.filter(({ b, f }) => !b.results[f.id] && isUpcoming(b.event)).slice(0, 6);
     const latest = items.filter(({ b, f }) => resultOf(b, f).check?.ok)
       .sort((x, y) => (y.f.scheduledAt ?? 0) - (x.f.scheduledAt ?? 0)).slice(0, 5);
-    const stats = careerStats(bundles);
+    const stats = careerStats(liveBundles(bundles)); // live stats only (pre-launch is archived)
     // Player names: every bundle shares the same player list, so any bundle will do.
     const any = bundles[0];
     const { upcoming: events } = sortEvents(bundles.map((b) => b.event));

@@ -81,6 +81,9 @@ export function loadConfig(env = process.env) {
     // A chat channel for pickup players (2026-10-25): #pickup itself is bot-only. Empty = the bot
     // finds or makes #pickup-chat next to #pickup; PICKUP_CHAT=0 = no chat channel.
     pickupChat: text('PICKUP_CHAT') !== '0',
+    // AFK checks in the pickup queue (2026-11-21): after this many minutes waiting (0 = off), and how long to answer.
+    pickupAfkMinutes: number('PICKUP_AFK_MINUTES', 30, 0, 1440),
+    pickupAfkSeconds: number('PICKUP_AFK_SECONDS', 120, 30, 900),
     pickupChatChannelId: discordId('PICKUP_CHAT_CHANNEL_ID', '', false),
     adminRoleIds: text('ADMIN_ROLE_IDS')
       .split(/[\s,]+/)
@@ -104,7 +107,8 @@ export function loadConfig(env = process.env) {
     // Stat roles (stat-roles.js): 🥇 1st / 🥈 2nd / 🥉 3rd roles for each stat (STAT_ROLES_TOP places, 1-3).
     statRoles: text('STAT_ROLES') === '1',
     statRolesMinutes: number('STAT_ROLES_MINUTES', 30, 5, 1440),
-    statRolesTop: number('STAT_ROLES_TOP', 3, 1, 3),
+    // 1 (since 2026-11-21) = only a 🥇 1st role per stat; 2nd and 3rd stay on the site's award cards.
+    statRolesTop: number('STAT_ROLES_TOP', 1, 1, 3),
     // Community characters (characters.js, needs STORE=firebase): pictures posted in
     // #in-game-characters are cut out and added to the site's Home court.
     characters: text('CHARACTERS') === '1',
@@ -141,6 +145,10 @@ export function loadConfig(env = process.env) {
   // Role layout with TEAM / AWARDS dividers (role-layout.js, 2026-11-21): on unless ROLE_LAYOUT=0.
   config.roleLayout = text('ROLE_LAYOUT') !== '0';
   config.roleLayoutMinutes = number('ROLE_LAYOUT_MINUTES', 5, 1, 1440);
+  // #staff-desk: quick admin jobs with buttons (staff-desk.js, 2026-11-21): on unless STAFF_DESK=0.
+  config.staffDesk = text('STAFF_DESK') !== '0';
+  config.staffDeskChannelId = discordId('STAFF_DESK_CHANNEL_ID', '', false);
+  config.staffDeskSeconds = number('STAFF_DESK_SECONDS', 90, 30, 3600);
   // #transfer-hub: club moves from the site (transfer-hub.js, 2026-11-21): on unless TRANSFER_HUB=0.
   config.transferHub = text('TRANSFER_HUB') !== '0';
   config.transferHubChannelId = discordId('TRANSFER_HUB_CHANNEL_ID', '', false);

@@ -1955,3 +1955,11 @@ a.eb-match:hover { border-color: var(--yellow); }
 .roles-step:nth-child(2) { background: var(--tint-coral); }
 .roles-step:nth-child(3) { background: var(--tint-teal); }
 .guide-search { margin-bottom: 12px; }
+
+/* Pre-launch archive (2026-11-21) */
+.prelaunch-block summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.prelaunch-block .table-wrap { margin-top: 10px; }
+.prelaunch-block tr.total td { font-weight: 800; border-top: 2px solid var(--ink); }
+.prelaunch-note { background: var(--tint-purple, #ece6ff); }
+.fresh-start h2 { margin-top: 0; }
+.reel-note { margin-left: 6px; font-style: italic; opacity: 0.85; quotes: '“' '”'; }

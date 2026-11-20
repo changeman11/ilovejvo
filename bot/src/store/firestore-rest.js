@@ -89,6 +89,14 @@ export class SiteReader {
     return rows.filter((r) => r.document).map((r) => ({ id: r.document.name.split('/').pop(), data: fromFields(r.document.fields) }));
   }
 
+  // The same, in a sub-collection: queryIn('events/abc', 'corrections', 'status', 'open').
+  async queryIn(parent, collection, field, value) {
+    const rows = await this.call('POST', `${this.base}/${parent}:runQuery`, {
+      structuredQuery: { from: [{ collectionId: collection }], where: { fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: toValue(value) } } },
+    });
+    return rows.filter((r) => r.document).map((r) => ({ id: r.document.name.split('/').pop(), data: fromFields(r.document.fields) }));
+  }
+
   // Documents saved after `ms` (every site save stamps updatedAt).
   async changedSince(collection, ms) {
     const rows = await this.call('POST', `${this.base}:runQuery`, {

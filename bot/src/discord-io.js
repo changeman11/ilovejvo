@@ -503,19 +503,22 @@ export async function setupDiscord(client, config, log = console) {
     },
   };
 
-  // #transfer-hub (transfer-hub.js): read-only news of every club move. Everyone can read and
+  // #transfer-news (transfer-hub.js; was #transfer-hub, renamed on start): read-only news of every club move. Everyone can read and
   // react; only the bot posts. Made next to the site channel (#i-love-jvowebapp) if missing.
   let transferChannel = null;
   if (config.transferHub) {
     transferChannel = config.transferHubChannelId ? await guild.channels.fetch(config.transferHubChannelId).catch(() => null) : null;
-    if (config.transferHubChannelId && !transferChannel?.isTextBased()) log.warn(`⚠️  TRANSFER_HUB_CHANNEL_ID (${config.transferHubChannelId}) wasn't found; using #transfer-hub.`);
+    if (config.transferHubChannelId && !transferChannel?.isTextBased()) log.warn(`⚠️  TRANSFER_HUB_CHANNEL_ID (${config.transferHubChannelId}) wasn't found; using #transfer-news.`);
     const all = await guild.channels.fetch().catch(() => guild.channels.cache);
-    if (!transferChannel?.isTextBased()) transferChannel = all.find((c) => c?.type === ChannelType.GuildText && c.name === 'transfer-hub') ?? null;
+    if (!transferChannel?.isTextBased()) transferChannel = all.find((c) => c?.type === ChannelType.GuildText && (c.name === 'transfer-news' || c.name === 'transfer-hub')) ?? null;
+    if (transferChannel?.name === 'transfer-hub') {
+      await transferChannel.setName('transfer-news', 'Renamed to #transfer-news').then(() => log.info?.('Renamed #transfer-hub to #transfer-news.'), (err) => log.warn(`Couldn't rename #transfer-hub: ${err.message}`));
+    }
     if (!transferChannel) {
       const near = all.find((c) => c?.type === ChannelType.GuildText && c.name === 'i-love-jvowebapp') ?? null;
       try {
         transferChannel = await guild.channels.create({
-          name: 'transfer-hub',
+          name: 'transfer-news',
           type: ChannelType.GuildText,
           parent: near?.parentId ?? undefined,
           topic: 'Every club move on I<3JVO, live from the site: signings, departures, releases, new clubs. React away!',
@@ -526,9 +529,9 @@ export async function setupDiscord(client, config, log = console) {
           reason: 'Transfer news from the site',
         });
         if (near) await transferChannel.setPosition(near.position + 1).catch(() => {});
-        log.info?.(`Made #transfer-hub (id ${transferChannel.id}).`);
+        log.info?.(`Made #transfer-news (id ${transferChannel.id}).`);
       } catch (err) {
-        log.warn(`⚠️  Couldn't make #transfer-hub (${err.message}).`);
+        log.warn(`⚠️  Couldn't make #transfer-news (${err.message}).`);
         transferChannel = null;
       }
     }
@@ -536,7 +539,45 @@ export async function setupDiscord(client, config, log = console) {
   }
   const transferIo = transferChannel ? { post: (body) => transferChannel.send(body) } : null;
 
-  return { guild, text, category, io, roleIo, rankedIo, matchIo, charIo, staffIo, transferIo };
+  // #staff-desk (staff-desk.js): quick admin jobs with ✅ / ❌ buttons. Only staff (STAFF_ROLE_IDS /
+  // ADMIN_ROLE_IDS) and the bot can see it. Made in the Staff category (next to #staff-chat).
+  let deskChannel = null;
+  if (config.staffDesk && config.staffRoleIds.length) {
+    const all = await guild.channels.fetch().catch(() => guild.channels.cache);
+    deskChannel = (config.staffDeskChannelId ? await guild.channels.fetch(config.staffDeskChannelId).catch(() => null) : null)
+      ?? all.find((c) => c?.type === ChannelType.GuildText && c.name === 'staff-desk') ?? null;
+    if (!deskChannel) {
+      const staffChat = all.find((c) => c?.type === ChannelType.GuildText && c.name === 'staff-chat') ?? null;
+      const staffCat = staffChat?.parentId ?? all.find((c) => c?.type === ChannelType.GuildCategory && /^staff$/i.test(c.name))?.id;
+      const roles = [...new Set([...config.staffRoleIds, ...config.adminRoleIds])];
+      try {
+        deskChannel = await guild.channels.create({
+          name: 'staff-desk',
+          type: ChannelType.GuildText,
+          parent: staffCat ?? undefined,
+          topic: 'Quick admin jobs from the site: new clubs, characters, result fixes, stats to check. ✅ / ❌ right here.',
+          permissionOverwrites: [
+            { id: guild.roles.everyone.id, type: OverwriteType.Role, deny: [P.ViewChannel] },
+            ...roles.map((id) => ({ id, type: OverwriteType.Role, allow: [P.ViewChannel, P.ReadMessageHistory] })),
+            { id: me.id, type: OverwriteType.Member, allow: [P.ViewChannel, P.SendMessages, P.EmbedLinks, P.ReadMessageHistory, P.ManageMessages] },
+          ],
+          reason: 'Staff desk',
+        });
+        log.info?.(`Made #staff-desk (id ${deskChannel.id}).`);
+      } catch (err) {
+        log.warn(`⚠️  Couldn't make #staff-desk (${err.message}).`);
+        deskChannel = null;
+      }
+    }
+    if (deskChannel) check(deskChannel, ['ViewChannel', 'SendMessages', 'EmbedLinks'], `#${deskChannel.name}`);
+  }
+  const deskIo = deskChannel ? {
+    post: async (body) => (await deskChannel.send(body)).id,
+    edit: async (id, body) => (await deskChannel.messages.fetch(id)).edit(body),
+    remove: async (id) => (await deskChannel.messages.fetch(id)).delete(),
+  } : null;
+
+  return { guild, text, category, io, roleIo, rankedIo, matchIo, charIo, staffIo, transferIo, deskIo };
 }
 
 // Admins: anyone with Manage Server, or one of ADMIN_ROLE_IDS.

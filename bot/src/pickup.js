@@ -42,7 +42,8 @@ export class Pickup {
     this.votes = new Map(); // userId -> team size they voted for (signed-up players only)
     this.randomVotes = new Set(); // userIds who voted for random teams instead of a draft
     this.fixedMode = null; // { size, once } when an admin set the mode (/pickup setmode)
-    this.queue = new Map(); // userId -> { id, name, joinedAt, fake }  (everyone signed up)
+    this.queue = new Map(); // userId -> { id, name, joinedAt, fake, seenAt }  (everyone signed up)
+    this.afk = new Map(); // userId -> { messageId, channelId, timer }  (AFK checks waiting for an answer)
     this.busy = new Map(); // userId -> matchId  (in a ready check or draft, so not counted as ready)
     this.matches = new Map(); // matchId -> ready check or draft (see beginCheck / beginDraft)
     this.lobbies = new Map(); // locked ready-up voice channel id -> matchId
@@ -121,6 +122,75 @@ export class Pickup {
     this.votes.delete(id);
     this.randomVotes.delete(id);
     if (this.queue.delete(id)) this.live?.left(id);
+    this.endAfk(id, 'left');
+  }
+
+  // ---------- AFK checks (added 2026-11-21) ----------
+  // Someone signed up for PICKUP_AFK_MINUTES (30) without a game gets a ping in #pickup-chat with a
+  // "✋ I'm here" button. No answer within PICKUP_AFK_SECONDS (120): they're taken out of the queue.
+  // Pressing it, voting, or being picked for a game counts as being there. 0 minutes = off.
+  afkSweep() {
+    const minutes = Number(this.config.pickupAfkMinutes ?? 30);
+    if (!minutes) return;
+    const now = this.clock.now();
+    for (const p of this.queue.values()) {
+      if (p.fake || this.busy.has(p.id) || this.afk.has(p.id)) continue;
+      if (now - (p.seenAt ?? now) >= minutes * 60_000) this.startAfk(p, minutes);
+    }
+  }
+
+  startAfk(p, minutes) {
+    const seconds = Number(this.config.pickupAfkSeconds ?? 120);
+    const channelId = this.config.pickupChatChannelId || undefined;
+    const check = { messageId: null, channelId, timer: null };
+    this.afk.set(p.id, check);
+    check.timer = this.clock.setTimeout(() => this.event(() => this.afkTimeout(p.id)), seconds * 1000);
+    check.timer?.unref?.();
+    this.io.post({
+      content: `<@${p.id}> are you still there? You've been in the pickup queue for ${minutes} minutes. Press **✋ I'm here** within ${seconds >= 120 ? `${Math.round(seconds / 60)} minutes` : `${seconds} seconds`} or you'll be taken out of the queue.`,
+      components: [{ type: 1, components: [{ type: 2, style: 1, label: "✋ I'm here", custom_id: `afk:${p.id}` }] }],
+      allowedMentions: { users: [p.id] },
+    }, channelId).then((id) => { check.messageId = id; }, (err) => this.log.warn('[pickup] AFK check:', err.message));
+  }
+
+  // Close an AFK check: why = 'here' | 'left' | 'game' | 'removed'.
+  endAfk(id, why) {
+    const check = this.afk.get(id);
+    if (!check) return;
+    this.afk.delete(id);
+    if (check.timer) this.clock.clearTimeout(check.timer);
+    const name = views.esc(this.queue.get(id)?.name ?? check.name ?? 'Someone');
+    const content = {
+      here: `✅ ${name} is still here.`,
+      left: `👋 ${name} left the queue.`,
+      game: `🏐 ${name} got a game.`,
+      removed: `⌛ **${check.name ?? name}** was taken out of the pickup queue (no answer to the AFK check). Sign up again any time.`,
+    }[why] ?? 'Done.';
+    if (check.messageId) this.io.edit(check.messageId, { content, components: [], allowedMentions: { parse: [] } }, check.channelId).catch(() => {});
+  }
+
+  async afkTimeout(id) {
+    const check = this.afk.get(id);
+    if (!check) return;
+    if (!this.queue.has(id)) return this.endAfk(id, 'left');
+    if (this.busy.has(id)) return this.endAfk(id, 'game');
+    check.name = this.queue.get(id).name;
+    this.afk.delete(id); // (so unqueue doesn't close it as "left")
+    this.unqueue(id);
+    this.afk.set(id, check);
+    this.endAfk(id, 'removed');
+    this.log.info?.(`[pickup] ${check.name} taken out of the queue (AFK)`);
+    await this.queueChanged();
+  }
+
+  // The "✋ I'm here" button.
+  afkHere(id, user) {
+    if (user.id !== id) return { ephemeral: 'That check is for someone else.' };
+    const entry = this.queue.get(id);
+    if (!entry) return { ephemeral: "You're not in the queue any more. Sign up again on the card in #pickup." };
+    entry.seenAt = this.clock.now();
+    this.endAfk(id, 'here');
+    return { ephemeral: `✅ Thanks! You're still #${this.position(id) || '?'} in the queue.` };
   }
 
   // { size: count } of mode votes from signed-up players who are waiting (all modes, for display).
@@ -219,6 +289,7 @@ export class Pickup {
 
   // "Vote for the next mode" menu. value: a team size, or 'none'.
   voteMode(id, value) {
+    if (this.queue.has(id)) this.queue.get(id).seenAt = this.clock.now();
     if (this.fixedMode) return { ephemeral: `An admin has set the mode to ${modeLabel(this.fixedMode.size)}${this.fixedMode.once ? ' for the next game' : ''}, so votes are paused.` };
     if (!this.queue.has(id) || this.busy.has(id)) return { ephemeral: 'Sign up first (the menu above), then vote for the mode you want.' };
     if (value === 'none') {
@@ -237,6 +308,7 @@ export class Pickup {
 
   // "How should teams be made?" menu: random teams (on) or the captains' draft (off).
   voteRandom(id, on) {
+    if (this.queue.has(id)) this.queue.get(id).seenAt = this.clock.now();
     if (!this.queue.has(id) || this.busy.has(id)) return { ephemeral: 'Sign up first (the menu above), then vote.' };
     if (on) this.randomVotes.add(id);
     else this.randomVotes.delete(id);
@@ -297,6 +369,7 @@ export class Pickup {
       if (kind === 'pick') return this.onPick(id, arg, user);
       if (kind === 'res') return this.onResult(id, arg, user);
       if (kind === 'rnd') return this.onRandomVote(id, user);
+      if (kind === 'afk') return this.afkHere(id, user);
       return { ephemeral: "That button isn't used any more." };
     }).catch((err) => {
       this.log.error('[pickup] button', err);
@@ -335,7 +408,7 @@ export class Pickup {
   async signUp(id, name, { joinedAt = this.clock.now(), from = 'discord' } = {}) {
     if (this.busy.has(id)) return { ephemeral: "You're in a game that's getting ready: join your ready-up channel." };
     if (this.queue.has(id)) return { ephemeral: `You're already signed up (#${this.position(id)} in the queue).` };
-    const entry = { id, name, joinedAt, fake: false, from };
+    const entry = { id, name, joinedAt, fake: false, from, seenAt: this.clock.now() };
     this.queue.set(id, entry);
     this.live?.joined(entry);
     await this.queueChanged();
@@ -460,6 +533,7 @@ export class Pickup {
   armCardWatch() {
     if (this.cardTimer) this.clock.clearTimeout(this.cardTimer);
     this.cardTimer = this.clock.setTimeout(() => this.event(async () => {
+      this.afkSweep();
       await this.keepCardAtBottom();
       this.armCardWatch();
     }), 30_000);
@@ -510,7 +584,7 @@ export class Pickup {
       tag: (() => { const n = [...this.matches.values()].filter((m) => m.size === size).length; return n ? n + 1 : null; })(),
     };
     this.matches.set(match.id, match);
-    for (const p of players) this.busy.set(p.id, match.id);
+    for (const p of players) { this.busy.set(p.id, match.id); this.endAfk(p.id, 'game'); }
     this.log.info?.(`[pickup] ${modeLabel(size)} ready check: ${players.map((p) => p.name).join(', ')}`);
     try {
       await this.makeRoom(match);
@@ -620,6 +694,7 @@ export class Pickup {
     for (const p of replacements) {
       match.players.push({ ...p });
       this.busy.set(p.id, match.id);
+      this.endAfk(p.id, 'game');
       if (p.fake) match.confirmed.add(p.id);
     }
     // The locked channels can't let new people in without extra permissions, so make new ones
@@ -655,7 +730,7 @@ export class Pickup {
     for (const p of missing) await this.dropPlayer(match, p);
     for (const p of spare) {
       this.busy.delete(p.id);
-      this.queue.set(p.id, { ...p });
+      this.queue.set(p.id, { ...p, seenAt: this.clock.now() });
       if (!p.fake) this.live?.joined({ ...p, from: p.from ?? 'discord' });
     }
     match.players = keep;
@@ -718,7 +793,7 @@ export class Pickup {
       if (p.id === exclude) {
         this.unqueue(p.id);
       } else {
-        this.queue.set(p.id, { ...p });
+        this.queue.set(p.id, { ...p, seenAt: this.clock.now() });
         if (!p.fake) this.live?.joined({ ...p, from: 'discord' }); // makes sure the site still lists them
       }
     }

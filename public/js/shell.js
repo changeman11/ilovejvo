@@ -6,6 +6,7 @@
 import { currentUser, discordOf, signOut } from './auth.js';
 import { loadPeople, loadAllBundles, isApprovedTeam } from './data.js';
 import { careerStats } from './pages/career.js';
+import { liveBundles } from './rules/eras.js';
 import { playerXp, levelFor } from './rules/badges.js';
 import { allFixtures, resultOf } from './pages/parts.js';
 import { esc, avatarImg, teamDot, fmtDay, fmtTime, fmtNum, urls, staffTag } from './ui.js';
@@ -57,7 +58,7 @@ async function gather() {
   const player = discord ? people.players.find((p) => p.uid === user.uid) ?? null : null;
   const maybeTeam = player?.teamId ? people.teamsById[player.teamId] : null;
   const team = isApprovedTeam(maybeTeam) ? maybeTeam : null;
-  const career = player ? careerStats(bundles).get(player.id) ?? null : null;
+  const career = player ? careerStats(liveBundles(bundles)).get(player.id) ?? null : null;
   const lvl = levelFor(playerXp(career));
   const squad = team ? people.players.filter((p) => p.teamId === team.id) : [];
   const next = team

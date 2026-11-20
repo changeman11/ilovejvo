@@ -58,7 +58,7 @@ test('stat roles end to end: made once, 1st/2nd/3rd given, moved when overtaken'
   };
   const results = [{ playerStats: { a: { pts: 9 }, b: { pts: 7 }, c: { pts: 5 }, d: { pts: 1 } } }];
   const site = {
-    async query() { return [{ id: 'night', data: { published: true, status: 'finished', date: 1 } }]; },
+    async query() { return [{ id: 'night', data: { published: true, status: 'finished', date: 2e12 } }]; },
     async list(path) {
       if (path.endsWith('/fixtures')) return [];
       if (path === 'players') return ['a', 'b', 'c', 'd'].map((p, i) => ({ id: p, data: { discordId: id(i + 1) } }));
@@ -138,8 +138,8 @@ test('stat roles come from the last event with stats, and reset when a newer eve
     async removeRole(u, r) { members.get(u).delete(r); },
   };
   const events = [
-    { id: 'old', data: { published: true, status: 'finished', date: 1 } },
-    { id: 'now', data: { published: true, status: 'upcoming', date: 2 } },
+    { id: 'old', data: { published: true, status: 'finished', date: 2e12 + 1 } },
+    { id: 'now', data: { published: true, status: 'upcoming', date: 2e12 + 2 } },
   ];
   const results = { old: [{ id: 'm', data: { playerStats: { a: { pts: 9 } } } }], now: [] };
   const site = {

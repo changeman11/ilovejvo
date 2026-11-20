@@ -7,6 +7,7 @@
 import { loadAllBundles, loadPeople, loadTransfers } from './data.js';
 import { allFixtures, resultOf } from './pages/parts.js';
 import { esc, urls, teamDot, fmtDay } from './ui.js';
+import { censor } from './rules/profanity.js';
 
 const HIDE_KEY = 'jvo.reelHidden';
 const TAB_KEY = 'jvo.reelTab';
@@ -44,7 +45,8 @@ function transferItem(t, people) {
     disbanded: `🏳️ ${club(from)} <span>disbanded</span>`,
   }[t.kind] ?? `${who}`;
   const href = to ? urls.team(to.id) : p ? urls.player(p.id) : '/teams';
-  return `<a class="reel-item" href="${href}" data-link>${text}${t.at ? `<small class="reel-when">${esc(fmtDay(t.at))}</small>` : ''}</a>`;
+  const note = t.note ? ` <q class="reel-note">${esc(censor(String(t.note).slice(0, 80)))}${String(t.note).length > 80 ? '…' : ''}</q>` : '';
+  return `<a class="reel-item" href="${href}" data-link>${text}${note}${t.at ? `<small class="reel-when">${esc(fmtDay(t.at))}</small>` : ''}</a>`;
 }
 
 const sep = '<i class="reel-sep" aria-hidden="true">•</i>';

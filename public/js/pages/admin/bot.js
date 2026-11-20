@@ -34,6 +34,8 @@ const TIMINGS = [
   ['readySeconds', 'Pickup ready check', 'seconds', 'How long players have to join the ready-up channel.'],
   ['pickSeconds', 'Pickup draft pick time', 'seconds', 'Per pick, then it’s random.'],
   ['rankedReadySeconds', '1v1 ready-up', 'seconds', 'How long both players have to press Ready.'],
+  ['pickupAfkMinutes', 'Pickup AFK check after', 'minutes', 'Someone waiting in the queue this long gets an "are you still there?" ping. 0 = off.'],
+  ['pickupAfkSeconds', 'Time to answer the AFK check', 'seconds', 'No answer in time: they’re taken out of the queue.'],
 ];
 const ACTIONS = [
   ['checkThreads', '🔄 Check match threads now', 'Looks for newly opened matches and updates every thread straight away.'],

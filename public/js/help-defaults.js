@@ -44,7 +44,7 @@ Open the club's page (Teams & players) and press **Request to join**, or accept 
 While you're a free agent, open the Club tab and register a team: name, colours, logo, and players you'd like to invite. An admin approves it, you become the **manager**, and your invites are sent.
 
 ## Can I leave or switch clubs?
-Yes, leave any time from the Club hub, no approval needed. One club at a time. **Moves are paused while an event is running** (from 10 minutes before the start until it's finished), so line-ups don't change mid-event.
+Yes, leave any time from the Club hub, no approval needed. You can add a short goodbye message: it shows under your move in #transfer-news and on the site's transfers ticker. One club at a time. **Moves are paused while an event is running** (from 10 minutes before the start until it's finished), so line-ups don't change mid-event.
 
 ## What if the manager leaves?
 A manager hands the club to another squad member first (Club hub → Manager → hand over). If the manager is the last player and leaves, the club is **disbanded**: its results and history stay, and the name can be used again.
@@ -64,17 +64,21 @@ Use **🛠 Fix this result** with a note, or ask an admin on Discord. Admins can
 ## What do the stats mean?
 They come straight from the game's end-of-match screen: **PTS** points, **SPK** spikes, **BLK** blocks, **REC** receives, **SET** sets, **AST** assists, **ACE** aces, **DIG** digs. **MVP** is the player of the match.
 
+## Where did my old stats go?
+just volleyball launched on **21 November 2026**, so everyone's stats started again from 0. Everything from before is kept in **🧪 Pre-launch stats** on the Stats page, and on each player's page. It doesn't count towards live stats, awards, levels or badges.
+
 ## How do I find someone's stats or compare two players?
 On the Stats page: **🔥 Last event**, **🌏 All time** or **🗄️ Archived** events, then Overview, Players (with search), Teams, and **⚖️ Compare** for two players side by side, including their head-to-head record.
 
 # Awards, roles and trophies
 ## How do awards work?
-Each stat has a 🥇 1st, 🥈 2nd and 🥉 3rd place, worked out from the **last event with stats**. The holders get a matching Discord role. When the next event's stats come in, the roles move to that event's top 3s automatically.
+Each stat has a 🥇 1st, 🥈 2nd and 🥉 3rd place, worked out from the **last event with stats** (shown on the Stats page). The 🥇 1st place for each stat also gets a matching Discord role, like "🥇 1st · Spike Royalty 💥". When the next event's stats come in, the roles move to that event's top 3s automatically.
 
 ## What are the Discord roles?
 - **Club role:** your club's name in its colour, so teammates share a name colour.
 - **Captain:** every club manager.
-- **Award roles:** your current 🥇🥈🥉 places.
+- **Award roles:** your current 🥇 1st places.
+- **Divider roles (━ TEAM ━ / ━ AWARDS ━):** just split your roles into sections on your profile.
 - **Staff:** the JVO team, who are also admins on the site.
 More in the **Roles** tab.
 
@@ -138,7 +142,7 @@ At JVO everyone is one of these. You can be more than one, like a manager who's 
 # Discord roles
 - **Club role:** given automatically to everyone whose profile is in a club, in the club's colour. That's why your name shows your club colour.
 - **Captain:** given automatically to every club's manager.
-- **Award roles (🥇 1st / 🥈 2nd / 🥉 3rd · stat name):** the top 3 for each stat at the last event with stats. They move by themselves when the next event's stats come in. They don't change your name colour.
+- **Award roles (🥇 1st · stat name):** the leader of each stat at the last event with stats (2nd and 3rd are shown on the site). They move by themselves when the next event's stats come in. They don't change your name colour.
 - **Staff:** given by the server owners. Anyone with it is automatically an admin on the site.
 - Your Discord account must be linked (sign in to the site with Discord) for any of this to work.
 

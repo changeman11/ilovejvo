@@ -16,6 +16,7 @@ import { esc, skeleton, notice, pageTitle, fmtNum, pct, teamDot, teamLink, playe
 import { statStyle, hex } from '../rules/stat-style.js';
 import { careerStats, statDefsFor, statValue } from './career.js';
 import { awardEvent, statsEvents } from '../rules/award-event.js';
+import { liveBundles, preLaunchBundles, isPreLaunch, PRE_LAUNCH_LABEL } from '../rules/eras.js';
 import { navigate } from '../nav.js';
 
 export const title = 'Stats';
@@ -48,16 +49,26 @@ function podiumFor(stats, key) {
 export async function render() {
   const params = new URLSearchParams(location.search);
   const all = await loadAllBundles();
-  // Views: the last event with stats (default), all time ("all"), or an archived (older) event.
+  // Views: the last event with stats (default), all time ("all"), an archived (older) event, or the
+  // pre-launch archive ("prelaunch" = every event before the game launched, or one of them).
+  // Live views only count events from launch day (rules/eras.js).
   const withStats = statsEvents(all);
+  const preEvents = statsEvents(all, { preLaunch: true });
   const latestId = withStats[0]?.event.id ?? null;
   const archive = withStats.slice(1);
   const asked = params.get('event');
-  const eventId = asked === 'all' ? null
-    : asked === 'archived' ? (archive[0]?.event.id ?? latestId)
-    : all.some((b) => b.event.id === asked) ? asked : latestId;
-  const view = !eventId ? 'all' : eventId === latestId ? 'last' : 'archived';
-  const bundles = eventId ? all.filter((b) => b.event.id === eventId) : all;
+  const askedB = all.find((b) => b.event.id === asked);
+  let view;
+  let eventId = null;
+  if (asked === 'prelaunch') view = 'prelaunch';
+  else if (askedB && isPreLaunch(askedB.event)) { view = 'prelaunch'; eventId = asked; }
+  else if (asked === 'all') view = 'all';
+  else {
+    eventId = asked === 'archived' ? (archive[0]?.event.id ?? latestId) : askedB ? asked : latestId;
+    view = eventId && eventId !== latestId ? 'archived' : 'last';
+  }
+  const bundles = eventId ? all.filter((b) => b.event.id === eventId)
+    : view === 'prelaunch' ? preLaunchBundles(all) : view === 'all' ? liveBundles(all) : [];
   const tab = TABS.some(([v]) => v === params.get('tab')) ? params.get('tab') : 'overview';
   const mode = PERS.some(([v]) => v === params.get('per')) ? params.get('per') : 'total';
   const defs = statDefsFor(bundles);
@@ -74,24 +85,25 @@ export async function render() {
     return `/stats${s ? `?${s}` : ''}`;
   };
 
-  if (!stats.size) {
-    return `<div class="page-head">${pageTitle('Player stats', '', 'blond')}</div>${notice('No stats yet', ' Stats appear once the first results are in.', 'x')}`;
-  }
-
   // ---------- Header: view + tabs ----------
-  const VIEWS = [['last', '🔥 Last event', latestId], ['all', '🌏 All time', 'all'], ['archived', '🗄️ Archived', 'archived']];
+  const VIEWS = [['last', '🔥 Last event', latestId], ['all', '🌏 All time', 'all'], ['archived', '🗄️ Archived', 'archived'], ['prelaunch', `🧪 ${PRE_LAUNCH_LABEL}`, 'prelaunch']];
   const viewTabs = `<nav class="chips stats-views" aria-label="Which stats">${VIEWS
-    .filter(([v]) => v !== 'archived' || archive.length)
+    .filter(([v]) => (v !== 'archived' || archive.length) && (v !== 'prelaunch' || preEvents.length))
     .map(([v, label, ev]) => `<a class="chip-link" href="${esc(url({ event: v === 'last' ? null : ev, sort: null, team: null }))}" data-link data-keep-scroll${v === view ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+  const prePicker = view === 'prelaunch' && preEvents.length > 1 ? `<label class="picker"><span class="muted small">Event</span> <select data-nav><option value="${esc(url({ event: 'prelaunch' }))}">All pre-launch events</option>${preEvents.map((b) => `<option value="${esc(url({ event: b.event.id }))}"${b.event.id === eventId ? ' selected' : ''}>${esc(b.event.title)}</option>`).join('')}</select></label>` : '';
   const archivePicker = view === 'archived' ? `<label class="picker"><span class="muted small">Event</span> <select data-nav>${archive.map((b) => `<option value="${esc(url({ event: b.event.id }))}"${b.event.id === eventId ? ' selected' : ''}>${esc(b.event.title)}</option>`).join('')}</select></label>` : '';
-  const heading = view === 'all' ? 'All time · every event combined' : view === 'last' ? `Last event · ${bundles[0].event.title}` : `Archived · ${bundles[0].event.title}`;
+  const heading = view === 'prelaunch' ? `${PRE_LAUNCH_LABEL} · ${eventId ? bundles[0].event.title : 'before the game launched'}`
+    : view === 'all' ? 'All time · since launch' : view === 'last' ? (bundles[0] ? `Last event · ${bundles[0].event.title}` : 'Since launch') : `Archived · ${bundles[0].event.title}`;
   const tabNav = `<nav class="stats-tabs" aria-label="Stats sections">${TABS.map(([v, label]) => `<a href="${esc(url({ tab: v === 'overview' ? null : v }))}" data-link data-keep-scroll${v === tab ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
 
   // Matches in this view (forfeits have no stats or real points).
   const matchList = bundles.flatMap((b) => seasonMatches(b).matches.map((m) => ({ ...m, eventId: b.event.id }))).filter((m) => !m.forfeit);
 
   let body = '';
-  if (tab === 'overview') body = overview();
+  if (!stats.size) {
+    // Live views before the first post-launch stats come in.
+    body = `<section class="panel fresh-start"><h2>🚀 Fresh start</h2><p>just volleyball launched on <b>21 November 2026</b>, so every player's stats start again from 0. Stats, award cards and Discord award roles fill in after the first match with stats.</p>${preEvents.length ? `<p><a class="btn" href="${esc(url({ event: 'prelaunch', sort: null, team: null }))}" data-link>🧪 See the ${esc(PRE_LAUNCH_LABEL.toLowerCase())}</a></p>` : ''}</section>`;
+  } else if (tab === 'overview') body = overview();
   else if (tab === 'players') body = playersTab();
   else if (tab === 'compare') body = compareTab();
   else body = teamsTab();
@@ -109,9 +121,10 @@ export async function render() {
       ${pageTitle('Stats', esc(heading), 'blond')}
     </div>
     <div class="stack stats-page">
-      <div class="stats-viewbar">${viewTabs}${archivePicker}</div>
-      ${tabNav}
-      ${searchBox}
+      <div class="stats-viewbar">${viewTabs}${archivePicker}${prePicker}</div>
+      ${view === 'prelaunch' ? `<p class="panel muted small prelaunch-note">🧪 These are from before the game launched (21 November 2026). They're kept here but don't count in live stats, awards or levels.</p>` : ''}
+      ${stats.size ? tabNav : ''}
+      ${stats.size ? searchBox : ''}
       ${body}
     </div>`;
 
@@ -130,7 +143,7 @@ export async function render() {
     ];
 
     // Award holders (Last event: the Discord roles) or leaders (other views), one card per stat.
-    const cardStats = view === 'last' ? careerStats([awardEvent(all) ?? bundles[0]]) : stats;
+    const cardStats = view === 'last' && awardEvent(all) ? careerStats([awardEvent(all)]) : stats;
     const cardCols = [{ key: 'mvps', name: 'Match MVPs' }, ...defs];
     const cards = cardCols.map((c) => {
       const st = look(c);
@@ -146,8 +159,8 @@ export async function render() {
       </a>`;
     }).join('');
     const cardsHead = view === 'last'
-      ? `<h2>🏆 Award holders</h2><span class="muted small">The top 3s of this event. Each place is a Discord role, and they move to the next event's top 3s as soon as its stats come in.</span>`
-      : `<h2>🏅 Leaders</h2><span class="muted small">${view === 'all' ? 'Totals across every event.' : 'Totals at this event.'} Tap a card for the full list.</span>`;
+      ? `<h2>🏆 Award holders</h2><span class="muted small">The top 3s of this event. Each 🥇 1st place gets the matching Discord role, which moves to the next event's winners as soon as its stats come in.</span>`
+      : `<h2>🏅 Leaders</h2><span class="muted small">${!eventId ? 'Totals across every event.' : 'Totals at this event.'} Tap a card for the full list.</span>`;
 
     // Best single-match lines, one per stat.
     const records = defs.map((c) => {
@@ -164,7 +177,7 @@ export async function render() {
       const opp = team(best.l.opponentId);
       return `<a class="record-card" style="${vars(c)}" href="${esc(urls.match(best.l.eventId, best.l.fixtureId))}" data-link>
         <span class="rc-emoji" aria-hidden="true">${st.emoji}</span>
-        <span class="rc-text"><small>Most ${esc(st.name.toLowerCase())} in a match</small><b>${esc(pl?.displayName ?? best.p.playerId)}</b><span class="muted small">vs ${esc(opp?.name ?? 'TBC')}${view === 'all' ? ` · ${esc(eventTitle(best.l.eventId))}` : ''}</span></span>
+        <span class="rc-text"><small>Most ${esc(st.name.toLowerCase())} in a match</small><b>${esc(pl?.displayName ?? best.p.playerId)}</b><span class="muted small">vs ${esc(opp?.name ?? 'TBC')}${!eventId ? ` · ${esc(eventTitle(best.l.eventId))}` : ''}</span></span>
         <span class="rc-num num">${best.v}</span>
       </a>`;
     }).join('');
@@ -187,7 +200,7 @@ export async function render() {
     return `
       <div class="tiles stats-tiles">${tiles.map(([v, l]) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
       ${cards ? `<section><div class="section-head">${cardsHead}</div><div class="award-grid">${cards}</div></section>` : ''}
-      ${records ? `<section><div class="section-head"><h2>🔥 Single-match records</h2><span class="muted small">The biggest one-match numbers${view === 'all' ? ' ever' : ''}. Tap one to see the match.</span></div><div class="record-grid">${records}</div></section>` : ''}
+      ${records ? `<section><div class="section-head"><h2>🔥 Single-match records</h2><span class="muted small">The biggest one-match numbers${!eventId ? ' ever' : ''}. Tap one to see the match.</span></div><div class="record-grid">${records}</div></section>` : ''}
       <div class="stats-duo">
         ${effList ? `<section class="panel mini-board"><div class="section-head"><h2>⚡ Points per set</h2><span class="muted small">Players with ${minM}+ match${minM === 1 ? '' : 'es'}</span></div><ol class="mini-list">${effList}</ol><a class="more-link" href="${esc(url({ tab: 'players', per: 'set', sort: 'pts' }))}" data-link>Full per-set table →</a></section>` : ''}
         ${snap ? `<section class="panel mini-board"><div class="section-head"><h2>🛡️ Top teams</h2><span class="muted small">Wins · points per set</span></div><ol class="mini-list">${snap}</ol><a class="more-link" href="${esc(url({ tab: 'teams' }))}" data-link>Every team →</a></section>` : ''}
@@ -314,7 +327,7 @@ export async function render() {
 
   // ---------- ⚖️ Compare ----------
   function compareTab() {
-    return compareHtml({ stats, defs, mode, params, url, player, team, view, eventTitle });
+    return compareHtml({ stats, defs, mode, params, url, player, team, view: eventId ? 'one' : 'all', eventTitle });
   }
 }
 

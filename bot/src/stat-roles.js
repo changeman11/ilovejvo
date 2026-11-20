@@ -65,6 +65,16 @@ export class StatRoles {
     const roleMap = upgradeKeys(savedMap);
     const upgraded = JSON.stringify(roleMap) !== JSON.stringify(savedMap);
     const existing = await this.io.roles();
+    // Places above STAT_ROLES_TOP (e.g. 2nd and 3rd when only 1st is wanted): delete the roles it made.
+    let dropped = 0;
+    for (const key of Object.keys(roleMap)) {
+      if (Number(key.split(':')[1]) <= top) continue;
+      if (existing.has(roleMap[key]) && this.io.deleteRole) {
+        try { await this.io.deleteRole(roleMap[key]); dropped++; } catch (err) { this.log.warn('[stat roles]', err.message); continue; }
+      }
+      delete roleMap[key];
+    }
+    if (dropped) this.log.info?.(`[stat roles] deleted ${dropped} roles for places below ${top === 1 ? '1st' : `the top ${top}`}`);
     // No colour and no icon (2026-11-21): the medal and emoji are in the name, and a member's name
     // shows their club's colour (and logo) instead. clearIcon removes an icon set by an older look.
     const features = new Set((await this.io.features?.().catch(() => [])) ?? []);
@@ -84,7 +94,7 @@ export class StatRoles {
         made++;
       }
     }
-    if (made || upgraded) await this.store.setMeta('statRoles', roleMap);
+    if (made || upgraded || dropped) await this.store.setMeta('statRoles', roleMap);
     // Every 1st above every 2nd above every 3rd, so a member's name colour comes from their best place.
     if ((made || upgraded || restyle) && this.io.orderRoles && !this.config.roleLayout) {
       const order = [];

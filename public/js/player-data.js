@@ -135,12 +135,12 @@ export async function checkMovesOpen() {
 // A player leaves their club straight away (no admin needed). A manager who's the only player can
 // leave too: the club disbands (it isn't deleted, so results keep its name). A manager with
 // teammates hands the club over first (the app stops them; see club.js).
-export async function leaveClub({ uid, player, team, alone }) {
+export async function leaveClub({ uid, player, team, alone, note = '' }) {
   await checkMovesOpen();
   const disband = alone && team?.managerPlayerId === player.id;
   const ops = [
     { type: 'update', path: `players/${player.id}`, before: player, data: { teamId: null } },
-    transferOp({ playerId: player.id, from: player.teamId, to: null, kind: disband ? 'disbanded' : 'left' }),
+    transferOp({ playerId: player.id, from: player.teamId, to: null, kind: disband ? 'disbanded' : 'left', note }),
   ];
   if (disband) ops.push({ type: 'update', path: `teams/${team.id}`, before: team, data: { status: 'disbanded', managerUid: null, managerPlayerId: null, disbandedAt: serverTimestamp() } });
   if (disband) {
