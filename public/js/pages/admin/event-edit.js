@@ -64,65 +64,76 @@ function groupHint(e) {
     : `${teams} teams: ${all} matches.`;
 }
 
+// The event form (redone 2026-11-21 to read like a form for people): named sections, short
+// labels, one-line hints under checkboxes, and longer explanations folded away ("How it works").
+const tick = (name, on, label, hint = '') => `<label class="check adm-check"><input type="checkbox" name="${name}" ${on ? 'checked' : ''}><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span></label>`;
+const howTo = (text) => `<details class="adm-how"><summary>How it works</summary><p>${text}</p></details>`;
+const sec = (id, icon, title, body, sub = '') => `
+      <section class="panel adm-sec" id="sec-${id}">
+        <div class="adm-sec-head"><h3><span aria-hidden="true">${icon}</span> ${title}</h3>${sub}</div>
+        ${body}
+      </section>`;
+
 function detailsHtml(e) {
   const { dateStr, timeStr } = inputsFromDate(e.date, e.timeTbd);
   const isTournament = e.type === 'tournament';
+  const jump = [['basics', 'Basics'], ['when', 'When'], ['format', 'Format'], ['signups', 'Sign-ups'], ['night', 'Match night'], ['page', 'Event page']];
   return `
-    <form class="stack" data-form="details" novalidate>
-      <section class="panel">
-        <label class="field"><span>Type</span><select name="type">${Object.entries(EVENT_TYPES).map(([k, v]) => opt(k, v.label, e.type)).join('')}</select></label>
-        <label class="field"><span>Title</span><input type="text" name="title" maxlength="120" value="${esc(e.title ?? '')}" placeholder="${isTournament ? 'e.g. Opening Cup' : 'e.g. Friday Showmatch Night'}"></label>
-        <label class="field"><span>Short summary (shown on cards)</span><textarea name="summary" rows="2" maxlength="280">${esc(e.summary ?? '')}</textarea></label>
-        <label class="field" style="margin:0"><span>Details (event page; blank line between paragraphs)</span><textarea name="details" rows="5">${esc(e.details ?? '')}</textarea></label>
-      </section>
-      <section class="panel">
-        <div class="section-head"><h3>When</h3><span class="muted small date-preview">${esc(eventDateLabel(e))}</span></div>
+    <form class="stack adm-form" data-form="details" novalidate>
+      <nav class="adm-jump" aria-label="Form sections">${jump.map(([id, label]) => `<a href="#sec-${id}">${label}</a>`).join('')}</nav>
+      ${sec('basics', '📝', 'Basics', `
         <div class="field-row">
-          <label class="field"><span>Date (empty = TBD)</span><input type="date" name="date" value="${esc(dateStr)}"></label>
-          <label class="field"><span>Time (empty = TBD)</span><input type="time" name="time" value="${esc(timeStr)}"></label>
+          <label class="field"><span>Type</span><select name="type">${Object.entries(EVENT_TYPES).map(([k, v]) => opt(k, v.label, e.type)).join('')}</select></label>
+          <label class="field"><span>Status</span><select name="status">${Object.entries(EVENT_STATUSES).map(([k, v]) => opt(k, v, e.status)).join('')}</select></label>
         </div>
-        <button type="button" class="link-btn" data-act="clear-date">Set back to TBD</button>
-      </section>
-      <section class="panel rule-config">
-        <div class="section-head"><h3>Rule config</h3></div>
-        <p class="muted small" style="margin-top:0">The fixtures build themselves from these rules and the teams in the event, and update whenever either changes, until 10 minutes before the start.</p>
+        <label class="field"><span>Title</span><input type="text" name="title" maxlength="120" value="${esc(e.title ?? '')}" placeholder="${isTournament ? 'e.g. Opening Cup' : 'e.g. Friday Showmatch Night'}"></label>
+        <label class="field"><span>Short summary</span><textarea name="summary" rows="2" maxlength="280" placeholder="One or two lines for event cards">${esc(e.summary ?? '')}</textarea></label>
+        <label class="field"><span>Details</span><textarea name="details" rows="4" placeholder="Shown on the event page. Leave a blank line between paragraphs.">${esc(e.details ?? '')}</textarea></label>
+        ${tick('published', e.published, 'Published', 'Everyone can see it. Off = only admins.')}
+        ${tick('featured', e.featured, '★ Featured', 'Pinned in the "featured!" card on every page.')}`)}
+      ${sec('when', '🗓️', 'When', `
+        <div class="field-row">
+          <label class="field"><span>Date</span><input type="date" name="date" value="${esc(dateStr)}"></label>
+          <label class="field"><span>Time</span><input type="time" name="time" value="${esc(timeStr)}"></label>
+        </div>
+        <button type="button" class="link-btn" data-act="clear-date">Clear (Date TBD)</button>`,
+        `<span class="adm-pill date-preview">${esc(eventDateLabel(e))}</span>`)}
+      ${sec('format', '🏐', 'Format', `
         <div class="field-row">
           <label class="field"><span>Players per team</span><input type="number" name="teamSize" min="1" max="12" inputmode="numeric" value="${esc(e.teamSize ?? 4)}"></label>
-          <label class="field"><span>Matches are best of</span><select name="bestOf">${[3, 5].map((n) => opt(n, String(n), e.matchFormat?.bestOf ?? 3)).join('')}</select></label>
+          <label class="field"><span>Matches: best of</span><select name="bestOf">${[3, 5].map((n) => opt(n, String(n), e.matchFormat?.bestOf ?? 3)).join('')}</select></label>
         </div>
         <label class="field"><span>Fixtures</span><select name="autoFixtures">${Object.entries(AUTO_MODES).map(([k, v]) => opt(k, v, e.autoFixtures ?? 'off')).join('')}</select></label>
         <div class="field-row">
-          <label class="field"><span>Groups</span><select name="groupCount">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => opt(n, n === 1 ? 'No groups (everyone plays everyone)' : `${n} groups`, e.groups?.count ?? 1)).join('')}</select></label>
+          <label class="field"><span>Groups</span><select name="groupCount">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => opt(n, n === 1 ? 'No groups' : `${n} groups`, e.groups?.count ?? 1)).join('')}</select></label>
           <label class="field"><span>Group draw</span><select name="groupDraw">${Object.entries(GROUP_DRAWS).map(([k, v]) => opt(k, v, e.groups?.draw ?? 'auto')).join('')}</select></label>
         </div>
-        <p class="muted small group-hint" style="margin-top:-6px">${esc(groupHint(e))}</p>
+        <p class="muted small group-hint adm-note">${esc(groupHint(e))}</p>
         <div class="group-suggest">${groupSuggestion(e)}</div>
         <div class="field-row">
           <label class="field"><span>Knockout</span><select name="finalsType">${Object.entries(FINALS_TYPES).map(([k, v]) => opt(k, v, e.finals?.type ?? 'none')).join('')}</select></label>
-          <label class="field"><span>Quarter / semi-finals best of</span><select name="semiBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.semiBestOf ?? 3)).join('')}</select></label>
-          <label class="field"><span>Final best of</span><select name="finalBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.finalBestOf ?? 5)).join('')}</select></label>
+          <label class="field"><span>Quarters / semis: best of</span><select name="semiBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.semiBestOf ?? 3)).join('')}</select></label>
+          <label class="field"><span>Final: best of</span><select name="finalBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.finalBestOf ?? 5)).join('')}</select></label>
         </div>
-        <label class="check"><input type="checkbox" name="thirdPlace" ${e.finals?.thirdPlace ? 'checked' : ''}> 🥉 3rd place match: the semi-final losers play for 3rd (semi-finals or quarter-finals only; same best-of as the semis)</label>
-        <label class="check"><input type="checkbox" name="solos" ${e.solos ? 'checked' : ''}> Players can sign up solo (you group them into teams on the Teams tab)</label>
-        <label class="check"><input type="checkbox" name="signups" ${e.signups ? 'checked' : ''}> Clubs can sign themselves up on the event page (closes 10 minutes before the start)</label>
-        <label class="check"><input type="checkbox" name="showTable" ${e.showTable ? 'checked' : ''}> Show a table (wins, sets, points) on the event page</label>
-        ${flowConfigHtml(e)}
+        ${tick('thirdPlace', e.finals?.thirdPlace, '🥉 3rd place match', 'Semi-final losers play for 3rd.')}
+        ${howTo('Fixtures build themselves from these settings and the teams in the event, until 10 minutes before the start. Every set is first to 10, win by 2. Knockout places go to group winners, then runners-up (best runners-up on points), paired so group mates don’t meet in the first knockout round. Knockout matches don’t count in the tables.')}`)}
+      ${sec('signups', '✍️', 'Sign-ups', `
+        ${tick('signups', e.signups, 'Clubs sign up themselves', 'On the event page, until 10 minutes before the start.')}
+        ${tick('solos', e.solos, 'Solo sign-ups', 'Players without a club sign up; you group them on the Teams tab.')}`)}
+      ${flowConfigHtml(e)}
+      ${sec('page', '📣', 'Event page', `
+        ${tick('showTable', e.showTable, 'Show a table', 'Wins, sets and points on the event page.')}
         ${isTournament ? `
-        <label class="field"><span>Format note (shown on the event page)</span><input type="text" name="formatNote" maxlength="120" value="${esc(e.formatNote ?? '')}" placeholder="e.g. Round robin, then a best-of-5 final"></label>
+        <label class="field"><span>Format note</span><input type="text" name="formatNote" maxlength="120" value="${esc(e.formatNote ?? '')}" placeholder="e.g. Round robin, then a best-of-5 final"></label>
         <label class="field"><span>Prize</span><input type="text" name="prize" maxlength="120" value="${esc(e.prize ?? '')}"></label>` : ''}
-        <p class="muted small">Every set is first to 10, win by 2. Knockout places go to group winners, then runners-up (best runners-up on points if not all fit), paired so group mates don’t meet in the first knockout round. Knockout matches don’t count in the tables.</p>
-      </section>
-      <section class="panel">
-        <label class="field"><span>Sign-up link</span><input type="url" name="signupUrl" value="${esc(e.signupUrl ?? '')}" placeholder="https://"></label>
-        <label class="field"><span>Stream link</span><input type="url" name="streamUrl" value="${esc(e.streamUrl ?? '')}" placeholder="https://twitch.tv/…"></label>
-        <label class="field"><span>Status</span><select name="status">${Object.entries(EVENT_STATUSES).map(([k, v]) => opt(k, v, e.status)).join('')}</select></label>
-        <label class="check"><input type="checkbox" name="published" ${e.published ? 'checked' : ''}> Published (visible to everyone)</label>
-        <label class="check"><input type="checkbox" name="featured" ${e.featured ? 'checked' : ''}> ★ Feature this event (the "featured!" card on every page; otherwise the next event is shown)</label>
-      </section>
+        <div class="field-row">
+          <label class="field"><span>Sign-up link</span><input type="url" name="signupUrl" value="${esc(e.signupUrl ?? '')}" placeholder="https://"></label>
+          <label class="field"><span>Stream link</span><input type="url" name="streamUrl" value="${esc(e.streamUrl ?? '')}" placeholder="https://twitch.tv/…"></label>
+        </div>`)}
       <div class="save-bar">
-        <button type="submit" class="btn btn-primary">${page.id ? 'Save details' : 'Create event'}</button>
-        ${page.id ? '<button type="button" class="btn btn-danger" data-act="delete-event">Delete event</button>' : ''}
+        <button type="submit" class="btn btn-primary">${page.id ? 'Save' : 'Create event'}</button>
         <a class="link-btn" href="/admin" data-link>Cancel</a>
+        ${page.id ? '<button type="button" class="btn btn-danger btn-sm adm-delete" data-act="delete-event">Delete event</button>' : ''}
         <p class="form-error" role="alert" hidden></p>
       </div>
     </form>`;
@@ -132,20 +143,19 @@ function detailsHtml(e) {
 // for stuck matches, or to pause / open early on the Fixtures tab.
 function flowConfigHtml(e) {
   const flow = { ...FLOW_DEFAULTS, ...(e.flow ?? {}) };
-  const mins = (list, current, extra = '') => list.map((n) => opt(n, `${n} minutes`, current)).join('') + extra;
-  return `
+  const mins = (list, current, extra = '') => list.map((n) => opt(n, `${n} min`, current)).join('') + extra;
+  return sec('night', '🌙', 'Match night', `
         <div class="flow-config">
-          <h4>Match night</h4>
-          <label class="check"><input type="checkbox" name="flowOn" ${flow.on !== false ? 'checked' : ''}> Run matches by themselves: reporting opens at the start time, each team’s next match opens once its last score is confirmed, then a break before the finals</label>
-          <label class="check"><input type="checkbox" name="matchThreads" ${e.matchThreads !== false ? 'checked' : ''}> Discord match threads: the bot opens a thread per match where players report the score with a form (also on the 🤖 Bot page)</label>
-          <label class="check"><input type="checkbox" name="readyUp" ${flow.readyUp === true ? 'checked' : ''}> Check-in: players check in once for the event (staff can check them in); a team's matches start (reporting + Discord thread) once ${Number(e.teamSize) || 4} of its players have checked in</label>
+          ${tick('flowOn', flow.on !== false, 'Run matches automatically', 'Reporting opens at the start; each team’s next match opens when its last score is in.')}
+          ${tick('matchThreads', e.matchThreads !== false, 'Discord match threads', 'A thread per match where players report the score.')}
+          ${tick('readyUp', flow.readyUp === true, 'Check-in', `Players check in once; a team plays when ${Number(e.teamSize) || 4} are in.`)}
           <div class="field-row">
-            <label class="field"><span>Break before the finals</span><select name="breakMinutes">${mins([5, 10, 15, 20, 30, 45, 60], flow.breakMinutes ?? '', opt('', 'Until an admin opens them', flow.breakMinutes ?? ''))}</select></label>
-            <label class="field"><span>Ping admins about a stuck match after</span><select name="stuckMinutes">${mins([5, 10, 15, 20, 30], flow.stuckMinutes)}</select></label>
+            <label class="field"><span>Break before finals</span><select name="breakMinutes">${mins([5, 10, 15, 20, 30, 45, 60], flow.breakMinutes ?? '', opt('', 'Until an admin opens them', flow.breakMinutes ?? ''))}</select></label>
+            <label class="field"><span>Stuck match alert after</span><select name="stuckMinutes">${mins([5, 10, 15, 20, 30], flow.stuckMinutes)}</select></label>
             <label class="field"><span>Usual match length</span><select name="matchMinutes">${mins([10, 15, 20, 25, 30, 40], flow.matchMinutes)}</select></label>
           </div>
-          <p class="muted small" style="margin:0">A match is stuck when the teams’ scores don’t match, or only one team has reported, for that long; or nobody has reported a usual match length plus that long after it opened. Captains (club managers) can confirm the other team’s score with one tap. Pause, open early and open the finals on the Fixtures tab.</p>
-        </div>`;
+          ${howTo('A match is “stuck” when the two teams’ scores don’t match, or only one team has reported, for that long; or nobody has reported a usual match length plus that long after it opened. Captains can confirm the other team’s score with one tap. Pause, open early and open the finals from the Fixtures tab.')}
+        </div>`);
 }
 
 function readDetails(form) {
@@ -344,7 +354,7 @@ const STUCK_WHY = { disputed: 'the teams’ scores don’t match', waiting: 'onl
 function flowControlsHtml() {
   const b = page.b;
   const e = b.event;
-  if (!flowOf(e)) return `<section class="panel"><div class="section-head"><h3>Match night</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Rule config</a></div><p class="small" style="margin:0">Off: every saved match takes results at any time. Switch it on in Rule config.</p></section>`;
+  if (!flowOf(e)) return `<section class="panel"><div class="section-head"><h3>Match night</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Change</a></div><p class="small" style="margin:0">Off: every saved match takes results at any time. Switch it on in Details → Match night.</p></section>`;
   const now = Date.now();
   const p = eventPhase(b, now);
   const live = liveSummary(b, now);
@@ -362,7 +372,7 @@ function flowControlsHtml() {
   const btn = (act, label, cls = 'btn') => `<button class="btn-sm ${cls}" type="button" data-act="${act}">${label}</button>`;
   return `
     <section class="panel flow-panel">
-      <div class="section-head"><h3>Match night</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Change in Rule config</a></div>
+      <div class="section-head"><h3>Match night</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Change</a></div>
       <p class="small" style="margin-top:0">${line}</p>
       ${stuck.length ? `<div class="flow-stuck"><b>⚠ Needs you</b>${stuck.map(({ f, why }) => `<a class="row" href="${urls.adminResult(e.id, f.id)}" data-link><span class="row-main">${name(f.homeTeamId)} v ${name(f.awayTeamId)}<span class="muted small">${esc(STUCK_WHY[why] ?? why)}</span></span><span class="row-side">Enter result →</span></a>`).join('')}</div>` : ''}
       <div class="actions">
@@ -394,9 +404,9 @@ function scheduleSettingsHtml() {
   ].join(' · ');
   return `
     <section class="panel">
-      <div class="section-head"><h3>Automatic fixtures</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Change in Rule config</a></div>
+      <div class="section-head"><h3>Automatic fixtures</h3><a href="${urls.adminEvent(e.id, 'details')}" data-link>Change</a></div>
       <p class="small" style="margin-top:0">${esc(rules)}</p>
-      ${(() => { const n = page.b.plan.teamIds.length; const s = suggestSetup(n); return n >= 6 && s.groups !== groupCount(e) ? `<p class="small">💡 For ${n} teams we suggest ${s.groups === 1 ? 'no groups' : `${s.groups} groups`} (${esc(suggestionText(n))}). <a href="${urls.adminEvent(e.id, 'details')}" data-link>Change in Rule config</a></p>` : ''; })()}
+      ${(() => { const n = page.b.plan.teamIds.length; const s = suggestSetup(n); return n >= 6 && s.groups !== groupCount(e) ? `<p class="small">💡 For ${n} teams we suggest ${s.groups === 1 ? 'no groups' : `${s.groups} groups`} (${esc(suggestionText(n))}). <a href="${urls.adminEvent(e.id, 'details')}" data-link>Change</a></p>` : ''; })()}
       <p class="small">${auto ? '<span class="live-dot" aria-hidden="true"></span> Updates live as clubs join or leave. ' : ''}<b>${esc(lockLine)}</b> ${page.b.plan.teamIds.length} team${page.b.plan.teamIds.length === 1 ? '' : 's'} in.</p>
       ${['semis', 'quarters'].includes(finals.type) && !finals.thirdPlace ? `<p class="small">🥉 No 3rd place match yet. <button class="btn btn-sm btn-primary" type="button" data-act="add-third">Add 3rd place match</button> (the two semi-final losers; it's saved as soon as both semis have a score, so you can enter its score and stats).</p>` : ''}
       <div class="actions">
@@ -575,6 +585,14 @@ export function mount(el) {
   const root = el.querySelector('.admin-root');
   if (!root) return;
   bindAuthActions(root);
+  // Section buttons on the form: scroll to that section (no change to the address).
+  root.addEventListener('click', (e) => {
+    const a = e.target.closest('.adm-jump a');
+    if (!a) return;
+    e.preventDefault();
+    e.stopPropagation();
+    root.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, true);
   if (!root.querySelector('.entry')) return;
   const uid = page.user.uid;
 

@@ -4,7 +4,7 @@
 // It scrolls like a sports ticker and pauses on hover. "×" hides it for this visit; the chosen tab
 // is remembered on the device.
 
-import { loadAllBundles, loadPeople, loadTransfers } from './data.js';
+import { loadAllBundles, loadPeople, loadTransfers, loadSetting } from './data.js';
 import { allFixtures, resultOf } from './pages/parts.js';
 import { esc, urls, teamDot, fmtDay } from './ui.js';
 import { censor } from './rules/profanity.js';
@@ -43,8 +43,9 @@ function transferItem(t, people) {
     left: `👋 ${who} <span>left</span> ${club(from)}`,
     released: `✂️ ${club(from)} <span>released</span> ${who}`,
     disbanded: `🏳️ ${club(from)} <span>disbanded</span>`,
+    reset: `🧹 <b class="won">Launch reset</b> <span>all ${t.clubs || ''} clubs cleared, everyone is a free agent</span>`,
   }[t.kind] ?? `${who}`;
-  const href = to ? urls.team(to.id) : p ? urls.player(p.id) : '/teams';
+  const href = t.kind === 'reset' ? '/teams?view=prelaunch' : to ? urls.team(to.id) : p ? urls.player(p.id) : '/teams';
   const note = t.note ? ` <q class="reel-note">${esc(censor(String(t.note).slice(0, 80)))}${String(t.note).length > 80 ? '…' : ''}</q>` : '';
   return `<a class="reel-item" href="${href}" data-link>${text}${note}${t.at ? `<small class="reel-when">${esc(fmtDay(t.at))}</small>` : ''}</a>`;
 }
@@ -63,7 +64,14 @@ export async function updateReel() {
   let transfers;
   let people;
   try {
-    [bundles, transfers, people] = await Promise.all([loadAllBundles(), loadTransfers().catch(() => []), loadPeople()]);
+    let reset;
+    [bundles, transfers, people, reset] = await Promise.all([loadAllBundles(), loadTransfers().catch(() => []), loadPeople(), loadSetting('prelaunchLineups').catch(() => null)]);
+    // Launch reset (2026-11-21): moves before it are out of date (every club was cleared), so the
+    // ticker shows only newer ones, after one "all clubs cleared" item.
+    if (reset?.takenAt) {
+      transfers = transfers.filter((t) => (t.at ?? 0) > reset.takenAt);
+      transfers.push({ id: 'launch-reset', kind: 'reset', at: reset.takenAt, clubs: reset.teams?.length ?? 0 });
+    }
   } catch { return; }
   const results = allFixtures(bundles)
     .map(({ b, f }) => ({ b, f, check: resultOf(b, f).check }))

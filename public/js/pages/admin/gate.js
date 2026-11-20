@@ -73,24 +73,30 @@ export function bindAuthActions(root) {
   });
 }
 
-// "Signed in as" bar with admin navigation, for the top of admin pages.
+// Admin navigation (redone 2026-11-21): a sidebar on desktop, one scrolling row on phones.
+// Plain names; the hover hint says what each page is for.
 export function adminBar(user, admin, current = '') {
-  // Icons + plain names, and a hint on hover/long-press saying what each page is for.
   const links = [
     ['/admin', '🏠', 'Home', 'What needs you, quick jobs and every event'],
-    ['/admin/requests', '📥', 'Requests', 'Result fixes, disputed scores, new clubs, claims and leave requests'],
-    ['/admin/stats', '📸', 'Stats', 'Check and publish stats read from end-of-match screenshots'],
-    ['/admin/people', '👥', 'Teams & players', 'Edit clubs and players, staff badges, pictures'],
-    ['/admin/characters', '🎭', 'Characters', 'Approve or remove characters on the Home court'],
-    ['/admin/bot', '🤖', 'Bot', 'The Discord bot: status, switches, timings, match threads and quick fixes'],
-    ['/admin/help', '📜', 'FAQ & rules', 'Edit the help pages players read'],
-    ['/admin/guide', '📘', 'Guide', 'How to do every admin job, step by step'],
+    ['/admin/requests', '📥', 'Requests', 'Result fixes, disputed scores, new clubs and claims'],
+    ['/admin/stats', '📸', 'Stats to check', 'Check and publish stats read from screenshots'],
+    ['/admin/people', '👥', 'Clubs & players', 'Edit clubs and players, staff badges, pictures'],
+    ['/admin/characters', '🎭', 'Characters', 'The community characters on the Home court'],
+    ['/admin/bot', '🤖', 'Discord bot', 'Switches, timings, match threads, pickup'],
+    ['/admin/help', '📜', 'Help pages', 'Edit the FAQ and rules players read'],
+    ['/admin/guide', '📘', 'How-to guide', 'Step-by-step help for every admin job'],
   ];
+  const discord = user.uid.startsWith('discord:');
   return `
-    <div class="admin-bar">
-      <nav class="admin-nav" aria-label="Admin pages">${links.map(([href, icon, label, hint]) => `<a href="${href}" data-link title="${esc(hint)}"${href === current ? ' aria-current="page"' : ''}><span aria-hidden="true">${icon}</span> ${esc(label)}</a>`).join('')}</nav>
-      <span class="muted small">${user.uid.startsWith('discord:')
-        ? `${esc(admin.name ?? 'Admin')} · admin via Discord · <button class="admin-mode-btn" type="button" data-action="admin-mode-off" title="Browse as a normal player"><span class="admin-mode-dot" aria-hidden="true"></span>Admin mode: on</button>`
-        : `${esc(admin.name ?? usernameOf(user))} · <button class="link-btn" data-action="sign-out">Sign out</button>`}</span>
-    </div>`;
+    <aside class="admin-bar">
+      <div class="adm-brand"><span aria-hidden="true">⚙️</span> Admin</div>
+      <nav class="admin-nav" aria-label="Admin pages">${links.map(([href, icon, label, hint]) => `<a href="${href}" data-link title="${esc(hint)}"${href === current ? ' aria-current="page"' : ''}><span class="adm-ic" aria-hidden="true">${icon}</span><span>${esc(label)}</span></a>`).join('')}</nav>
+      <div class="adm-who">
+        <span class="muted small">${esc(admin.name ?? (discord ? 'Admin' : usernameOf(user)))}</span>
+        ${discord
+          ? '<button class="admin-mode-btn" type="button" data-action="admin-mode-off" title="Browse as a normal player"><span class="admin-mode-dot" aria-hidden="true"></span>Admin mode on</button>'
+          : '<button class="link-btn" data-action="sign-out">Sign out</button>'}
+        <a class="link-btn" href="/" data-link>← Back to the site</a>
+      </div>
+    </aside>`;
 }

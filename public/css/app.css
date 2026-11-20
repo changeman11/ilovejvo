@@ -1975,3 +1975,55 @@ a.eb-match:hover { border-color: var(--yellow); }
 .honours .hon-cup { font-size: 26px; }
 .honours span { display: grid; line-height: 1.2; }
 .honours small { font-size: 12px; opacity: 0.8; }
+
+/* ---------- Admin workspace (redone 2026-11-21) ----------
+   Admin pages get the whole screen: no game menu, chat dock, featured/trophy cards, results ticker
+   or player bar. A sidebar for the admin pages on desktop, one scrolling row on phones. */
+body.admin-mode .side-menu, body.admin-mode .chat-dock, body.admin-mode .featured, body.admin-mode .trophy,
+body.admin-mode .reel, body.admin-mode .playerbar, body.admin-mode .live-pill { display: none !important; }
+body.admin-mode main.page, body.admin-mode.has-side main.page:not(:has(.home-stage)) { margin: 20px auto 40px; max-width: 1320px; }
+body.admin-mode .footer, body.admin-mode.has-side .footer { margin-left: auto; margin-right: auto; max-width: 1320px; }
+body.admin-mode .save-bar, body.admin-mode.has-reel .save-bar { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 8px); }
+@media (min-width: 760px) { body.admin-mode .save-bar, body.admin-mode.has-reel .save-bar { bottom: 12px; } }
+
+.admin-bar { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 10px; margin-bottom: 16px; }
+.adm-brand { font: 600 20px/1 var(--font-head); display: flex; align-items: center; gap: 8px; }
+.admin-nav { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; margin: 0 calc(-1 * var(--gutter)); padding-inline: var(--gutter); }
+.admin-nav::-webkit-scrollbar { display: none; }
+.admin-nav a { flex: none; display: flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 700; font-size: 14px; color: var(--ink);
+  padding: 8px 12px; border-radius: 999px; border: var(--outline); background: var(--surface); }
+.admin-nav a:hover { background: var(--tint-sky); }
+.admin-nav a[aria-current] { background: var(--blue); color: #fff; }
+.adm-who { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; }
+@media (max-width: 999px) { .adm-brand { display: none; } }
+@media (min-width: 1000px) {
+  .admin-root:has(> .admin-bar) { display: grid; grid-template-columns: 230px minmax(0, 1fr); column-gap: 28px; align-items: start; }
+  .admin-root > .admin-bar { grid-column: 1; grid-row: 1 / span 80; position: sticky; top: 84px; align-self: start; margin: 0;
+    padding: 14px; border: var(--outline); border-radius: var(--radius); background: var(--surface); box-shadow: 0 4px 0 var(--ink); }
+  .admin-root > :not(.admin-bar) { grid-column: 2; min-width: 0; }
+  .admin-nav { flex-direction: column; gap: 2px; overflow: visible; }
+  .admin-nav a { border: 0; background: transparent; border-radius: 12px; padding: 10px 12px; font-size: 15px; }
+  .admin-nav a[aria-current] { background: var(--blue); color: #fff; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25); }
+  .adm-ic { width: 22px; text-align: center; }
+  .adm-who { flex-direction: column; align-items: flex-start; border-top: 1px dashed color-mix(in srgb, var(--ink) 25%, transparent); padding-top: 10px; }
+}
+
+/* The event form: named sections, short labels, hints folded away */
+.adm-jump { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 70px; z-index: 5; padding: 6px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(6px); }
+.adm-jump a { padding: 5px 12px; border-radius: 999px; border: var(--outline); background: var(--surface); font-weight: 700; font-size: 13px; text-decoration: none; color: var(--ink); }
+.adm-jump a:hover { background: var(--tint-sky); }
+.adm-sec { scroll-margin-top: 130px; }
+.adm-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.adm-sec-head h3 { margin: 0; font: 600 20px/1.2 var(--font-head); }
+.adm-pill { padding: 3px 10px; border-radius: 999px; background: var(--tint-sky); font-weight: 700; font-size: 13px; }
+.adm-check { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+.adm-check input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+.adm-check span { display: grid; gap: 1px; }
+.adm-check b { font-weight: 800; }
+.adm-check small { color: var(--muted); font-size: 13px; }
+.adm-note { margin: -4px 0 8px; }
+.adm-how { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.adm-how summary { cursor: pointer; font-weight: 700; color: var(--blue); width: max-content; }
+.adm-how p { margin: 6px 0 0; }
+.save-bar .adm-delete { margin-left: auto; }
+@media (max-width: 600px) { .adm-jump { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; border-radius: 12px; } .adm-jump a { flex: none; } }

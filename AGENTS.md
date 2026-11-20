@@ -20,6 +20,8 @@ This project is worked on by **two assistants in turn** (Claude and ChatGPT). To
    - Commit with a clear message, adding a trailer naming the assistant (e.g. `Co-Authored-By: ChatGPT <noreply@openai.com>`).
    - Update `PROGRESS.md`: what changed, what was deployed, what's unfinished or needs testing.
    - Update `CLAUDE.md` when a feature or decision changes. Same commit.
+   - **Help pages in the same change (owner's rule, 2026-11-21):** anything players or admins see gets its important details in `public/js/help-defaults.js` (FAQ / Rules / Roles), and admin features in the admin guide (`public/js/pages/admin/guide.js`). Above all, fix any FAQ answer the change makes wrong.
+   - **Admin pages are for people:** short labels, one clear main action, explanations behind "?" or in the guide, not paragraphs under every control.
    - Player-facing changes go in the next `CHANGELOG.md` entry when the owner asks for a changelog (it lists what was last posted).
    - `git push` (to `origin main`), so the other assistant sees it.
 

@@ -210,6 +210,8 @@ async function show({ quiet = false, scrollY = null } = {}) {
   const id = ++renderId;
 
   setSection(section); // desktop side menu: highlight this page's card
+  // Admin pages get a workspace of their own: full width, no player extras (app.css admin-mode).
+  document.body.classList.toggle('admin-mode', section === '/admin');
   document.querySelectorAll('.topnav a, .tabbar a').forEach((a) => {
     if (a.getAttribute('href') === section) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');

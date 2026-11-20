@@ -16,13 +16,15 @@ const GUIDE = `# The basics
 Anyone with the **Staff** role on Discord is an admin on the site automatically (the bot checks every 5 minutes, and straight away when a role changes). Sign in to the site with that Discord account. Take the role away and admin access goes too. Older username + password admin accounts still work.
 
 ## Getting around
-- **🏠 Home** (/admin): the **Needs you** cards (everything waiting on an admin), **Quick jobs** and every event.
-- **📥 Requests:** result fixes, disputed scores, new clubs, profile claims.
-- **📸 Stats:** check and publish stats read from screenshots.
-- **👥 Teams & players:** edit any club or player.
-- **🎭 Characters:** the community characters on the Home court.
-- **🤖 Bot:** the Discord bot's switches, timings and quick fixes.
-- **📜 FAQ & rules:** edit the help pages.
+Admin pages have their own menu: down the left on a computer, a row you swipe along the top on a phone. "← Back to the site" returns to the normal site.
+- **🏠 Home**: the **Needs you** cards (everything waiting on an admin), **Quick jobs** and every event.
+- **📥 Requests**: result fixes, disputed scores, new clubs, profile claims.
+- **📸 Stats to check**: check and publish stats read from screenshots.
+- **👥 Clubs & players**: edit any club or player.
+- **🎭 Characters**: the community characters on the Home court.
+- **🤖 Discord bot**: the bot's switches, timings and quick fixes.
+- **📜 Help pages**: edit the FAQ and rules.
+- **📘 How-to guide**: this page.
 - The 🔔 bell also has an **Admin to-do** section.
 
 ## Admin mode on and off
@@ -34,13 +36,13 @@ Most things can be undone by editing again. These can't: **Delete event**, **Cle
 # Setting up an event
 ## Create an event
 1. Admin home → **New exhibition night** or **New tournament**.
-2. **Details:** title, date and time (leave empty for "TBD"), short summary, details, prize, stream link.
+2. **Details** is split into sections (jump between them with the buttons at the top): **Basics** (type, status, title, summary, Published, Featured), **When**, **Format**, **Sign-ups**, **Match night** and **Event page** (table, links). Leave the date or time empty for "TBD". Longer explanations are under **How it works**.
 3. Leave **Published** off while you set it up: only admins can see drafts.
 4. Tick **★ Feature this event** to pin it on every page (otherwise the next upcoming event is featured).
-5. Save, then set the format in **Rule config** (next).
+5. Fill in the **Format** section too, then press **Save** (the bar at the bottom).
 
-## Rule config: the format
-In the Details tab, **Rule config**. Everything here is for this event only, and the event page's **📜 Event rules** are written from it.
+## The format
+In the Details tab, the **Format**, **Sign-ups** and **Match night** sections. Everything here is for this event only, and the event page's **📜 Event rules** are written from it.
 - **Players per team:** 2, 3, 4… (the team size for this event).
 - **Matches are best of** and points per set (finals can have their own best-of).
 - **Fixtures:** automatic round robin (once, or home and away), or none if you'll add them by hand.
@@ -164,7 +166,7 @@ Club roles (club colour), Captain (managers), award roles (🥇 1st per stat, fr
 
 # Help pages and characters
 ## Edit the FAQ and rules
-**📜 FAQ & rules** (/admin/help). Formatting: \`# Section\`, \`## Question\` (FAQ), \`- bullet\`, \`**bold**\`, \`[link](https://…)\`. Saving replaces the starter text for everyone. The **Roles** tab and this guide aren't edited here.
+**📜 Help pages** (/admin/help). Formatting: \`# Section\`, \`## Question\` (FAQ), \`- bullet\`, \`**bold**\`, \`[link](https://…)\`. Saving replaces the starter text for everyone. The **Roles** tab and this guide aren't edited here.
 
 ## Community characters
 The bot picks up pictures from #in-game-characters. **🎭 Characters** lists them as waiting: **Approve** puts them on the Home court, **Deny** keeps them off. You can remove any character later and put it back.

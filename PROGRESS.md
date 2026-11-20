@@ -20,6 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Admin UI made for people; launch reset in #transfer-news · site DEPLOYED (sw v95)
+- Owner: the admin UI "is made for an AI to use". Now: **admin workspace** (`body.admin-mode`, set in app.js for section '/admin') hides the side menu, chat dock, featured/trophy cards, live pill, ticker and player bar, and uses up to 1320 px; the admin menu (`adminBar` in gate.js) is a sidebar on desktop (≥1000 px) and one swipeable row on phones, with plain names (Stats to check, Clubs & players, Discord bot, Help pages, How-to guide) and "← Back to the site".
+- **Event form** (event-edit.js `detailsHtml`/`flowConfigHtml`): sections Basics / When / Format / Sign-ups / Match night / Event page with a jump bar, short checkbox labels with one-line hints, long explanations under "How it works", Published/Featured/Status moved to Basics, "Save" bar. Field names unchanged (save tested locally). "Rule config" links now say "Change".
+- #transfer-news: one "🧹 Launch reset: every club cleared" post (clubs + counts, buttons). Site ticker hides moves from before the reset (`settings/prelaunchLineups.takenAt`) and shows one "Launch reset" item.
+- Admin guide updated (menu names, form sections). New standing rules in AGENTS.md: help pages updated in the same change as any user-facing feature; admin pages short and human.
+
 ### 2026-11-21 · Claude (owner's PC) · Pre-launch champions: profile Honours + Discord role · site DEPLOYED (sw v94), bot UPLOADED
 - `public/js/rules/champions.js` (shared with the bot, tested): an event's champions = players with a stat line for the 1st-place team (rules/podium.js) or on its event roster. Pre-launch winners: Chikchester City (DEMO EXHIBITION NIGHT: spec, xing, zuza, AOE Salmonella) and Unprotected Sets (3v3 elimination tournament: zapdis, Spoody, d wataa).
 - Player pages: "🏆 Honours" side card for every event they won (pre-launch ones say "Pre-launch champion").
