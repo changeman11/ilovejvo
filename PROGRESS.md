@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Pickup Elo + 1v1 RP reset for launch · rules + site DEPLOYED (sw v91), bot UPLOADED
+- `FirestoreStore.resetRatings` (tested), run once at bot start (meta `ratingsReset = 'launch-2026-11-21'`): copied all 29 pickupRatings to `pickupMeta/prelaunchElo` and all 4 rankedRatings to `pickupMeta/prelaunchRP` ({ ratings: { discordId: record } }), then deleted the rating docs (firestore.rules: bot may delete them). Everyone is back at 1000. Game history (pickupGames/rankedGames) is kept; game numbers carry on.
+- /pickup: collapsible "🧪 Pre-launch ratings" (Elo + RP) from those docs (`loadPrelaunchRatings` in data.js). FAQ pickup answer mentions it.
+
 ### 2026-11-21 · Claude (owner's PC) · Launch reset (pre-launch archive), staff desk, leave messages, 1st-only award roles, pickup AFK checks · rules + site DEPLOYED (sw v90), bot UPLOADED
 - **Pre-launch archive:** `public/js/rules/eras.js` (shared with the bot): events dated (or, if TBD, made) before 21 Nov 2026 00:00 Sydney (`LAUNCH_AT`) are pre-launch; `event.era = 'live'|'pre-launch'` overrides. Live stats (Stats page, careers, levels/badges, bottom bar, Home leaders, Teams list, awards + Discord award roles) use `liveBundles`; /stats has a **🧪 Pre-launch stats** view (`?event=prelaunch` or a pre-launch event id) and a "Fresh start" panel until post-launch stats exist; player pages show a collapsible Pre-launch stats box. Nothing was deleted. Event pages still show their own stats.
 - **Award roles 1st place only:** STAT_ROLES_TOP default 1; the bot deleted its 16 2nd/3rd roles; holders were cleared (no live stats yet). Site award cards still show 1st–3rd.

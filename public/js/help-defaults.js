@@ -87,7 +87,7 @@ Event winners go in the club's **🏆 Trophy cabinet** on its page, and the late
 
 # Pickup games
 ## What is pickup?
-Quick games on the Discord. Sign up in #pickup (or on the site's Pickup page), and once enough players are in, the bot runs a ready check, picks a mode (2v2 to 6v6), and captains draft teams (or teams are random if most players vote for that). Results build your **Elo** rating.
+Quick games on the Discord. Sign up in #pickup (or on the site's Pickup page), and once enough players are in, the bot runs a ready check, picks a mode (2v2 to 6v6), and captains draft teams (or teams are random if most players vote for that). Results build your **Elo** rating. Elo and 1v1 RP started again at launch (21 November 2026); the old ones are under **🧪 Pre-launch ratings** on the Pickup page.
 
 ## How does 1v1 ranked work?
 Queue in #1v1-queue, ready up in the voice channel, play, then both players report the winner with a screenshot. You earn **RP** (5 placement games, then ±20).

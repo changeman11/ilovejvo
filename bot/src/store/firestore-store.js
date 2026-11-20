@@ -29,6 +29,21 @@ export class FirestoreStore {
     this.log.info?.(`[store] Firestore (${this.rest.projectId}${this.rest.emulator ? ', emulator' : ''}): ${this.cache.size} rated players, last game #${this.meta.lastGame}`);
   }
 
+  // Launch reset (2026-11-21): copy every rating into one archive doc (e.g. pickupMeta/prelaunchElo:
+  // { ratings: { discordId: record }, archivedAt }), then delete the rating docs so everyone starts
+  // again at the start rating. Done once: remembered as meta ratingsReset = tag. Games are kept.
+  async resetRatings(archivePath, tag) {
+    if (this.meta.ratingsReset === tag) return 0;
+    const records = Object.fromEntries([...this.cache].map(([id, r]) => [id, r]));
+    await this.rest.commit([{ path: archivePath, data: { ratings: records, players: Object.keys(records).length, tag }, serverTime: ['archivedAt'] }]);
+    const ids = [...this.cache.keys()];
+    for (let i = 0; i < ids.length; i += 200) await this.rest.commit(ids.slice(i, i + 200).map((id) => ({ delete: `${this.names.ratings}/${id}` })));
+    this.cache.clear();
+    await this.setMeta('ratingsReset', tag);
+    this.log.info?.(`[store] launch reset: ${ids.length} ${this.names.ratings} archived to ${archivePath} and cleared`);
+    return ids.length;
+  }
+
   rating(id) {
     return structuredClone(this.cache.get(id)) ?? newRecord(id, '', this.startRating);
   }

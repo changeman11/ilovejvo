@@ -328,6 +328,15 @@ export const loadPickupRatings = ({ fresh = false } = {}) => {
     .sort((x, y) => y.rating - x.rating || y.wins - x.wins || String(x.name).localeCompare(String(y.name))));
 };
 
+// Pre-launch archives (the bot's launch reset, 2026-11-21): pickupMeta/prelaunchElo and prelaunchRP
+// { ratings: { discordId: record } } -> records, best first.
+export async function loadPrelaunchRatings(which) {
+  const doc = await getOne(`pickupMeta/prelaunch${which === 'rp' ? 'RP' : 'Elo'}`).catch(() => null);
+  return Object.entries(doc?.ratings ?? {}).map(([id, r]) => ({ ...r, id: r.id ?? id }))
+    .filter((r) => r.games > 0)
+    .sort((x, y) => y.rating - x.rating || y.wins - x.wins);
+}
+
 // A player's rating and rank, by Discord ID: { rating, rank, total } or null.
 export async function loadPickupRank(discordId) {
   if (!discordId) return null;

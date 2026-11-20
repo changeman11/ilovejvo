@@ -80,6 +80,17 @@ if (config.ranked) {
   }
 }
 
+// Launch reset (2026-11-21): pickup Elo and 1v1 RP start again; the old numbers are archived in
+// pickupMeta/prelaunchElo and pickupMeta/prelaunchRP (the site's /pickup shows them). Runs once.
+if (config.store === 'firebase') {
+  try {
+    await store.resetRatings('pickupMeta/prelaunchElo', 'launch-2026-11-21');
+    if (rankedStore) await rankedStore.resetRatings('pickupMeta/prelaunchRP', 'launch-2026-11-21');
+  } catch (err) {
+    log.error(`[store] launch reset failed: ${err.message}`);
+  }
+}
+
 // Only non-privileged intents: no switches to turn on in the Developer Portal.
 // Welcomes need the privileged Server Members intent: only asked for when it's switched on in the
 // Developer Portal (otherwise Discord refuses the whole login).

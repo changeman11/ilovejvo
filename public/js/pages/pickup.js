@@ -5,7 +5,7 @@
 // - The Elo leaderboard (pickupRatings) and recent games (pickupGames).
 // The page redraws itself when the live state or your sign-up changes.
 
-import { loadPickupLive, loadPickupRatings, loadPickupGames, loadPickupSignup, loadPlayers, loadRankedLive, loadRankedRatings, loadRankedSignup } from '../data.js';
+import { loadPickupLive, loadPickupRatings, loadPickupGames, loadPickupSignup, loadPlayers, loadRankedLive, loadRankedRatings, loadRankedSignup, loadPrelaunchRatings } from '../data.js';
 import { pickupSignUp, pickupWithdraw, pickupVote, pickupRandomVote, rankedJoin, rankedLeave } from '../player-data.js';
 import { currentUser, discordOf, currentAdmin } from '../auth.js';
 import { commit } from '../writes.js';
@@ -268,6 +268,7 @@ export async function render() {
   const user = await currentUser();
   const discord = user ? await discordOf(user) : null;
   const admin = await currentAdmin().catch(() => null);
+  const [preElo, preRp] = await Promise.all([loadPrelaunchRatings('elo'), loadPrelaunchRatings('rp')]);
   const [live, ratings, games, players, signup, live1, rp, rankedSignup] = await Promise.all([
     loadPickupLive(),
     loadPickupRatings({ fresh: true }).catch(() => []),
@@ -294,13 +295,18 @@ export async function render() {
       <div class="stack">
         ${rankedBlock(live1, me)}
         <section>
-          <div class="section-head"><h2>Elo leaderboard</h2><span class="muted small">pickup games · everyone starts at 1000</span></div>
+          <div class="section-head"><h2>Elo leaderboard</h2><span class="muted small">pickup games since launch · everyone starts at 1000</span></div>
           <div class="panel flush">${leaderboard(ratings, byDiscord, me)}</div>
         </section>
         <section>
           <div class="section-head"><h2>1v1 RP leaderboard</h2><span class="muted small">5 placements at ±50, then ±20</span></div>
           <div class="panel flush">${rpBoard(rp, byDiscord, me)}</div>
         </section>
+        ${preElo.length || preRp.length ? `<details class="panel prelaunch-block">
+          <summary><b>🧪 Pre-launch ratings</b> <span class="muted small">before the game launched (21 November 2026); everyone started again at 1000</span></summary>
+          ${preElo.length ? `<h3 class="pk-pre-h">Elo</h3>${leaderboard(preElo, byDiscord, me)}` : ''}
+          ${preRp.length ? `<h3 class="pk-pre-h">1v1 RP</h3>${rpBoard(preRp, byDiscord, me)}` : ''}
+        </details>` : ''}
       </div>
     </div>
     <script type="application/json" data-pickup-me>${JSON.stringify(me ?? null).replace(/</g, '\\u003c')}</script>`;

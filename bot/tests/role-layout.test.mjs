@@ -146,3 +146,18 @@ test('staff desk: approving a club saves it, its founder, the news and invites i
   assert.equal(store.getMeta('staffDesk').abc, undefined);
   assert.equal((await desk.button('desk:yes:abc', { id: '1', name: 'Sam', isStaff: true })).reply, 'That card is already dealt with.');
 });
+
+test('launch reset: ratings archived in one doc, then deleted, once', async () => {
+  const { FirestoreStore } = await import('../src/store/firestore-store.js');
+  const commits = [];
+  const rest = { async commit(w) { commits.push(w); } };
+  const st = new FirestoreStore({ rest, log: quiet });
+  st.cache.set('1', { id: '1', rating: 1072, games: 5 });
+  st.cache.set('2', { id: '2', rating: 990, games: 3 });
+  assert.equal(await st.resetRatings('pickupMeta/prelaunchElo', 'launch'), 2);
+  assert.deepEqual(Object.keys(commits[0][0].data.ratings), ['1', '2']);
+  assert.deepEqual(commits[1].map((w) => w.delete), ['pickupRatings/1', 'pickupRatings/2']);
+  assert.equal(st.ratings().length, 0);
+  assert.equal(st.rating('1').rating, 1000, 'back to the start rating');
+  assert.equal(await st.resetRatings('pickupMeta/prelaunchElo', 'launch'), 0, 'only once');
+});
