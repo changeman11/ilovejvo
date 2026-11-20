@@ -138,6 +138,13 @@ export function loadConfig(env = process.env) {
     dataFile: text('DATA_FILE', 'data/pickup.json'),
     firebase,
   };
+  // Role layout with TEAM / AWARDS dividers (role-layout.js, 2026-11-21): on unless ROLE_LAYOUT=0.
+  config.roleLayout = text('ROLE_LAYOUT') !== '0';
+  config.roleLayoutMinutes = number('ROLE_LAYOUT_MINUTES', 5, 1, 1440);
+  // #transfer-hub: club moves from the site (transfer-hub.js, 2026-11-21): on unless TRANSFER_HUB=0.
+  config.transferHub = text('TRANSFER_HUB') !== '0';
+  config.transferHubChannelId = discordId('TRANSFER_HUB_CHANNEL_ID', '', false);
+  config.transferHubSeconds = number('TRANSFER_HUB_SECONDS', 60, 15, 3600);
   // Site admins from the Staff role (staff-admins.js, 2026-11-18): on unless STAFF_ADMINS=0.
   config.staffAdmins = text('STAFF_ADMINS') !== '0';
   config.staffAdminsMinutes = number('STAFF_ADMINS_MINUTES', 5, 1, 1440);

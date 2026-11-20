@@ -21,6 +21,8 @@ import { Characters } from './characters.js';
 import { checkMembersIntent, checkMessageContent } from './login.js';
 import { BotControl, applySettings } from './control.js';
 import { StaffAdmins } from './staff-admins.js';
+import { RoleLayout } from './role-layout.js';
+import { TransferHub } from './transfer-hub.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -107,6 +109,8 @@ let statRoles = null;
 let characters = null;
 let control = null;
 let staffAdmins = null;
+let roleLayout = null;
+let transferHub = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -155,6 +159,17 @@ client.once(Events.ClientReady, async () => {
       characters = new Characters({ io: discord.charIo, rest: store.rest, site, store, config, log });
       log.info(`[characters] watching #${config.charactersChannel} every ${config.charactersMinutes} min`);
       characters.start().catch((err) => log.error(`[characters] ${err.message}`));
+    }
+    // One fixed role order with TEAM / AWARDS dividers (after the club and award roles exist).
+    if (config.roleLayout && (config.clubRoles || config.statRoles)) {
+      roleLayout = new RoleLayout({ io: discord.roleIo, store, config, log });
+      roleLayout.start();
+    }
+    // #transfer-hub: club moves from the site.
+    if (config.transferHub && discord.transferIo) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      transferHub = new TransferHub({ io: discord.transferIo, site, store, config, log });
+      transferHub.start().catch((err) => log.error(`[transfer hub] ${err.message}`));
     }
     // Site admins from the Discord Staff role (needs STORE=firebase).
     if (store.rest && config.staffAdmins) {
@@ -332,6 +347,8 @@ async function stop(signal) {
   rankedSite?.stop();
   control?.stop();
   staffAdmins?.stop();
+  roleLayout?.stop();
+  transferHub?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

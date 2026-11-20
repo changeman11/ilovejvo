@@ -230,6 +230,23 @@ export async function setupDiscord(client, config, log = console) {
       const moves = order.map((role, i) => ({ role, position: top - 1 - i })).filter(({ role, position }) => position >= 1 && role.position !== position);
       if (moves.length) await guild.roles.setPositions(moves);
     },
+    // Every member and their roles (needs the Server Members intent); null if it can't be read.
+    async allMembers() {
+      try {
+        const out = [];
+        let after;
+        for (;;) {
+          const page = await guild.members.list({ limit: 1000, ...(after ? { after } : {}) });
+          for (const m of page.values()) if (!m.user.bot) out.push({ id: m.id, roles: new Set(m.roles.cache.keys()) });
+          if (page.size < 1000) break;
+          after = page.lastKey();
+        }
+        return out;
+      } catch (err) {
+        log.warn(`[role layout] couldn't read the member list (${err.message})`);
+        return null;
+      }
+    },
     // A role icon picture (Buffer), or null to remove it. Needs ROLE_ICONS (boost level 2).
     async setRoleIcon(roleId, icon) {
       await guild.roles.edit(roleId, { icon: icon ?? null, reason: 'I<3JVO club logo' });
@@ -486,7 +503,40 @@ export async function setupDiscord(client, config, log = console) {
     },
   };
 
-  return { guild, text, category, io, roleIo, rankedIo, matchIo, charIo, staffIo };
+  // #transfer-hub (transfer-hub.js): read-only news of every club move. Everyone can read and
+  // react; only the bot posts. Made next to the site channel (#i-love-jvowebapp) if missing.
+  let transferChannel = null;
+  if (config.transferHub) {
+    transferChannel = config.transferHubChannelId ? await guild.channels.fetch(config.transferHubChannelId).catch(() => null) : null;
+    if (config.transferHubChannelId && !transferChannel?.isTextBased()) log.warn(`⚠️  TRANSFER_HUB_CHANNEL_ID (${config.transferHubChannelId}) wasn't found; using #transfer-hub.`);
+    const all = await guild.channels.fetch().catch(() => guild.channels.cache);
+    if (!transferChannel?.isTextBased()) transferChannel = all.find((c) => c?.type === ChannelType.GuildText && c.name === 'transfer-hub') ?? null;
+    if (!transferChannel) {
+      const near = all.find((c) => c?.type === ChannelType.GuildText && c.name === 'i-love-jvowebapp') ?? null;
+      try {
+        transferChannel = await guild.channels.create({
+          name: 'transfer-hub',
+          type: ChannelType.GuildText,
+          parent: near?.parentId ?? undefined,
+          topic: 'Every club move on I<3JVO, live from the site: signings, departures, releases, new clubs. React away!',
+          permissionOverwrites: [
+            { id: guild.roles.everyone.id, type: OverwriteType.Role, allow: [P.AddReactions, P.ReadMessageHistory], deny: [P.SendMessages, P.SendMessagesInThreads, P.CreatePublicThreads, P.CreatePrivateThreads, P.AttachFiles, P.EmbedLinks, P.UseExternalStickers, P.SendVoiceMessages, P.SendPolls] },
+            { id: me.id, type: OverwriteType.Member, allow: [P.ViewChannel, P.SendMessages, P.EmbedLinks, P.ReadMessageHistory, P.AddReactions] },
+          ],
+          reason: 'Transfer news from the site',
+        });
+        if (near) await transferChannel.setPosition(near.position + 1).catch(() => {});
+        log.info?.(`Made #transfer-hub (id ${transferChannel.id}).`);
+      } catch (err) {
+        log.warn(`⚠️  Couldn't make #transfer-hub (${err.message}).`);
+        transferChannel = null;
+      }
+    }
+    if (transferChannel) check(transferChannel, ['ViewChannel', 'SendMessages', 'EmbedLinks'], `#${transferChannel.name}`);
+  }
+  const transferIo = transferChannel ? { post: (body) => transferChannel.send(body) } : null;
+
+  return { guild, text, category, io, roleIo, rankedIo, matchIo, charIo, staffIo, transferIo };
 }
 
 // Admins: anyone with Manage Server, or one of ADMIN_ROLE_IDS.

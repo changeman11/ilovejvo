@@ -158,7 +158,7 @@ export class ClubRoles {
   // Club roles sit together right under the bot's own role (added 2026-11-21), above award roles,
   // Captain, Streamer and so on, so teammates' names all show their club colour.
   async raiseClubs(roleMap, attempt) {
-    if (!this.io.raiseRoles || !this.io.positions) return;
+    if (this.config.roleLayout || !this.io.raiseRoles || !this.io.positions) return; // role-layout.js orders them
     const ids = Object.values(roleMap);
     const { roles, botTop } = await this.io.positions().catch(() => ({}));
     if (!roles || !clubsNeedRaising(roles, ids, botTop)) return;

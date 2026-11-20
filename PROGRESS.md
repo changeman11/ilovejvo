@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Discord: TEAM / AWARDS divider roles, #transfer-hub · bot UPLOADED
+- `bot/src/role-layout.js` (+ logic/role-layout.js, tested; ROLE_LAYOUT=0 = off): every 5 min (first run 90 s after start) keeps one order under the bot's role: ━━ TEAM ━━ divider, club roles, Captain, ━━ AWARDS ━━ divider, award roles (1sts, 2nds, 3rds); everything else below in its old order. Dividers (meta `dividerRoles`) are given to anyone with a role in their section. Club/stat roles no longer order themselves when this is on.
+- `bot/src/transfer-hub.js` (+ logic/transfer-hub.js, tested; TRANSFER_HUB=0 = off, TRANSFER_HUB_CHANNEL_ID optional): #transfer-hub (made after #i-love-jvowebapp; everyone can read + react, nobody but the bot can post, attach, embed or make threads). Polls `transfers` every 60 s; one embed per move (club colour, logo, player picture, links). First run posted the last 8; meta `transferHub`.
+- Role clean-up candidates (not deleted, waiting on the owner): Players (0 members), Guest (0), ---Awards--- (0), Team Captain (15, replaced by the bot's Captain), Free Agent (1), NOV 15 EVENT (17).
+
 ### 2026-11-21 · Claude (owner's PC) · Stats search + Compare, FAQ rewrite, Roles guide, Admin guide · site DEPLOYED (sw v89)
 - /stats: a search box (live filter on Players and Teams, `?q=`, kept when sorting; Enter on Overview opens Players) and a **⚖️ Compare** tab (`?tab=compare&a=&b=`: stat-by-stat tug-of-war bars, "stats ahead" score, head to head and played together, Swap). `compareHtml` + `mount` in pages/stats.js.
 - /help: FAQ rewritten (events, check-in, clubs, results/fixes, awards & roles, pickup) with jump links; rules are general and point to each event's 📜 Event rules (team size etc. per event); new **🧭 Roles** tab (`DEFAULT_ROLES` in help-defaults.js: who does what, Discord roles, before/during/after for players, managers, staff). Live site had no saved FAQ/rules, so the new defaults show.
