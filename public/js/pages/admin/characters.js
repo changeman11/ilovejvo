@@ -45,7 +45,7 @@ export async function render() {
     html: `
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/characters')}
-        <div class="page-head"><div><h1>Characters</h1><p class="muted">The community characters on the Home court. New ones posted in #in-game-characters wait here until an admin approves them.</p></div></div>
+        <div class="page-head"><div><h1>🎭 Characters</h1><p class="muted">On the Home court. New posts in #in-game-characters wait here for a yes.</p></div></div>
         <section>
           <div class="section-head"><h2>⏳ Waiting for approval <span class="muted small">${pending.length}</span></h2></div>
           ${pending.length

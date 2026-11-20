@@ -69,7 +69,6 @@ export async function render() {
   }).join('');
   const nameOf = (pid) => r.playersById[pid]?.displayName ?? pid;
   const when = (ms) => (ms ? fmtDay(ms) : '');
-  const empty = (text) => `<p class="muted" style="padding:16px">${text}</p>`;
 
   const teams = r.pendingTeams.map((t) => `
     <div class="row">
@@ -109,20 +108,25 @@ export async function render() {
     html: `
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/requests')}
-        <div class="page-head"><div><h1>Requests</h1><p class="muted">Things players are waiting on.</p></div></div>
+        <div class="page-head"><div><h1>📥 Requests</h1><p class="muted">Things players are waiting on.</p></div></div>
         <div class="stack">
-          ${fixRows ? `<section><div class="section-head"><h2>🛠 Result fixes from players</h2></div><div class="panel flush rows">${fixRows}</div>
-            <p class="muted small" style="margin-top:6px">Sent after a score went in (often a mistake made on Discord). Open one to use the new score or read the screenshot; saving closes the fix. “Done” closes it without changes.</p></section>` : ''}
-          <section><div class="section-head"><h2>Stats to check</h2></div><div class="panel flush rows">${statsRows || empty('Nothing waiting. Matches appear here once both teams agree on the score.')}</div>
-            <p class="muted small" style="margin-top:6px">The score is already live. Open one, press “Read stats” on a screenshot, check names and numbers, then save.</p></section>
-          <section><div class="section-head"><h2>Scores the teams disagree on</h2></div><div class="panel flush rows">${disputeRows || empty('No disagreements. Scores both teams agree on go live by themselves.')}</div>
-            <p class="muted small" style="margin-top:6px">Open one to see each team’s vote and screenshots, then enter the right score.</p></section>
-          <section><div class="section-head"><h2>New teams</h2></div><div class="panel flush rows">${teams || empty('No team registrations waiting.')}</div>
-            <p class="muted small" style="margin-top:6px">Approving makes the person who registered it the manager.</p></section>
-          <section><div class="section-head"><h2>Leave requests</h2></div><div class="panel flush rows">${leaves || empty('No leave requests waiting.')}</div>
-            <p class="muted small" style="margin-top:6px">Approving makes the player a free agent. If they were the manager, pick a new one under Teams &amp; players.</p></section>
-          <section><div class="section-head"><h2>Profile claims</h2></div><div class="panel flush rows">${claims || empty('No claims waiting.')}</div>
-            <p class="muted small" style="margin-top:6px">Check on Discord that it’s really them before approving: they get that profile’s stats.</p></section>
+          ${(() => {
+            const n = (html) => (html.match(/class="row[ "]/g) ?? []).length;
+            const blocks = [
+              ['🛠', 'Result fixes', fixRows, 'Open one to use the new score. “Done” closes it without changes.'],
+              ['⚖️', 'Scores the teams disagree on', disputeRows, 'Check both votes and screenshots, then enter the right score.'],
+              ['🆕', 'New clubs', teams, 'Approving makes the founder the manager and sends their invites.'],
+              ['🪪', 'Profile claims', claims, 'Check on Discord it’s really them: they get that profile’s stats.'],
+              ['🚪', 'Leave requests', leaves, 'Approving makes the player a free agent.'],
+              ['📸', 'Stats to check', statsRows, 'Quicker in bulk on the “Stats to check” page.'],
+            ].filter(([, , rows]) => rows);
+            if (!blocks.length) return '<p class="panel all-clear">✨ All caught up. No result fixes, disputes, new clubs, claims or leave requests waiting.</p>';
+            return blocks.map(([icon, title, rows, tip]) => `
+          <section>
+            <div class="section-head"><h2>${icon} ${title} <span class="adm-count">${n(rows) || ''}</span></h2><span class="muted small">${tip}</span></div>
+            <div class="panel flush rows">${rows}</div>
+          </section>`).join('');
+          })()}
           <p class="form-error" role="alert" hidden></p>
         </div>
       </div>`,

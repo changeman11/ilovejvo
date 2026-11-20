@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Rest of the admin pages tidied · site DEPLOYED (sw v96)
+- Requests: only sections with something waiting, with counts and a one-line tip; one "All caught up" card otherwise. Home Quick jobs: new night / tournament / add club / add player (sidebar covers the rest). Clubs & players: live search, disbanded/rejected clubs folded away, club name on player rows, "Move older pictures" moved into a Maintenance fold at the bottom. Discord bot: tabs (Pickup / Match threads / Quick fixes / Settings, `?tab=`). Stats to check, Characters: short headings. Help pages: warns when a saved own copy hides new built-in answers, with "Use the site's latest text" (saves an empty body = built-in text).
+- Not done yet: admin guide wording for these pages (bot tabs, Help pages reset), result entry page (result.js) not reviewed.
+
 ### 2026-11-21 · Claude (owner's PC) · Admin UI made for people; launch reset in #transfer-news · site DEPLOYED (sw v95)
 - Owner: the admin UI "is made for an AI to use". Now: **admin workspace** (`body.admin-mode`, set in app.js for section '/admin') hides the side menu, chat dock, featured/trophy cards, live pill, ticker and player bar, and uses up to 1320 px; the admin menu (`adminBar` in gate.js) is a sidebar on desktop (≥1000 px) and one swipeable row on phones, with plain names (Stats to check, Clubs & players, Discord bot, Help pages, How-to guide) and "← Back to the site".
 - **Event form** (event-edit.js `detailsHtml`/`flowConfigHtml`): sections Basics / When / Format / Sign-ups / Match night / Event page with a jump bar, short checkbox labels with one-line hints, long explanations under "How it works", Published/Featured/Status moved to Basics, "Save" bar. Field names unchanged (save tested locally). "Rule config" links now say "Change".

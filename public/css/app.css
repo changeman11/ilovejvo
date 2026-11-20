@@ -2027,3 +2027,13 @@ body.admin-mode .save-bar, body.admin-mode.has-reel .save-bar { bottom: calc(var
 .adm-how p { margin: 6px 0 0; }
 .save-bar .adm-delete { margin-left: auto; }
 @media (max-width: 600px) { .adm-jump { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; border-radius: 12px; } .adm-jump a { flex: none; } }
+/* Admin pages tidy-up (2026-11-21) */
+.adm-count { display: inline-grid; place-items: center; min-width: 1.6em; padding: 0 6px; margin-left: 4px; border-radius: 999px; background: var(--coral, #ff6b57); color: #fff; font: 800 14px/1.6 var(--font-body); vertical-align: middle; }
+.adm-count:empty { display: none; }
+.adm-tabs { margin: 4px 0 12px; }
+.adm-find { margin-bottom: 14px; }
+.adm-old { margin-top: 10px; }
+.adm-old > summary, .adm-maint > summary { cursor: pointer; font-weight: 700; padding: 6px 2px; }
+.adm-old .rows { margin-top: 6px; opacity: 0.85; }
+.adm-maint { margin-top: 20px; }
+.adm-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--tint-coral); }

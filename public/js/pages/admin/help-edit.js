@@ -29,17 +29,22 @@ export async function render() {
   const tab = new URLSearchParams(location.search).get('tab') === 'rules' ? 'rules' : 'faq';
   const doc = await loadSetting(tab, { fresh: true, admin: true });
   page = { tab, doc, user: gate.user };
-  const text = doc?.body ?? (tab === 'rules' ? DEFAULT_RULES : DEFAULT_FAQ);
+  // An empty saved body means "use the site's built-in text" (it updates with the site).
+  const custom = Boolean(doc?.body?.trim());
+  const text = custom ? doc.body : (tab === 'rules' ? DEFAULT_RULES : DEFAULT_FAQ);
   const help = tab === 'rules'
     ? '<code># Heading</code> · <code>- bullet</code> · <code>1. numbered</code> · <code>**bold**</code> · <code>[link](https://…)</code> · blank line = new paragraph'
     : '<code># Group heading</code> · <code>## A question</code> with its answer on the lines under it · <code>**bold**</code> · <code>- bullet</code> · <code>[link](https://…)</code>';
 
   return {
-    title: 'FAQ & rules',
+    title: 'Help pages',
     html: `
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/help')}
-        <div class="page-head"><div><h1>FAQ &amp; rules</h1><p class="muted">Shown to everyone at <a href="/help${tab === 'rules' ? '?tab=rules' : ''}" data-link>/help</a>.${doc ? '' : ' This is the starter text: save it to make it yours.'}</p></div></div>
+        <div class="page-head"><div><h1>📜 Help pages</h1><p class="muted">What players see at <a href="/help${tab === 'rules' ? '?tab=rules' : ''}" data-link>/help</a>. The Roles tab updates with the site.</p></div></div>
+        ${custom
+          ? `<div class="panel adm-warn"><b>You’re using your own copy.</b> New answers added with site updates won’t show until you switch back. <button class="btn btn-sm" type="button" data-reset-help>Use the site’s latest text</button></div>`
+          : '<p class="panel muted small">✅ Showing the site’s built-in text, which updates with every site change. Saving here makes your own copy.</p>'}
         <nav class="chips">
           <a class="chip-link" href="/admin/help" data-link${tab === 'faq' ? ' aria-current="true"' : ''}>FAQ</a>
           <a class="chip-link" href="/admin/help?tab=rules" data-link${tab === 'rules' ? ' aria-current="true"' : ''}>Rules</a>
@@ -64,6 +69,17 @@ export function mount(el) {
   if (!form || !page) return;
   const box = el.querySelector('[data-preview]');
   form.body.addEventListener('input', () => { box.innerHTML = preview(page.tab, form.body.value); });
+  el.querySelector('[data-reset-help]')?.addEventListener('click', async (e) => {
+    if (!window.confirm('Switch back to the site’s built-in text? Your own edits on this tab are replaced (copy anything you want to keep first).')) return;
+    e.target.disabled = true;
+    try {
+      await saveSetting({ uid: page.user.uid, id: page.tab, existing: page.doc, data: { body: '' } });
+      refresh();
+    } catch (err) {
+      console.error(err);
+      e.target.disabled = false;
+    }
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('[type=submit]');

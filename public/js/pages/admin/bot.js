@@ -120,9 +120,14 @@ const ago = (ms) => {
   return h < 48 ? `${h} h ago` : fmtDay(ms);
 };
 
+// The page's tabs (2026-11-21): live pickup | match threads | quick fixes | settings.
+const BOT_TABS = [['live', '🏐 Pickup'], ['threads', '🧵 Match threads'], ['actions', '⚡ Quick fixes'], ['settings', '⚙️ Settings']];
+
 export async function render() {
   const gate = await adminGate();
   if (gate.html) return { title: 'Admin sign-in', html: `<div class="admin-root">${gate.html}</div>` };
+  const asked = new URLSearchParams(location.search).get('tab');
+  const tab = BOT_TABS.some(([k]) => k === asked) ? asked : 'live';
   const [status, settings, commands, events, live, games] = await Promise.all([
     loadBotStatus(), loadBotSettings(), loadBotCommands(), loadAllEvents(), loadPickupLive(), loadPickupGames(25).catch(() => []),
   ]);
@@ -203,23 +208,24 @@ export async function render() {
     </div>`).join('');
 
   return {
-    title: 'Bot',
+    title: 'Discord bot',
     html: `
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/bot')}
-        <div class="page-head"><div><h1>🤖 Bot control panel</h1><p class="muted">Run the I&lt;3JVO Discord bot from here: what’s on, how long things take, and quick fixes.</p></div></div>
+        <div class="page-head"><div><h1>🤖 Discord bot</h1></div></div>
+        ${statusHtml}
+        <nav class="chips adm-tabs" aria-label="Bot sections">${BOT_TABS.map(([k, label]) => `<a class="chip-link" href="/admin/bot${k === 'live' ? '' : `?tab=${k}`}" data-link data-keep-scroll${k === tab ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
         <div class="stack">
-          ${statusHtml}
-          ${pickupSection(live, games, online)}
-          <section><div class="section-head"><h2>🧵 Match threads by event</h2><span class="muted small">Players report scores in these with a form</span></div>
+          ${tab === 'live' ? pickupSection(live, games, online) : ''}
+          ${tab === 'threads' ? `<section><div class="section-head"><h2>🧵 Match threads</h2><span class="muted small">One thread per match, where players report the score</span></div>
             <div class="panel flush rows">${eventRows || '<p class="muted" style="padding:16px">No events yet.</p>'}</div>
-            <p class="muted small" style="margin-top:6px">“Threads on” lets the bot open a thread for each match once it starts. “Clear threads” deletes that event’s threads from Discord (scores and stats on the site stay), so the channel is clean for the next event.</p></section>
-          <section><div class="section-head"><h2>⚡ Quick actions</h2></div>
+            <details class="adm-how"><summary>How it works</summary><p>“Threads on” lets the bot open a thread for each match once it starts. “Clear threads” deletes that event’s threads from Discord (scores and stats on the site stay), so the channel is clean for the next event.</p></details></section>` : ''}
+          ${tab === 'actions' ? `<section><div class="section-head"><h2>⚡ Quick fixes</h2></div>
             <div class="panel stack">${ACTIONS.map(([k, label, hint]) => `<div class="bot-action"><button class="btn${k === 'restart' ? ' btn-danger' : ''}" type="button" data-act="${k}">${label}</button><span class="muted small">${esc(hint)}</span></div>`).join('')}</div></section>
           <section><div class="section-head"><h2>📜 Recent actions</h2>${recent.length ? '<button class="link-btn" type="button" data-clear-log>Clear list</button>' : ''}</div>
-            <div class="panel flush rows">${log || '<p class="muted" style="padding:16px">Nothing yet. Actions you press show here with what the bot did.</p>'}</div></section>
-          <section><div class="section-head"><h2>🔌 Switches</h2></div>${status ? switches : '<p class="panel muted">The switches show here once the bot has checked in (so they start from what it’s really running).</p>'}</section>
-          <section><div class="section-head"><h2>⏱️ Timings</h2></div>${timings}</section>
+            <div class="panel flush rows">${log || '<p class="muted" style="padding:16px">Nothing yet. Actions you press show here with what the bot did.</p>'}</div></section>` : ''}
+          ${tab === 'settings' ? `<section><div class="section-head"><h2>🔌 Switches</h2></div>${status ? switches : '<p class="panel muted">The switches show here once the bot has checked in (so they start from what it’s really running).</p>'}</section>
+          <section><div class="section-head"><h2>⏱️ Timings</h2></div>${timings}</section>` : ''}
           <p class="form-error" role="alert" data-global hidden></p>
         </div>
       </div>`,

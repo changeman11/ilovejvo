@@ -24,7 +24,7 @@ import { esc, skeleton, teamDot, urls } from '../../ui.js';
 import { refresh } from '../../nav.js';
 import { adminGate, adminBar, bindAuthActions } from './gate.js';
 
-export const title = 'Stats to publish';
+export const title = 'Stats to check';
 
 export function loading() {
   return skeleton([50, 240, 240]);
@@ -150,13 +150,13 @@ export async function render() {
       <div class="stack">${list.map(([it, i]) => card(it, i)).join('')}</div>`;
   }).join('');
   return {
-    title: 'Stats to publish',
+    title: 'Stats to check',
     html: `
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/stats')}
         <div class="page-head">
-          <div><h1>Stats to publish</h1>
-            <p class="muted">The bot reads each match’s end-of-match screenshot. Clean matches publish in one click; anything unusual is flagged 🚩 for a look first. Numbers changed by captains or players are always flagged.</p></div>
+          <div><h1>📸 Stats to check</h1>
+            <p class="muted">Read from end-of-match screenshots. Clean ones publish in one click; 🚩 ones need a look first.</p></div>
         </div>
         ${items.length ? `<p class="small sl-msg" role="status">${clean ? '' : 'Nothing is ready to publish in one go right now.'}</p>${sections}`
           : '<section class="panel"><p class="muted" style="margin:0">Nothing waiting. Matches show up here once their score is in.</p></section>'}

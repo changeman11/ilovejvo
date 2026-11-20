@@ -75,10 +75,8 @@ export async function render() {
   const quick = [
     ['/admin/event/new?type=exhibition', '➕', 'New exhibition night', 'btn-primary'],
     ['/admin/event/new?type=tournament', '🏆', 'New tournament', ''],
-    ['/admin/people', '👥', 'Edit a team or player', ''],
-    ['/admin/bot', '🤖', 'Bot control panel', ''],
-    ['/admin/help', '📜', 'Edit the FAQ & rules', ''],
-    ['/admin/guide', '📘', 'Admin guide: how to do everything', ''],
+    ['/admin/people?edit=team:new', '👥', 'Add a club', ''],
+    ['/admin/people?edit=player:new', '🙋', 'Add a player', ''],
   ];
 
   const row = (e) => `

@@ -130,16 +130,20 @@ export async function render() {
       </div>
     </section>` : '';
 
-  const teamRows = teams.map((t) => `
-    <a class="row" href="/admin/people?edit=team:${encodeURIComponent(t.id)}" data-link data-keep-scroll>
+  const teamRow = (t) => `
+    <a class="row" data-find="${esc(`${t.name} ${t.shortName ?? ''}`.toLowerCase())}" href="/admin/people?edit=team:${encodeURIComponent(t.id)}" data-link data-keep-scroll>
       <span class="row-main"><b><span class="team">${teamDot(t)}${esc(t.name)}</span></b></span>
       <span class="row-side">${t.status === 'pending' ? '<span class="tag tag-draft">Waiting</span>' : t.status === 'rejected' ? '<span class="tag tag-cancelled">Rejected</span>' : ''}<span class="muted small">${esc(t.shortName ?? '')} · ${people.players.filter((p) => p.teamId === t.id).length} players</span></span>
     </a>
-    ${kind === 'team' && id === t.id ? teamForm(t) : ''}`).join('');
+    ${kind === 'team' && id === t.id ? teamForm(t) : ''}`;
+  const gone = (t) => ['disbanded', 'rejected'].includes(t.status);
+  const teamRows = teams.filter((t) => !gone(t)).map(teamRow).join('');
+  const oldTeams = teams.filter(gone);
+  const oldTeamRows = oldTeams.map(teamRow).join('');
 
   const playerRows = players.map((p) => `
-    <a class="row" href="/admin/people?edit=player:${encodeURIComponent(p.id)}" data-link data-keep-scroll>
-      <span class="row-main"><b>${esc(p.displayName)}${staffTag(p, { label: true })}</b></span>
+    <a class="row" data-find="${esc(`${p.displayName} ${(p.gameNames ?? []).join(' ')} ${people.teamsById[p.teamId]?.name ?? ''}`.toLowerCase())}" href="/admin/people?edit=player:${encodeURIComponent(p.id)}" data-link data-keep-scroll>
+      <span class="row-main"><b>${esc(p.displayName)}${staffTag(p, { label: true })}</b>${p.teamId && people.teamsById[p.teamId] && !gone(people.teamsById[p.teamId]) ? `<span class="muted small">${esc(people.teamsById[p.teamId].name)}</span>` : ''}</span>
       <span class="row-side">${p.number != null ? `<span class="muted small">#${esc(p.number)}</span>` : ''}${p.active === false ? '<span class="tag">Inactive</span>' : ''}</span>
     </a>
     ${kind === 'player' && id === p.id ? playerForm(p) : ''}`).join('');
@@ -149,22 +153,19 @@ export async function render() {
     html: `
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/people')}
-        <div class="page-head"><div><h1>Teams &amp; players</h1><p class="muted">Shared by every event, so player stats add up across all of them.</p></div></div>
+        <div class="page-head"><div><h1>👥 Clubs &amp; players</h1><p class="muted">Tap a name to edit it.</p></div></div>
+        <form class="stats-search adm-find" role="search" onsubmit="return false"><span aria-hidden="true">🔎</span><input type="search" placeholder="Find a club or player (name, in-game name, club)" autocomplete="off" data-adm-find aria-label="Find a club or player"></form>
         ${launchBlock(people, snapshot)}
-        <section class="panel" style="margin-bottom:20px" data-migrate>
-          <h3>Move older pictures to Firebase</h3>
-          <p class="muted small" style="margin:4px 0 10px">Pictures uploaded before 22 Oct were kept on Cloudflare. They still show, but press this once to copy them into Firebase Storage. It skips anything already moved, so pressing it twice is fine.</p>
-          <button type="button" class="btn btn-primary btn-sm" data-act="migrate-images">Move images (${allImagePaths(people).length})</button>
-          <p class="small migrate-status" aria-live="polite" style="margin-top:8px"></p>
-        </section>
+
         ${recentBlock}
         <div class="cols">
           <section>
             <div class="section-head"><h2>Teams</h2><a href="/admin/people?edit=team:new" data-link data-keep-scroll>+ Add team</a></div>
             <div class="panel flush rows">
               ${kind === 'team' && id === 'new' ? teamForm(null) : ''}
-              ${teamRows || '<p class="muted" style="padding:16px">No teams yet.</p>'}
+              ${teamRows || '<p class="muted" style="padding:16px">No active clubs.</p>'}
             </div>
+            ${oldTeams.length ? `<details class="adm-old"${kind === 'team' && oldTeams.some((t) => t.id === id) ? ' open' : ''}><summary>Disbanded and rejected clubs (${oldTeams.length})</summary><div class="panel flush rows">${oldTeamRows}</div></details>` : ''}
           </section>
           <section>
             <div class="section-head"><h2>Players</h2><a href="/admin/people?edit=player:new" data-link data-keep-scroll>+ Add player</a></div>
@@ -174,6 +175,14 @@ export async function render() {
             </div>
           </section>
         </div>
+        <details class="panel adm-maint"><summary><b>🧰 Maintenance</b> <span class="muted small">rarely needed</span></summary>
+        <section style="margin:10px 0 0" data-migrate>
+          <h3>Move older pictures to Firebase</h3>
+          <p class="muted small" style="margin:4px 0 10px">Pictures uploaded before 22 Oct were kept on Cloudflare. They still show, but press this once to copy them into Firebase Storage. It skips anything already moved, so pressing it twice is fine.</p>
+          <button type="button" class="btn btn-primary btn-sm" data-act="migrate-images">Move images (${allImagePaths(people).length})</button>
+          <p class="small migrate-status" aria-live="polite" style="margin-top:8px"></p>
+        </section>
+        </details>
       </div>`,
   };
 }
@@ -190,6 +199,13 @@ export function mount(el) {
   bindAuthActions(root);
   const uid = page?.user?.uid;
   if (!uid) return;
+  // Find a club or player: hides rows that don't match (and opens the disbanded list if needed).
+  root.querySelector('[data-adm-find]')?.addEventListener('input', (e) => {
+    const words = e.target.value.trim().toLowerCase().split(/s+/).filter(Boolean);
+    for (const row of root.querySelectorAll('[data-find]')) row.hidden = !words.every((w) => row.dataset.find.includes(w));
+    const old = root.querySelector('.adm-old');
+    if (old && words.length) old.open = [...old.querySelectorAll('[data-find]')].some((r) => !r.hidden);
+  });
   // Launch reset: save the line-ups, then clear every club (type CONFIRM).
   root.querySelector('[data-launch-clear]')?.addEventListener('click', async (e) => {
     const b = e.currentTarget;
