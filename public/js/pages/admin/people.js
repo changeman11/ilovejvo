@@ -150,13 +150,13 @@ export async function render() {
       <div class="admin-root">
         ${adminBar(gate.user, gate.admin, '/admin/people')}
         <div class="page-head"><div><h1>Teams &amp; players</h1><p class="muted">Shared by every event, so player stats add up across all of them.</p></div></div>
+        ${launchBlock(people, snapshot)}
         <section class="panel" style="margin-bottom:20px" data-migrate>
           <h3>Move older pictures to Firebase</h3>
           <p class="muted small" style="margin:4px 0 10px">Pictures uploaded before 22 Oct were kept on Cloudflare. They still show, but press this once to copy them into Firebase Storage. It skips anything already moved, so pressing it twice is fine.</p>
           <button type="button" class="btn btn-primary btn-sm" data-act="migrate-images">Move images (${allImagePaths(people).length})</button>
           <p class="small migrate-status" aria-live="polite" style="margin-top:8px"></p>
         </section>
-        ${launchBlock(people, snapshot)}
         ${recentBlock}
         <div class="cols">
           <section>
@@ -346,7 +346,7 @@ function launchBlock(people, snapshot) {
   if (!clubs) return snapshot?.teams?.length ? `<p class="panel muted small" style="margin-bottom:20px">🚀 Launch reset done: ${snapshot.teams.length} line-ups saved in <a href="/teams?view=prelaunch" data-link>Pre-launch line-ups</a>.</p>` : '';
   const inClubs = people.players.filter((p) => p.teamId).length;
   return `
-    <section class="panel launch-reset" style="margin-bottom:20px">
+    <section class="panel launch-reset" id="launch-reset" style="margin-bottom:20px">
       <h2 style="margin-top:0">🚀 Launch reset: clear all clubs</h2>
       <p class="small">Saves every club's line-up as it stands (shown to everyone in <b>Teams &amp; players → Pre-launch line-ups</b>), then disbands all <b>${clubs}</b> clubs and makes all <b>${inClubs}</b> players free agents, so everyone starts fresh. Results keep their club names. Club names can be registered again.</p>
       <button class="btn btn-danger" type="button" data-launch-clear>Save line-ups and clear all clubs</button>

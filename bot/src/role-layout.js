@@ -56,6 +56,9 @@ export class RoleLayout {
     const awardIds = [];
     for (let place = 1; place <= 3; place++) for (const s of STAT_ROLE_STATS) if (statMap[roleKey(s.key, place)]) awardIds.push(statMap[roleKey(s.key, place)]);
     const captainId = this.store.getMeta('captainRole') ?? null;
+    // The 🏆 Pre-launch Champion role heads the AWARDS section.
+    const championId = this.store.getMeta('championRole') ?? null;
+    if (championId) awardIds.unshift(championId);
     const { roles, botTop } = await this.io.positions();
     // Clubs keep their current order among themselves.
     const clubsSorted = clubIds.filter((id) => roles.has(id)).sort((a, b) => roles.get(b).position - roles.get(a).position);

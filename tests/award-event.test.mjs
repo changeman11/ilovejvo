@@ -44,3 +44,21 @@ test('pre-launch events are archived: no awards or live stats from them', () => 
   assert.deepEqual(liveBundles([old, tbd]).map((b) => b.event.id), ['tbd']);
   assert.deepEqual(preLaunchBundles([old, tbd]).map((b) => b.event.id), ['old']);
 });
+
+test('champions: the winning team’s players (stat lines + roster), pre-launch marked', async () => {
+  const { eventChampions, allChampions, titlesOf } = await import('../public/js/rules/champions.js');
+  const b = {
+    event: { id: 'cup', title: 'Cup', published: true, date: LAUNCH_AT - 5000 },
+    fixtures: [{ id: 'm1', homeTeamId: 'A', awayTeamId: 'B' }],
+    results: { m1: { sets: [{ home: 10, away: 5 }, { home: 10, away: 6 }], playerStats: { a1: { teamId: 'A' }, a2: { teamId: 'A' }, b1: { teamId: 'B' } } } },
+    teams: [{ id: 'A' }, { id: 'B' }],
+    rosters: { A: { playerIds: ['a3'] } },
+  };
+  b.season = (await import('../public/js/rules/award-event.js')).seasonOf(b.event);
+  const c = eventChampions(b);
+  assert.equal(c.teamId, 'A');
+  assert.deepEqual(c.playerIds, ['a1', 'a2', 'a3']);
+  assert.equal(c.preLaunch, true);
+  assert.equal(titlesOf(allChampions([b]), 'a2').length, 1);
+  assert.equal(titlesOf(allChampions([b]), 'b1').length, 0);
+});

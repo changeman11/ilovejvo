@@ -78,12 +78,13 @@ Each stat has a 🥇 1st, 🥈 2nd and 🥉 3rd place, worked out from the **las
 - **Club role:** your club's name in its colour, so teammates share a name colour.
 - **Captain:** every club manager.
 - **Award roles:** your current 🥇 1st places.
+- **🏆 Pre-launch Champion:** you won an event before the game launched.
 - **Divider roles (━ TEAM ━ / ━ AWARDS ━):** just split your roles into sections on your profile.
 - **Staff:** the JVO team, who are also admins on the site.
 More in the **Roles** tab.
 
 ## Where are trophies shown?
-Event winners go in the club's **🏆 Trophy cabinet** on its page, and the latest champions show on the right of every page.
+Event winners go in the club's **🏆 Trophy cabinet** on its page, and the latest champions show on the right of every page. Every player who played for the winning team gets a **🏆 Honours** entry on their profile. Winners of pre-launch events also get the **🏆 Pre-launch Champion** role on Discord.
 
 # Pickup games
 ## What is pickup?

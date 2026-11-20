@@ -161,3 +161,33 @@ test('launch reset: ratings archived in one doc, then deleted, once', async () =
   assert.equal(st.rating('1').rating, 1000, 'back to the start rating');
   assert.equal(await st.resetRatings('pickupMeta/prelaunchElo', 'launch'), 0, 'only once');
 });
+
+test('🏆 Pre-launch Champion role goes to the pre-launch winners', async () => {
+  const { StatRoles, CHAMPION_ROLE } = await import('../src/stat-roles.js');
+  const roleList = new Map();
+  const members = new Map([['111111111111111111', new Set()], ['222222222222222222', new Set()]]);
+  let n = 0;
+  const io = {
+    async roles() { return new Map(roleList); },
+    async createRole(r) { const id = `r${++n}`; roleList.set(id, r); return id; },
+    async editRole(id, r) { roleList.set(id, r); },
+    async deleteRole(id) { roleList.delete(id); },
+    async addRole(u, r) { members.get(u).add(r); },
+    async removeRole(u, r) { members.get(u).delete(r); },
+  };
+  const site = {
+    async query() { return [{ id: 'cup', data: { published: true, date: 1000, title: 'Cup' } }]; },
+    async list(path) {
+      if (path === 'players') return [{ id: 'w', data: { discordId: '111111111111111111' } }, { id: 'l', data: { discordId: '222222222222222222' } }];
+      if (path.endsWith('/fixtures')) return [{ id: 'm1', data: { homeTeamId: 'A', awayTeamId: 'B' } }];
+      if (path.endsWith('/results')) return [{ id: 'm1', data: { sets: [{ home: 10, away: 5 }, { home: 10, away: 6 }], playerStats: { w: { teamId: 'A', pts: 3 }, l: { teamId: 'B', pts: 1 } } } }];
+      return [];
+    },
+  };
+  const store = new FileStore();
+  await new StatRoles({ io, site, store, config: { statRolesMinutes: 30, statRolesTop: 1 }, log: quiet }).sync();
+  const champ = store.getMeta('championRole');
+  assert.equal(roleList.get(champ).name, CHAMPION_ROLE);
+  assert.ok(members.get('111111111111111111').has(champ));
+  assert.ok(!members.get('222222222222222222').has(champ));
+});

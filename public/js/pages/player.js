@@ -8,6 +8,7 @@ import { playerBadges, playerXp, levelFor } from '../rules/badges.js';
 import { statHeads, statCells, allFixtures, resultOf, fixtureRow } from './parts.js';
 import { careerStats, statDefsFor } from './career.js';
 import { liveBundles, preLaunchBundles, PRE_LAUNCH_LABEL } from '../rules/eras.js';
+import { allChampions, titlesOf } from '../rules/champions.js';
 import { profileShell, showcaseTiles, badgesBlock, aboutBlock, sideBlock } from './profile-parts.js';
 import { commentsBlock, mountComments } from './comments.js';
 
@@ -31,6 +32,8 @@ export async function render({ playerId }) {
   // Live career from launch day; pre-launch numbers are shown separately (rules/eras.js).
   const career = careerStats(liveBundles(bundles)).get(playerId) ?? null;
   const pre = careerStats(preLaunchBundles(bundles)).get(playerId) ?? null;
+  // Event titles this player won (rules/champions.js), pre-launch ones marked.
+  const honours = titlesOf(allChampions(bundles), playerId);
   const current = player.teamId ? people.teamsById[player.teamId] : null;
   const team = isApprovedTeam(current) ? current : null;
   const lvl = levelFor(playerXp(career));
@@ -116,6 +119,7 @@ export async function render({ playerId }) {
     ${await commentsBlock({ kind: 'player', targetId: player.id, ownerUid: player.uid ?? null })}`;
 
   const side = `
+    ${honours.length ? sideBlock('🏆 Honours', `<ul class="honours">${honours.map((h) => `<li class="${h.preLaunch ? 'pre' : ''}"><a href="${urls.event(h.eventId)}" data-link><span class="hon-cup" aria-hidden="true">🏆</span><span><b>${h.preLaunch ? 'Pre-launch champion' : 'Champion'}</b><small>${esc(h.title)}${people.teamsById[h.teamId] ? ` · with ${esc(people.teamsById[h.teamId].name)}` : ''}</small></span></a></li>`).join('')}</ul>`) : ''}
     ${sideBlock('Badges', badgesBlock(playerBadges(career, defs), 'Badges are earned by playing matches.'))}
     ${team ? sideBlock('Team', `<p class="pro-team">${teamLink(team, { size: 'lg' })}</p>`) : ''}
     ${pickup ? sideBlock('Pickup', pickupBlock(pickup)) : ''}

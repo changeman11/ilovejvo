@@ -20,8 +20,13 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Pre-launch champions: profile Honours + Discord role · site DEPLOYED (sw v94), bot UPLOADED
+- `public/js/rules/champions.js` (shared with the bot, tested): an event's champions = players with a stat line for the 1st-place team (rules/podium.js) or on its event roster. Pre-launch winners: Chikchester City (DEMO EXHIBITION NIGHT: spec, xing, zuza, AOE Salmonella) and Unprotected Sets (3v3 elimination tournament: zapdis, Spoody, d wataa).
+- Player pages: "🏆 Honours" side card for every event they won (pre-launch ones say "Pre-launch champion").
+- Bot (stat-roles.js `syncChampions`, tested): "🏆 Pre-launch Champion" role (no colour, meta `championRole` / `championHolders`), given to all 7; role-layout puts it at the top of the AWARDS section. The hand-made "🥇Playtest Champion" role is untouched.
+
 ### 2026-11-21 · Claude (owner's PC) · Launch club reset (button) + Pre-launch line-ups + launch announcement · site DEPLOYED (sw v92)
-- /admin/people: "🚀 Launch reset: clear all clubs" (type CONFIRM). `launchClearClubs` in admin-data.js saves `settings/prelaunchLineups` (every approved club: name, colours, logo, manager, players) once, then disbands every approved club (kept for results; names reusable) and sets every player's teamId to null. No per-player transfer news. **Waiting for the owner to press it** (needs an admin sign-in).
+- /admin/people: "🚀 Launch reset: clear all clubs" (type CONFIRM). `launchClearClubs` in admin-data.js saves `settings/prelaunchLineups` (every approved club: name, colours, logo, manager, players) once, then disbands every approved club (kept for results; names reusable) and sets every player's teamId to null. No per-player transfer news. **Pressed by the owner 2026-11-21:** 25 line-ups (93 players) saved, all clubs disbanded; the bot removed the club roles and Captain from everyone. Admin home also shows a big 🚀 card linking to it while any club is active.
 - /teams?view=prelaunch: "🧪 Pre-launch line-ups" chip (only once the snapshot exists): team cards with the saved line-ups (current pictures), no join buttons.
 - Launch announcement posted in #i-love-jvowebapp (fresh start, new Stats page, FAQ/Roles, Discord colours/sections, 1st-only awards, #transfer-news, pickup AFK).
 

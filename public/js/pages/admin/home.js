@@ -2,7 +2,7 @@
 // every event (drafts included). Reworked 2026-10-25 to be friendlier: each to-do says what it is,
 // how many, and where to go, instead of admins having to know which page holds what.
 
-import { loadAllEvents, loadAllBundles, loadRequests, loadCharacters } from '../../data.js';
+import { loadAllEvents, loadAllBundles, loadRequests, loadCharacters, loadPeople } from '../../data.js';
 import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents } from '../../rules/events.js';
 import { tallyVotes } from '../../rules/votes.js';
 import { fixPending } from '../../rules/corrections.js';
@@ -36,6 +36,9 @@ export async function render() {
     loadRequests().catch(() => ({ pendingTeams: [], leaves: [], claims: [] })),
     loadCharacters({ admin: true }).catch(() => ({ all: [] })),
   ]);
+  // Launch reset still to do: clubs are active (button on /admin/people).
+  const activeClubs = (await loadPeople({ fresh: true, admin: true }).catch(() => ({ teams: [] }))).teams
+    .filter((t) => (t.status ?? 'approved') === 'approved' && !t.mix).length;
   const { upcoming, past } = sortEvents(events);
   const now = Date.now();
   const waiting = bundles.flatMap((b) => b.fixtures
@@ -98,6 +101,7 @@ export async function render() {
           <div><h1>Hi ${esc(name)} 👋</h1><p class="muted">${todo.length ? `${plural(todo.length, 'thing needs', 'things need')} you. Tap one to deal with it.` : 'Here’s everything you look after.'}</p></div>
         </div>
         <div class="stack">
+          ${activeClubs ? `<a class="panel launch-reset launch-cta" href="/admin/people#launch-reset" data-link><b>🚀 Launch reset: clear all ${activeClubs} clubs</b><span class="small">Saves every club's line-up, then makes everyone a free agent. Tap to open the button.</span></a>` : ''}
           <section>
             <div class="section-head"><h2>Needs you</h2></div>
             ${todoHtml}

@@ -10,6 +10,11 @@
 // the 1st place one, renamed. It never touches any other role.
 // roleIo: the same as club roles (discord-io.js).
 import { awardEvent, seasonOf } from './site-rules/award-event.js';
+import { allChampions } from './site-rules/champions.js';
+
+// The role for players who won a pre-launch event (added 2026-11-21). No colour, so names keep
+// the club colour; it sits at the top of the AWARDS section (role-layout.js).
+export const CHAMPION_ROLE = '🏆 Pre-launch Champion';
 import { STAT_ROLE_STATS, STAT_ROLE_LOOK, PLACE_MEDAL, statRoleName, statRoleStyle, roleKey, statTotals, wantedHolders, planHolders } from './logic/stat-roles.js';
 
 // Old single-role keys ("pts") move to the 1st place key ("pts:1").
@@ -133,6 +138,39 @@ export class StatRoles {
     }
     if (JSON.stringify(holders) !== JSON.stringify(this.store.getMeta('statRoleHolders') ?? {})) await this.store.setMeta('statRoleHolders', holders);
     if (made || added || removed) this.log.info?.(`[stat roles] ${made} roles made, ${added} given, ${removed} taken away`);
+    if (this.config.championRole !== false) await this.syncChampions(bundles, players, existing).catch((err) => this.log.warn('[stat roles] champions:', err.message));
     return { made, added, removed };
+  }
+
+  // 🏆 Pre-launch Champion: everyone who played for the winning team of a pre-launch event.
+  // Remembered as championRole = roleId and championHolders = [discordIds].
+  async syncChampions(bundles, players, existing) {
+    const want = new Set();
+    for (const c of allChampions(bundles).filter((x) => x.preLaunch)) {
+      for (const pid of c.playerIds) {
+        const id = String(players.get(pid)?.discordId ?? '');
+        if (/^\d{15,22}$/.test(id)) want.add(id);
+      }
+    }
+    let roleId = this.store.getMeta('championRole') ?? null;
+    if (roleId && !existing.has(roleId)) roleId = null;
+    if (!roleId) {
+      if (!want.size) return;
+      roleId = await this.io.createRole({ name: CHAMPION_ROLE, color: 0, hoist: false });
+      await this.store.setMeta('championRole', roleId);
+      await this.store.setMeta('championHolders', []);
+    } else if (existing.get(roleId).name !== CHAMPION_ROLE) {
+      await this.io.editRole(roleId, { name: CHAMPION_ROLE, color: 0, hoist: false });
+    }
+    const had = new Set(this.store.getMeta('championHolders') ?? []);
+    const now = new Set();
+    let given = 0;
+    for (const id of had) if (!want.has(id)) await this.io.removeRole(id, roleId).catch(() => {});
+    for (const id of want) {
+      if (had.has(id)) { now.add(id); continue; }
+      try { await this.io.addRole(id, roleId); now.add(id); given++; } catch (err) { if (!/Unknown (Member|User)/i.test(err.message)) this.log.warn('[stat roles]', err.message); }
+    }
+    if (JSON.stringify([...now].sort()) !== JSON.stringify([...had].sort())) await this.store.setMeta('championHolders', [...now].sort());
+    if (given) this.log.info?.(`[stat roles] ${CHAMPION_ROLE}: given to ${given}`);
   }
 }

@@ -1964,3 +1964,14 @@ a.eb-match:hover { border-color: var(--yellow); }
 .fresh-start h2 { margin-top: 0; }
 .reel-note { margin-left: 6px; font-style: italic; opacity: 0.85; quotes: '“' '”'; }
 .pk-pre-h { margin: 12px 0 6px; font: 600 16px var(--font-head); }
+.launch-reset { border-color: #e2483a; background: var(--tint-coral); }
+.launch-cta { display: grid; gap: 4px; text-decoration: none; color: var(--ink); }
+.launch-cta b { font: 600 20px/1.2 var(--font-head); }
+
+/* Honours on player pages (2026-11-21): events they won */
+.honours { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.honours a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: var(--outline); border-radius: 12px; text-decoration: none; color: var(--ink); background: linear-gradient(135deg, #fff3b0, #ffd34d); box-shadow: 0 3px 0 var(--ink); }
+.honours li.pre a { background: linear-gradient(135deg, #efe6ff, #ffd34d); }
+.honours .hon-cup { font-size: 26px; }
+.honours span { display: grid; line-height: 1.2; }
+.honours small { font-size: 12px; opacity: 0.8; }
