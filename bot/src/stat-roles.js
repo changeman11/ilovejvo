@@ -39,8 +39,8 @@ export class StatRoles {
 
   async syncNow() {
     // Every published event's results, and every player (for their Discord ID).
-    // Since 2026-10-26 the awards come from one event: the last completed one (site-rules/award-event.js),
-    // held until the next event completes.
+    // The awards come from one event: the last one with stats (site-rules/award-event.js); when a
+    // newer event gets its first stats, everyone's award roles move to that event's top 3s.
     const events = await this.site.query('events', 'published', true);
     const bundles = [];
     for (const e of events) {
@@ -54,7 +54,7 @@ export class StatRoles {
     const results = award ? Object.values(award.results) : [];
     if ((award?.event.id ?? null) !== (this.store.getMeta('statRoleEvent') ?? null)) {
       await this.store.setMeta('statRoleEvent', award?.event.id ?? null);
-      this.log.info?.(`[stat roles] awards now come from ${award ? award.event.title : 'no event (none finished yet)'}`);
+      this.log.info?.(`[stat roles] awards now come from ${award ? award.event.title : 'no event (no stats yet)'}`);
     }
     const players = new Map((await this.site.list('players')).map((d) => [d.id, d.data]));
     const top = this.config.statRolesTop;
@@ -65,17 +65,10 @@ export class StatRoles {
     const roleMap = upgradeKeys(savedMap);
     const upgraded = JSON.stringify(roleMap) !== JSON.stringify(savedMap);
     const existing = await this.io.roles();
-    // Gradient colours and role icons only where the server has them (boosts).
+    // No colour and no icon (2026-11-21): the medal and emoji are in the name, and a member's name
+    // shows their club's colour (and logo) instead. clearIcon removes an icon set by an older look.
     const features = new Set((await this.io.features?.().catch(() => [])) ?? []);
-    const look = (stat, place) => {
-      const s = statRoleStyle(stat);
-      return {
-        name: statRoleName(stat, place), color: s.color, hoist: false,
-        ...(features.has('ENHANCED_ROLE_COLORS') ? { color2: s.color2 } : {}),
-        // Role icon: the stat's own emoji for 1st, the medal for 2nd and 3rd.
-        ...(features.has('ROLE_ICONS') ? { emoji: place === 1 ? s.emoji : PLACE_MEDAL[place - 1] ?? s.emoji } : {}),
-      };
-    };
+    const look = (stat, place) => ({ name: statRoleName(stat, place), color: 0, hoist: false, ...(features.has('ROLE_ICONS') ? { clearIcon: true } : {}) });
     const restyle = (this.store.getMeta('statRoleLook') ?? 0) !== STAT_ROLE_LOOK;
     let made = 0;
     // New roles go just under the bot's own, so making 3rd, then 2nd, then 1st keeps 1st on top.
@@ -84,7 +77,7 @@ export class StatRoles {
         const key = roleKey(stat.key, place);
         const id = roleMap[key];
         if (id && existing.has(id)) {
-          if (restyle || existing.get(id).name !== statRoleName(stat, place)) await this.io.editRole(id, look(stat, place)).catch((err) => this.log.warn('[stat roles]', err.message));
+          if (restyle || existing.get(id).name !== statRoleName(stat, place) || existing.get(id).color) await this.io.editRole(id, look(stat, place)).catch((err) => this.log.warn('[stat roles]', err.message));
           continue;
         }
         roleMap[key] = await this.io.createRole(look(stat, place));
@@ -100,7 +93,7 @@ export class StatRoles {
     }
     if (restyle) {
       await this.store.setMeta('statRoleLook', STAT_ROLE_LOOK);
-      this.log.info?.(`[stat roles] new look${features.has('ENHANCED_ROLE_COLORS') ? ' with gradients' : ''}${features.has('ROLE_ICONS') ? ' and role icons' : ''}`);
+      this.log.info?.('[stat roles] new look: no colour, so names show the club colour');
     }
 
     // A role made just now has nobody yet, whatever was saved before.

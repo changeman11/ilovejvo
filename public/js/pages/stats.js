@@ -1,15 +1,15 @@
-// Player stats per event (changed 2026-10-26: opens on the newest event; "All events" is still a
-// choice): award cards (each stat's 1st, 2nd and 3rd, the same names as the Discord award roles,
-// rules/stat-style.js) from the AWARD EVENT (rules/award-event.js: the last completed event; they
-// rotate when the next event finishes), then one sortable table for the chosen event.
-// URL options: ?event=<id>|all  ?per=total|match|set  ?sort=<stat key>
+// Player stats in three views (2026-11-21): LAST EVENT (default, the newest event with stats, with
+// the award cards: each stat's 1st, 2nd and 3rd, the same as the Discord award roles,
+// rules/award-event.js), ALL TIME (every event combined) and ARCHIVED (any older event, picked from
+// a list). Then one sortable table.
+// URL options: ?event=<id>|all|archived  ?per=total|match|set  ?sort=<stat key>
 
 import { loadAllBundles } from '../data.js';
 import { seasonMatches } from '../rules/season.js';
 import { esc, skeleton, notice, pageTitle, fmtNum, pct, teamDot, playerLink, avatarImg, urls } from '../ui.js';
 import { statStyle, hex } from '../rules/stat-style.js';
 import { careerStats, statDefsFor, statValue } from './career.js';
-import { awardEvent, latestStatsEvent } from '../rules/award-event.js';
+import { awardEvent, statsEvents } from '../rules/award-event.js';
 
 export const title = 'Stats';
 
@@ -22,12 +22,17 @@ const PERS = [['total', 'Totals'], ['match', 'Per match'], ['set', 'Per set']];
 export async function render() {
   const params = new URLSearchParams(location.search);
   const all = await loadAllBundles();
-  // No choice in the address: the newest event with stats. "all" = every event combined.
+  // Views: the last event with stats (default), all time ("all"), or an archived (older) event.
+  const withStats = statsEvents(all);
+  const latestId = withStats[0]?.event.id ?? null;
+  const archive = withStats.slice(1);
   const asked = params.get('event');
   const eventId = asked === 'all' ? null
-    : all.some((b) => b.event.id === asked) ? asked : (latestStatsEvent(all)?.event.id ?? null);
+    : asked === 'archived' ? (archive[0]?.event.id ?? latestId)
+    : all.some((b) => b.event.id === asked) ? asked : latestId;
+  const view = !eventId ? 'all' : eventId === latestId ? 'last' : 'archived';
   const bundles = eventId ? all.filter((b) => b.event.id === eventId) : all;
-  // Award holders: the last completed event's totals, whatever event the table shows.
+  // Award holders: the last event's totals (shown on the Last event view).
   const awardB = awardEvent(all);
   const awardStats = awardB ? careerStats([awardB]) : new Map();
   const awardDefs = awardB ? statDefsFor([awardB]) : [];
@@ -109,26 +114,30 @@ export async function render() {
       </a>`;
   }).join('');
 
-  const eventOptions = [
-    `<option value="${esc(url({ event: 'all' }))}"${eventId ? '' : ' selected'}>All events combined</option>`,
-    ...all.map((b) => `<option value="${esc(url({ event: b.event.id }))}"${b.event.id === eventId ? ' selected' : ''}>${esc(b.event.title)}</option>`),
-  ].join('');
+  const VIEWS = [['last', '🔥 Last event', latestId], ['all', '🌏 All time', 'all'], ['archived', '🗄️ Archived', 'archived']];
+  const viewTabs = `<nav class="chips stats-views" aria-label="Which stats">${VIEWS
+    .filter(([v]) => v !== 'archived' || archive.length)
+    .map(([v, label, ev]) => `<a class="chip-link" href="${esc(url({ event: v === 'last' ? null : ev, sort: null }))}" data-link data-keep-scroll${v === view ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+  // Archived: pick one of the older events (newest first).
+  const archivePicker = view === 'archived' ? `<label class="picker"><span class="muted small">Event</span> <select data-nav>${archive.map((b) => `<option value="${esc(url({ event: b.event.id }))}"${b.event.id === eventId ? ' selected' : ''}>${esc(b.event.title)}</option>`).join('')}</select></label>` : '';
+  const heading = view === 'all' ? 'All time · every event combined' : view === 'last' ? `Last event · ${bundles[0].event.title}` : `Archived · ${bundles[0].event.title}`;
 
   return `
     <div class="page-head">
-      ${pageTitle('Player stats', `${eventId ? esc(bundles[0].event.title) : 'All events combined'}. Tap a column to sort.`, 'blond')}
-      ${all.length > 1 ? `<label class="picker"><span class="sr-only">Event</span><select data-nav>${eventOptions}</select></label>` : ''}
+      ${pageTitle('Player stats', `${esc(heading)}. Tap a column to sort.`, 'blond')}
     </div>
     <div class="stack">
+      <div class="stats-viewbar">${viewTabs}${archivePicker}</div>
       <div class="tiles">
         <div class="tile"><b>${matches.length}</b><span>Matches</span></div>
         <div class="tile"><b>${sets}</b><span>Sets</span></div>
         <div class="tile"><b>${points}</b><span>Points scored</span></div>
         <div class="tile"><b>${stats.size}</b><span>Players</span></div>
       </div>
-      ${cards ? `<section><div class="section-head"><h2>🏆 Award holders · ${esc(awardB.event.title)}</h2><span class="muted small">From the last finished event, until the next one finishes. 1st, 2nd and 3rd each get their own Discord role.</span></div><div class="award-grid">${cards}</div></section>`
-        : '<p class="panel muted small">🏆 Awards are handed out when an event finishes, and held until the next one finishes.</p>'}
-      <div class="section-head"><h2>📊 ${eventId ? esc(bundles[0].event.title) : 'All events combined'}</h2></div>
+      ${view !== 'last' ? ''
+        : cards ? `<section><div class="section-head"><h2>🏆 Award holders · ${esc(awardB.event.title)}</h2><span class="muted small">The top 3 of the last event. 1st, 2nd and 3rd each get their own Discord role, and they move to the next event's top 3s as soon as its stats come in.</span></div><div class="award-grid">${cards}</div></section>`
+        : '<p class="panel muted small">🏆 Award roles go to the top 3s of the last event with stats.</p>'}
+      <div class="section-head"><h2>📊 ${esc(heading)}</h2></div>
       <div>
         <nav class="chips">${PERS.map(([v, label]) => `<a class="chip-link" href="${esc(url({ per: v === 'total' ? null : v }))}" data-link data-keep-scroll${v === mode ? ' aria-current="true"' : ''}>${label}</a>`).join('')}</nav>
         ${mode !== 'total' ? `<p class="muted small" style="margin-bottom:8px">Averages include players with at least ${minMatches} match${minMatches === 1 ? '' : 'es'}.</p>` : ''}

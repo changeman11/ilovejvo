@@ -10,9 +10,29 @@ export function eligibleClubs(teams) {
     if ((t.status ?? 'approved') !== 'approved') continue;
     const name = String(t.name ?? '').trim();
     if (!name) continue;
-    clubs.set(id, { name: name.slice(0, 100), color: colorNumber(t.colors?.primary) });
+    // The club colour; a club with none uses its page theme colour.
+    const color = clubColor(t.colors?.primary) || clubColor(t.theme);
+    clubs.set(id, { name: name.slice(0, 100), color, ...(t.logoPath ? { logo: String(t.logoPath) } : {}) });
   }
   return clubs;
+}
+
+// A club colour for Discord: pure black (#000000) is "no colour" there, so black clubs get a dark
+// grey that still reads as black but actually shows (added 2026-11-21).
+export const BLACK_STAND_IN = 0x3b3b3b;
+export function clubColor(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex ?? '').trim());
+  if (!m) return 0;
+  return parseInt(m[1], 16) || BLACK_STAND_IN;
+}
+
+// Club roles above every other coloured role the bot manages, so a player's name shows their
+// club's colour (Discord uses the highest coloured role). roles: Map roleId -> { position };
+// clubIds: the club role ids. True when they aren't one block directly under the bot's own role.
+export function clubsNeedRaising(roles, clubIds, botTop) {
+  const pos = clubIds.map((id) => roles.get(id)?.position).filter((p) => p != null).sort((a, b) => b - a);
+  if (!pos.length || botTop == null) return false;
+  return pos.some((p, i) => p !== botTop - 1 - i);
 }
 
 // '#1438d8' -> 0x1438d8. Anything else -> 0 (no colour).

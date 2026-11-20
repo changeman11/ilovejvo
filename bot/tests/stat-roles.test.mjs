@@ -76,7 +76,7 @@ test('stat roles end to end: made once, 1st/2nd/3rd given, moved when overtaken'
   assert.equal(roleList.get(p1).name, '🥇 1st · Point Machine 👑');
   assert.equal(roleList.get(p2).name, '🥈 2nd · Point Machine 👑');
   assert.equal(roleList.get(p3).name, '🥉 3rd · Point Machine 👑');
-  assert.equal(roleList.get(p1).color, 0xffc533);
+  assert.equal(roleList.get(p1).color, 0, 'colourless: the club colour shows');
   assert.equal(roleList.get(p1).color2, undefined, 'no gradient unless the server has enhanced role colours');
   assert.equal(roleList.get(p1).emoji, undefined, 'no role icon unless the server has role icons');
   assert.ok(members.get(id(1)).has(p1) && members.get(id(2)).has(p2) && members.get(id(3)).has(p3));
@@ -94,7 +94,7 @@ test('stat roles end to end: made once, 1st/2nd/3rd given, moved when overtaken'
   assert.equal(roleList.size, 24, 'no extra roles');
 });
 
-test('stat roles: gradient and role icon where the server has them; old roles restyled once', async () => {
+test('stat roles: no colour and no icon (names show the club colour); old roles restyled once', async () => {
   const roleList = new Map([['old', { name: '💥 Spike Royalty · Top 3 ✨', color: 0xffc533 }]]);
   let n = 0;
   let edits = 0;
@@ -115,16 +115,18 @@ test('stat roles: gradient and role icon where the server has them; old roles re
   assert.equal(spk.name, '🥇 1st · Spike Royalty 💥', 'the old Top 3 role becomes 1st place, renamed, not remade');
   assert.equal(store.getMeta('statRoles')['spk:1'], 'old');
   assert.equal(store.getMeta('statRoles').spk, undefined);
-  assert.equal(spk.color2, 0xff9a3c);
-  assert.equal(spk.emoji, '💥');
-  assert.equal(roleList.get(store.getMeta('statRoles')['spk:2']).emoji, '🥈', '2nd and 3rd use the medal as icon');
+  assert.equal(spk.color, 0, 'colourless, so the club colour shows');
+  assert.equal(spk.color2, undefined);
+  assert.equal(spk.emoji, undefined);
+  assert.equal(spk.clearIcon, true, 'an old icon is taken off');
+  assert.equal(roleList.get(store.getMeta('statRoles')['spk:2']).color, 0);
   assert.deepEqual(store.getMeta('statRoleHolders')['spk:1'], [], 'old holders are checked again (and lose it here)');
   assert.equal(edits, 1);
   await roles.sync();
   assert.equal(edits, 1, 'restyled once, not every check');
 });
 
-test('stat roles come from the last finished event only, and rotate when the next one finishes', async () => {
+test('stat roles come from the last event with stats, and reset when a newer event gets stats', async () => {
   const roleList = new Map();
   const members = new Map([[id(1), new Set()], [id(2), new Set()]]);
   let n = 0;
@@ -139,7 +141,7 @@ test('stat roles come from the last finished event only, and rotate when the nex
     { id: 'old', data: { published: true, status: 'finished', date: 1 } },
     { id: 'now', data: { published: true, status: 'upcoming', date: 2 } },
   ];
-  const results = { old: [{ id: 'm', data: { playerStats: { a: { pts: 9 } } } }], now: [{ id: 'm', data: { playerStats: { b: { pts: 50 } } } }] };
+  const results = { old: [{ id: 'm', data: { playerStats: { a: { pts: 9 } } } }], now: [] };
   const site = {
     async query() { return events; },
     async list(path) {
@@ -152,11 +154,10 @@ test('stat roles come from the last finished event only, and rotate when the nex
   const roles = new StatRoles({ io, site, store, config: { statRolesMinutes: 30, statRolesTop: 3 }, log: { info() {}, warn() {}, error() {} } });
   await roles.sync();
   const p1 = store.getMeta('statRoles')['pts:1'];
-  assert.ok(members.get(id(1)).has(p1), 'the finished event holds the awards');
-  assert.ok(!members.get(id(2)).has(p1), 'the event still on doesn’t count yet');
-  assert.equal(store.getMeta('statRoleEvent'), 'old');
-  events[1].data.status = 'finished';
+  assert.ok(members.get(id(1)).has(p1), 'the last event with stats holds the awards');
+  assert.equal(store.getMeta('statRoleEvent'), 'old', 'a newer event without stats yet changes nothing');
+  results.now = [{ id: 'm', data: { playerStats: { b: { pts: 5 } } } }];
   await roles.sync();
-  assert.ok(members.get(id(2)).has(p1) && !members.get(id(1)).has(p1), 'rotated to the newer event');
+  assert.ok(members.get(id(2)).has(p1) && !members.get(id(1)).has(p1), 'reset to the newer event, even with a lower total');
   assert.equal(store.getMeta('statRoleEvent'), 'now');
 });

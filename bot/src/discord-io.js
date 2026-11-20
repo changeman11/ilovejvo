@@ -199,8 +199,8 @@ export async function setupDiscord(client, config, log = console) {
       await guild.roles.setPosition(role, Math.max(1, top.position - 1)).catch((err) => log.warn(`Couldn't move the ${name} role up: ${err.message}`));
       return role.id;
     },
-    async editRole(roleId, { name, color, color2, emoji, hoist }) {
-      await guild.roles.edit(roleId, { name, colors: { primaryColor: color, ...(color2 ? { secondaryColor: color2 } : {}) }, ...(emoji ? { unicodeEmoji: emoji } : {}), hoist, reason: 'I<3JVO role changed' });
+    async editRole(roleId, { name, color, color2, emoji, hoist, clearIcon }) {
+      await guild.roles.edit(roleId, { name, colors: { primaryColor: color, ...(color2 ? { secondaryColor: color2 } : {}) }, ...(emoji ? { unicodeEmoji: emoji } : {}), ...(clearIcon ? { icon: null, unicodeEmoji: null } : {}), hoist, reason: 'I<3JVO role changed' });
     },
     // Put these roles in this order (first = highest), as one block where the highest of them is now.
     async orderRoles(roleIds) {
@@ -209,6 +209,30 @@ export async function setupDiscord(client, config, log = console) {
       if (!found.length) return;
       const top = Math.max(...found.map((r) => r.position));
       await guild.roles.setPositions(found.map((role, i) => ({ role, position: Math.max(1, top - i) })));
+    },
+    // Every role's position, and the position of the bot's own highest role.
+    async positions() {
+      const all = await guild.roles.fetch();
+      const me = await guild.members.fetchMe({ force: true });
+      return { roles: new Map(all.map((r) => [r.id, { position: r.position }])), botTop: me.roles.highest.position };
+    },
+    // Put these roles (first = highest) as one block directly under the bot's own role. Every role
+    // under the bot is re-numbered in the same call (the rest keep their order), so the result is
+    // exact even if something else moved roles in between.
+    async raiseRoles(roleIds) {
+      const all = await guild.roles.fetch();
+      const top = (await guild.members.fetchMe({ force: true })).roles.highest.position;
+      const first = roleIds.map((id) => all.get(id)).filter((r) => r && r.position < top);
+      const firstIds = new Set(first.map((r) => r.id));
+      const rest = [...all.values()].filter((r) => r.position < top && r.position > 0 && !firstIds.has(r.id))
+        .sort((a, b) => b.position - a.position);
+      const order = [...first, ...rest];
+      const moves = order.map((role, i) => ({ role, position: top - 1 - i })).filter(({ role, position }) => position >= 1 && role.position !== position);
+      if (moves.length) await guild.roles.setPositions(moves);
+    },
+    // A role icon picture (Buffer), or null to remove it. Needs ROLE_ICONS (boost level 2).
+    async setRoleIcon(roleId, icon) {
+      await guild.roles.edit(roleId, { icon: icon ?? null, reason: 'I<3JVO club logo' });
     },
     async deleteRole(roleId) {
       await guild.roles.delete(roleId, 'I<3JVO club no longer active');

@@ -20,6 +20,13 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Club colours on names, award roles = last event, Stats views · site DEPLOYED (sw v87), bot UPLOADED
+- Discord names now show the club colour: club roles sit as one block right under the bot's role (`raiseClubs` in club-roles.js, checked every 5 min; `raiseRoles` in discord-io.js re-numbers everything under the bot in one call). Award roles (🥇🥈🥉) have no colour and no icon (`STAT_ROLE_LOOK` 5). Black clubs (#000000 = "no colour" on Discord) show dark grey #3b3b3b; a club with no colour uses its page theme colour (`clubColor`).
+- Club logos after names: built (`applyIcons`, logo → 128 px PNG via sharp, meta `clubRoleIcons`) but only switches on when the server has ROLE_ICONS = boost level 2 (7 boosts). Now level 1 (5 boosts), so it waits.
+- Award roles + Stats award cards come from the LAST EVENT WITH STATS (`awardEvent` = `latestStatsEvent` in rules/award-event.js); a newer event's first stats replace everyone's award roles. (Before: waited for the next event to be complete.)
+- /stats has three views: 🔥 Last event (default, with the award cards), 🌏 All time (`?event=all`), 🗄️ Archived (`?event=archived` or an older event id, with a picker).
+- Staff members keep the Staff colour (that role is above the bot, it can't move it).
+
 ### 2026-11-18 · Claude (owner's PC) · Discord Staff role = site admin, automatically · rules DEPLOYED, bot UPLOADED
 - `bot/src/staff-admins.js` (tested): every 5 min, at start and when a member's roles change, everyone with a STAFF_ROLE_IDS role (the "Staff" role) gets `admins/discord:<id>` { discord: true, source: 'staff-role', name, discordId }; losing the role removes it. Hand-made /admins entries (no source) are never touched; a failed/empty member read removes nobody. Needs the Server Members intent (already on). `STAFF_ADMINS=0` turns it off.
 - firestore.rules: the bot (isPickupBot) can read /admins and create/update/delete only 'staff-role' Discord entries. Live: Botty Binz was added on start; Volkaineo, changeman, Jum and sydress already had hand-made entries.

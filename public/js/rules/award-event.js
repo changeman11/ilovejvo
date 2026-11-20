@@ -1,8 +1,8 @@
-// Which event's stats hold the awards (added 2026-10-26). Stats are kept per event; the award
-// holders (Stats page cards and the bot's 1st/2nd/3rd Discord roles) come from the most recent
-// COMPLETED event, and stay until the next event completes, then rotate to that one.
-// Complete = an admin marked it finished, or its podium is decided (final played, or every match
-// of a no-knockout event has a score). Pure, shared with the bot (bot/src/site-rules/).
+// Which event's stats hold the awards. Stats are kept per event; the award holders (Stats page
+// cards and the bot's 1st/2nd/3rd Discord roles) come from the LAST EVENT WITH STATS, and reset
+// automatically as soon as a newer event has stats of its own (changed 2026-11-21; from 2026-10-26
+// it waited for the next event to be complete, which a never-played "if needed" final could block).
+// Pure, shared with the bot (bot/src/site-rules/).
 import { podium } from './podium.js';
 import { DEFAULT_FORMAT, DEFAULT_STATS, DEFAULT_STANDINGS } from './defaults.js';
 
@@ -33,17 +33,20 @@ export function eventComplete(b) {
   }
 }
 
-// The newest completed, published event with stats: its bundle, or null.
-// bundles: [{ event, season?, fixtures, results, teams }]
-export function awardEvent(bundles) {
-  return [...bundles]
-    .filter((b) => b.event?.published !== false && eventComplete(b) && hasStats(b))
-    .sort((x, y) => (y.event.date ?? y.event.createdAt ?? 0) - (x.event.date ?? x.event.createdAt ?? 0))[0] ?? null;
-}
+const when = (b) => b.event.date ?? b.event.createdAt ?? 0;
 
-// The event the Stats page opens on: the newest event with stats (it may still be on).
-export function latestStatsEvent(bundles) {
+// Every published, not cancelled event with stats, newest first.
+export function statsEvents(bundles) {
   return [...bundles]
     .filter((b) => b.event?.published !== false && b.event?.status !== 'cancelled' && hasStats(b))
-    .sort((x, y) => (y.event.date ?? y.event.createdAt ?? 0) - (x.event.date ?? x.event.createdAt ?? 0))[0] ?? null;
+    .sort((x, y) => when(y) - when(x));
 }
+
+// The event the Stats page opens on ("Last event"): the newest event with stats (it may still be on).
+export function latestStatsEvent(bundles) {
+  return statsEvents(bundles)[0] ?? null;
+}
+
+// The award event: the same, the last event with stats. Its bundle, or null.
+// bundles: [{ event, season?, fixtures, results, teams }]
+export const awardEvent = latestStatsEvent;

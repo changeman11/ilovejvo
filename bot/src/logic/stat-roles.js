@@ -1,5 +1,6 @@
 // Stat roles: three Discord roles per stat, 🥇 1st, 🥈 2nd and 🥉 3rd (changed 2026-10-25, was one
-// "Top 3" role), each held by whoever is in that place right now, across every published event.
+// "Top 3" role), each held by whoever is in that place in the last event with stats
+// (site-rules/award-event.js). Colourless since 2026-11-21: a name's colour is the club's.
 // Worked out from results, like the site's leaderboards. Ties share a place and skip the next
 // (9, 9, 5 -> two 1sts and a 3rd). Pure planning only (tested).
 // A role is keyed "statKey:place", e.g. "pts:1".
@@ -19,7 +20,8 @@ export const placeWord = (place) => ['1st', '2nd', '3rd'][place - 1] ?? `${place
 export const statRoleName = (stat, place) => { const s = statRoleStyle(stat); return `${PLACE_MEDAL[place - 1] ?? '🏅'} ${placeWord(place)} · ${s.title} ${s.emoji}`; };
 export const roleKey = (statKey, place) => `${statKey}:${place}`;
 // Bump when the look changes, so the bot restyles roles it made before.
-export const STAT_ROLE_LOOK = 4;
+// 5 (2026-11-21): no colour and no icon, so names show the club's colour (and logo).
+export const STAT_ROLE_LOOK = 5;
 
 // results: [{ playerStats: { playerId: { pts, spk, ... } } }] -> Map playerId -> { pts: total, ... }
 export function statTotals(results) {

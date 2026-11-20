@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { eligibleClubs, colorNumber, planRoles, wantedClub, planMembers, wantedCaptains, planCaptains } from '../src/logic/club-roles.js';
+import { eligibleClubs, colorNumber, planRoles, wantedClub, planMembers, wantedCaptains, planCaptains, clubColor, BLACK_STAND_IN, clubsNeedRaising } from '../src/logic/club-roles.js';
 import { ClubRoles } from '../src/club-roles.js';
 import { FileStore } from '../src/store/file-store.js';
 
@@ -187,4 +187,45 @@ test('captain role end to end: made once, follows a hand-over', async () => {
   assert.ok(!discord.members.get(A).has(cap));
   assert.ok(discord.members.get(B).has(cap));
   assert.equal([...discord.roleList.values()].filter((r) => r.name === 'Captain').length, 1, 'still only one captain role');
+});
+
+test('club colours: black shows as dark grey (Discord reads #000000 as none); no colour = theme colour; logo kept', () => {
+  const clubs = eligibleClubs(new Map([
+    ['black', { name: 'Black', colors: { primary: '#000000' } }],
+    ['themed', { name: 'Themed', theme: '#ff6190' }],
+    ['logo', { name: 'Logo', colors: { primary: '#123456' }, logoPath: 'teams/logo/logo/a.webp' }],
+  ]));
+  assert.equal(clubs.get('black').color, BLACK_STAND_IN);
+  assert.equal(clubs.get('themed').color, 0xff6190);
+  assert.equal(clubs.get('logo').logo, 'teams/logo/logo/a.webp');
+  assert.equal(clubColor('nope'), 0);
+});
+
+test('club roles are raised to one block right under the bot, so names show the club colour', async () => {
+  const at = (pairs) => new Map(pairs.map(([id, position]) => [id, { position }]));
+  assert.equal(clubsNeedRaising(at([['a', 61], ['b', 60]]), ['a', 'b'], 62), false);
+  assert.equal(clubsNeedRaising(at([['a', 61], ['b', 28]]), ['a', 'b'], 62), true, 'an award role in between');
+  // End to end: the runner moves them, keeping their order, and sets logos only with role icons.
+  const roleList = new Map([['ra', { name: 'A', color: 1, hoist: true }], ['rb', { name: 'B', color: 2, hoist: true }]]);
+  const pos = { ra: 40, rb: 61 };
+  let raised = null;
+  const icons = [];
+  const io = {
+    async roles() { return new Map(roleList); },
+    async positions() { return { roles: new Map(Object.entries(pos).map(([k, p]) => [k, { position: p }])), botTop: 62 }; },
+    async raiseRoles(ids) { raised = ids; },
+    async features() { return ['ROLE_ICONS']; },
+    async setRoleIcon(rid, icon) { icons.push([rid, String(icon)]); },
+    async memberRoles() { return null; },
+  };
+  const store = new FileStore();
+  await store.setMeta('clubRoles', { a: 'ra', b: 'rb' });
+  const roles = new ClubRoles({ io, site: {}, store, config: { clubRolesHoist: true }, log: { info() {}, warn() {}, error() {} }, logoIcon: async (p) => `png:${p}` });
+  roles.teams = new Map([['a', { name: 'A', colors: { primary: '#000001' }, logoPath: 'teams/a/logo/x.png' }], ['b', { name: 'B', colors: { primary: '#000002' } }]]);
+  await roles.apply([]);
+  assert.deepEqual(raised, ['rb', 'ra']);
+  assert.deepEqual(icons, [['ra', 'png:teams/a/logo/x.png']]);
+  icons.length = 0;
+  await roles.apply([]);
+  assert.deepEqual(icons, [], 'set once, until the logo changes');
 });

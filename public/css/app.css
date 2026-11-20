@@ -1836,3 +1836,9 @@ a.eb-match:hover { border-color: var(--yellow); }
 .eb-round.final .eb-match.dim { border: 2px dashed #8a8fa8; box-shadow: none; padding: 8px 10px; }
 .eb-round.final .eb-match.dim .eb-name { font-size: 15px; }
 .eb-note { font-size: 12px; color: #c4c8db; }
+
+/* Stats page views: Last event / All time / Archived (2026-11-21) */
+.stats-viewbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.stats-viewbar .chips { padding-bottom: 0; }
+.stats-viewbar .chip-link { font-size: 0.95rem; padding: 8px 14px; }
+.stats-viewbar .picker { display: inline-flex; align-items: center; gap: 6px; }

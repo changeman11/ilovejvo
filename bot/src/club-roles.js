@@ -11,7 +11,7 @@
 //   editRole(roleId, { name, color, hoist })               deleteRole(roleId)
 //   memberRoles(userId) -> Set(roleIds), or null if they're not in the server
 //   addRole(userId, roleId)                                removeRole(userId, roleId)
-import { eligibleClubs, planRoles, wantedClub, planMembers, wantedCaptains, planCaptains } from './logic/club-roles.js';
+import { eligibleClubs, planRoles, wantedClub, planMembers, wantedCaptains, planCaptains, clubsNeedRaising } from './logic/club-roles.js';
 
 const CAPTAIN_COLOR = 0xffe200; // the site's yellow
 
@@ -19,8 +19,10 @@ const FULL_EVERY = 6 * 60 * 60 * 1000;
 const SKEW = 60 * 1000; // re-read a minute of overlap, in case clocks differ a little
 
 export class ClubRoles {
-  constructor({ io, site, store, config, log = console, now = () => Date.now() }) {
+  constructor({ io, site, store, config, log = console, now = () => Date.now(), logoIcon = null }) {
     Object.assign(this, { io, site, store, config, log, now });
+    // logoIcon(path) -> PNG Buffer for a role icon (or null). Default: the logo from Firebase Storage.
+    this.logoIcon = logoIcon ?? ((path) => fetchLogoIcon(path, config.firebase?.storageBucket));
     this.teams = new Map();
     this.players = new Map();
     this.lastRead = 0;
@@ -70,7 +72,11 @@ export class ClubRoles {
       const since = this.lastRead - SKEW;
       const [teams, players] = await Promise.all([this.site.changedSince('teams', since), this.site.changedSince('players', since)]);
       this.lastRead = started;
-      if (!teams.length && !players.length) return null;
+      if (!teams.length && !players.length) {
+        // Nothing new, but keep the club roles on top (someone may have moved roles by hand).
+        await this.raiseClubs({ ...(this.store.getMeta('clubRoles') ?? {}) }, async (fn) => { try { await fn(); return true; } catch (err) { this.log.warn('[club roles]', err.message); return false; } });
+        return null;
+      }
       for (const d of teams) this.teams.set(d.id, d.data);
       const ids = new Set();
       for (const d of players) {
@@ -131,6 +137,8 @@ export class ClubRoles {
     if (JSON.stringify(roleMap) !== JSON.stringify(this.store.getMeta('clubRoles') ?? {})) {
       await this.store.setMeta('clubRoles', roleMap);
     }
+    await this.raiseClubs(roleMap, attempt);
+    await this.applyIcons(clubs, roleMap, attempt, result);
 
     const memberRoles = new Map();
     for (const id of ids) {
@@ -145,6 +153,43 @@ export class ClubRoles {
     for (const { userId, roleId } of members.add) if (await attempt(() => this.io.addRole(userId, roleId))) result.added++;
     await this.applyCaptains({ clubs, existing, memberRoles, attempt, result });
     return result;
+  }
+
+  // Club roles sit together right under the bot's own role (added 2026-11-21), above award roles,
+  // Captain, Streamer and so on, so teammates' names all show their club colour.
+  async raiseClubs(roleMap, attempt) {
+    if (!this.io.raiseRoles || !this.io.positions) return;
+    const ids = Object.values(roleMap);
+    const { roles, botTop } = await this.io.positions().catch(() => ({}));
+    if (!roles || !clubsNeedRaising(roles, ids, botTop)) return;
+    // Keep their current order among themselves.
+    const order = ids.filter((id) => roles.has(id)).sort((a, b) => roles.get(b).position - roles.get(a).position);
+    if (await attempt(() => this.io.raiseRoles(order))) this.log.info?.(`[club roles] moved ${order.length} club roles to the top, so names show the club colour`);
+  }
+
+  // Club logos as role icons (shown after the name), only where the server has role icons (boost
+  // level 2). Remembered as clubRoleIcons = { teamId: logoPath }; changes when the logo does.
+  async applyIcons(clubs, roleMap, attempt, result) {
+    if (!this.io.setRoleIcon || !this.io.features) return;
+    const features = new Set(await this.io.features().catch(() => []));
+    if (!features.has('ROLE_ICONS')) return;
+    const saved = { ...(this.store.getMeta('clubRoleIcons') ?? {}) };
+    for (const [teamId, club] of clubs) {
+      const roleId = roleMap[teamId];
+      const want = club.logo ?? null;
+      if (!roleId || (saved[teamId] ?? null) === want) continue;
+      const ok = await attempt(async () => {
+        const icon = want ? await this.logoIcon(want) : null;
+        if (want && !icon) throw new Error(`couldn't load the ${club.name} logo`);
+        await this.io.setRoleIcon(roleId, icon);
+      });
+      if (ok) {
+        if (want) saved[teamId] = want;
+        else delete saved[teamId];
+        result.updated++;
+      }
+    }
+    if (JSON.stringify(saved) !== JSON.stringify(this.store.getMeta('clubRoleIcons') ?? {})) await this.store.setMeta('clubRoleIcons', saved);
   }
 
   // The captain role (CAPTAIN_ROLE, default "Captain"): one role, given to every club's captain
@@ -179,4 +224,15 @@ export class ClubRoles {
 export function describe(r) {
   if (!r) return 'nothing changed';
   return `${r.created} roles made, ${r.updated} updated, ${r.deleted} deleted; ${r.added} given, ${r.removed} taken away${r.errors ? `; ${r.errors} failed` : ''}`;
+}
+
+// A club logo from Firebase Storage as a role icon: first frame, 128 px square PNG (Discord allows
+// 256 KB). Null if it can't be loaded.
+export async function fetchLogoIcon(path, bucket) {
+  if (!path || !bucket) return null;
+  const res = await fetch(`https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media`);
+  if (!res.ok) return null;
+  const { default: sharp } = await import('sharp');
+  const buf = Buffer.from(await res.arrayBuffer());
+  return sharp(buf, { animated: false }).resize(128, 128, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
 }
