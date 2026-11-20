@@ -1,7 +1,8 @@
 // Teams & players: every approved team (logo, tagline, squad size, record) and every player
-// (picture, club, level, matches). ?view=teams|players|free  (free = players without a club)
+// (picture, club, level, matches). ?view=teams|players|free|prelaunch  (free = players without a
+// club; prelaunch = every club's line-up as saved at the launch reset, settings/prelaunchLineups)
 
-import { loadAllBundles, loadPeople, isApprovedTeam, loadMe } from '../data.js';
+import { loadAllBundles, loadPeople, isApprovedTeam, loadMe, loadSetting } from '../data.js';
 import { currentUser } from '../auth.js';
 import { requestToJoin, withdrawJoinRequest } from '../player-data.js';
 import { refresh } from '../nav.js';
@@ -65,12 +66,12 @@ function bannerHtml(t, logo, banner) {
   return '<img class="tc-banner-ball" src="/images/art/ball.png" alt="" loading="lazy" decoding="async"><img class="tc-banner-ball small" src="/images/art/ball.png" alt="" loading="lazy" decoding="async">';
 }
 
-function teamCards(teams, people, records, trophies = new Map()) {
+// lineup: { squadOf(team) -> players } for saved line-ups (no join buttons, no squad limit).
+function teamCards(teams, people, records, trophies = new Map(), lineup = null) {
   if (!teams.length) return notice('No teams yet', ' Teams appear here once an admin approves them.', '55');
   return `<div class="team-grid">${teams.map((t) => {
     const r = records.get(t.id);
-    const squad = people.players
-      .filter((p) => p.teamId === t.id)
+    const squad = (lineup ? lineup.squadOf(t) : people.players.filter((p) => p.teamId === t.id))
       .sort((a, b) => (b.id === t.managerPlayerId) - (a.id === t.managerPlayerId) || a.displayName.localeCompare(b.displayName));
     const logo = mediaUrl(t.logoPath);
     const banner = mediaUrl(t.bannerPath);
@@ -90,14 +91,14 @@ function teamCards(teams, people, records, trophies = new Map()) {
           </div>
         </a>
         <div class="tc-squad">
-          <div class="tc-squad-head"><b>Squad</b><span class="muted small">${squad.length}/${SQUAD_MAX}</span></div>
+          <div class="tc-squad-head"><b>${lineup ? 'Line-up' : 'Squad'}</b><span class="muted small">${lineup ? `${squad.length} player${squad.length === 1 ? '' : 's'}` : `${squad.length}/${SQUAD_MAX}`}</span></div>
           ${squad.length ? `<ul>${squad.map((p) => `
             <li><a href="${urls.player(p.id)}" data-link>${avatarImg(p, 'avatar')}<span class="tc-pname">${esc(p.displayName)}</span>${staffTag(p)}</a>
               ${p.id === t.managerPlayerId ? managerTag('MGR') : ''}${p.number != null ? `<span class="tc-num num">#${esc(p.number)}</span>` : ''}</li>`).join('')}</ul>`
             : '<p class="muted small" style="margin:0">No players yet.</p>'}
         </div>
       </div>
-      ${joinButton(t)}
+      ${lineup ? '' : joinButton(t)}
       </div>`;
   }).join('')}</div>`;
 }
@@ -122,8 +123,9 @@ function playerList(players, people, careers, emptyText) {
 
 export async function render() {
   const params = new URLSearchParams(location.search);
-  const view = ['players', 'free'].includes(params.get('view')) ? params.get('view') : 'teams';
-  const [bundles, people] = await Promise.all([loadAllBundles(), loadPeople()]);
+  const view = ['players', 'free', 'prelaunch'].includes(params.get('view')) ? params.get('view') : 'teams';
+  const [bundles, people, snapshot] = await Promise.all([loadAllBundles(), loadPeople(), loadSetting('prelaunchLineups').catch(() => null)]);
+  const lineups = snapshot?.teams ?? [];
   const teams = people.teams.filter((t) => isApprovedTeam(t) && !t.mix).sort((a, b) => a.name.localeCompare(b.name));
   const players = people.players
     .filter((p) => p.active !== false)
@@ -134,7 +136,7 @@ export async function render() {
   const chip = (v, label, count) => `<a class="chip-link" href="/teams${v === 'teams' ? '' : `?view=${v}`}" data-link data-keep-scroll${v === view ? ' aria-current="true"' : ''}>${label} <span class="muted">&nbsp;${count}</span></a>`;
   const head = `
     <div class="page-head">${pageTitle('Teams &amp; players', 'Every club and player in JVO. Tap one for their profile.', 'knight')}</div>
-    <nav class="chips">${chip('teams', 'Teams', teams.length)}${chip('players', 'Players', players.length)}${chip('free', 'Free agents', free.length)}</nav>`;
+    <nav class="chips">${chip('teams', 'Teams', teams.length)}${chip('players', 'Players', players.length)}${chip('free', 'Free agents', free.length)}${lineups.length ? chip('prelaunch', '🧪 Pre-launch line-ups', lineups.length) : ''}</nav>`;
 
   // Signed-in players without a club can ask to join straight from the list.
   joinCtx = null;
@@ -146,7 +148,13 @@ export async function render() {
   }
 
   let body;
-  if (view === 'teams') {
+  if (view === 'prelaunch') {
+    // Saved line-ups: names, logos and players as they were at launch (pictures stay current).
+    const records = teamCareer(bundles.map((b) => ({ eventId: b.event.id, matches: seasonMatches(b).matches })));
+    const squadOf = (t) => t.players.map((p) => ({ ...(people.playersById[p.id] ?? {}), ...p, teamId: t.id }));
+    const saved = lineups.map((t) => ({ ...t, status: 'approved' }));
+    body = `<p class="muted small" style="margin:0 0 10px">Every club's line-up when just volleyball launched (21 November 2026). Clubs were then cleared so everyone could start fresh.</p>${teamCards(saved, people, records, trophiesByTeam(bundles), { squadOf })}`;
+  } else if (view === 'teams') {
     const records = teamCareer(bundles.map((b) => ({ eventId: b.event.id, matches: seasonMatches(b).matches })));
     body = teamCards(teams, people, records, trophiesByTeam(bundles));
   } else {

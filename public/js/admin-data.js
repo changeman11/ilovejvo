@@ -458,3 +458,34 @@ export async function setHandCharacterHidden({ uid, name, hidden, setting }) {
   if (hidden) list.add(name); else list.delete(name);
   await saveSetting({ uid, id: 'characters', existing: setting ?? null, data: { hidden: [...list].sort() } });
 }
+
+// ---------- Launch reset (2026-11-21): save every club's line-up, then clear all clubs ----------
+// 1. settings/prelaunchLineups = { teams: [{ id, name, shortName, colors, theme, logoPath, logoFrame,
+//    tagline, managerPlayerId, players: [{ id, displayName, number }] }], takenAt } (shown in
+//    Teams & players → Pre-launch line-ups). Saved only once: pressing again never overwrites it.
+// 2. Every approved club is disbanded (kept, so results keep their names; the names can be used
+//    again) and every player becomes a free agent. No transfer news per player (it would flood
+//    #transfer-news). The bot then takes the club, Captain and TEAM roles off on Discord.
+export async function launchClearClubs({ uid, people, existingSnapshot = null }) {
+  const clubs = people.teams.filter((t) => (t.status ?? 'approved') === 'approved' && !t.mix);
+  const ops = [];
+  if (!existingSnapshot?.teams?.length) {
+    const lineups = clubs.map((t) => ({
+      id: t.id, name: t.name, shortName: t.shortName ?? null, colors: t.colors ?? null, theme: t.theme ?? null,
+      logoPath: t.logoPath ?? null, logoFrame: t.logoFrame ?? null, tagline: t.tagline ?? null,
+      managerPlayerId: t.managerPlayerId ?? null,
+      players: people.players.filter((p) => p.teamId === t.id)
+        .map((p) => ({ id: p.id, displayName: p.displayName, number: p.number ?? null })),
+    })).sort((a, b) => a.name.localeCompare(b.name));
+    ops.push({ type: 'set', path: 'settings/prelaunchLineups', data: { teams: lineups, takenAt: serverTimestamp() } });
+  }
+  for (const t of clubs) {
+    ops.push({ type: 'update', path: `teams/${t.id}`, before: t, data: { status: 'disbanded', managerUid: null, managerPlayerId: null, disbandedAt: serverTimestamp() } });
+  }
+  for (const p of people.players.filter((x) => x.teamId)) {
+    ops.push({ type: 'update', path: `players/${p.id}`, before: p, data: { teamId: null } });
+  }
+  await commit(uid, ops);
+  invalidate();
+  return { clubs: clubs.length, players: people.players.filter((x) => x.teamId).length };
+}

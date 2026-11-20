@@ -1,8 +1,8 @@
 // Admin: teams and players (shared by every event).
 // /admin/people[?edit=team:<id>|team:new|player:<id>|player:new]
 
-import { loadPeople, loadAllBundles } from '../../data.js';
-import { saveTeam, deleteTeam, savePlayer, deletePlayer, slugId, removeProfileImage, clearProfileText } from '../../admin-data.js';
+import { loadPeople, loadAllBundles, loadSetting } from '../../data.js';
+import { saveTeam, deleteTeam, savePlayer, deletePlayer, slugId, removeProfileImage, clearProfileText, launchClearClubs } from '../../admin-data.js';
 import { navigate } from '../../nav.js';
 import { esc, skeleton, teamDot, urls, staffTag, STAFF_ROLES } from '../../ui.js';
 import { mediaUrl, MEDIA, inFirebase, copyOldImage } from '../../media.js';
@@ -104,7 +104,8 @@ export async function render() {
     for (const f of b.fixtures) { used.teams.add(f.homeTeamId); used.teams.add(f.awayTeamId); }
     for (const r of Object.values(b.results)) for (const pid of Object.keys(r.playerStats ?? {})) used.players.add(pid);
   }
-  page = { people, used, user: gate.user };
+  const snapshot = await loadSetting('prelaunchLineups', { fresh: true, admin: true }).catch(() => null);
+  page = { people, used, user: gate.user, snapshot };
 
   const edit = new URLSearchParams(location.search).get('edit') ?? '';
   const [kind, id] = edit.split(':');
@@ -155,6 +156,7 @@ export async function render() {
           <button type="button" class="btn btn-primary btn-sm" data-act="migrate-images">Move images (${allImagePaths(people).length})</button>
           <p class="small migrate-status" aria-live="polite" style="margin-top:8px"></p>
         </section>
+        ${launchBlock(people, snapshot)}
         ${recentBlock}
         <div class="cols">
           <section>
@@ -188,6 +190,34 @@ export function mount(el) {
   bindAuthActions(root);
   const uid = page?.user?.uid;
   if (!uid) return;
+  // Launch reset: save the line-ups, then clear every club (type CONFIRM).
+  root.querySelector('[data-launch-clear]')?.addEventListener('click', async (e) => {
+    const b = e.currentTarget;
+    const clubs = page.people.teams.filter((t) => (t.status ?? 'approved') === 'approved' && !t.mix).length;
+    const inClubs = page.people.players.filter((p) => p.teamId).length;
+    const typed = window.prompt(`Clear ALL ${clubs} clubs?
+
+• Every club's line-up is saved first (Teams & players → Pre-launch line-ups).
+• All ${clubs} clubs are disbanded and all ${inClubs} players become free agents.
+• Results keep their club names; club names can be used again.
+• On Discord the club, Captain and TEAM roles come off within a few minutes.
+• There's no undo button.
+
+Type CONFIRM to go ahead.`);
+    if (typed !== 'CONFIRM') return;
+    b.disabled = true;
+    b.textContent = 'Clearing…';
+    try {
+      const out = await launchClearClubs({ uid, people: page.people, existingSnapshot: page.snapshot });
+      window.alert(`Done: ${out.clubs} clubs cleared, ${out.players} players are free agents. The line-ups are saved.`);
+      navigate('/admin/people', { replace: true });
+    } catch (err) {
+      console.error(err);
+      b.disabled = false;
+      b.textContent = 'Try again';
+      window.alert(`Couldn't finish: ${err.message}. Pressing again carries on (the saved line-ups aren't overwritten).`);
+    }
+  });
   const done = () => navigate('/admin/people', { replace: true, keepScroll: true });
   const fail = (form, err) => {
     console.error(err);
@@ -308,4 +338,17 @@ export function mount(el) {
       fail(form, err);
     }
   });
+}
+
+// The launch reset panel (2026-11-21): shown while any club is still active.
+function launchBlock(people, snapshot) {
+  const clubs = people.teams.filter((t) => (t.status ?? 'approved') === 'approved' && !t.mix).length;
+  if (!clubs) return snapshot?.teams?.length ? `<p class="panel muted small" style="margin-bottom:20px">🚀 Launch reset done: ${snapshot.teams.length} line-ups saved in <a href="/teams?view=prelaunch" data-link>Pre-launch line-ups</a>.</p>` : '';
+  const inClubs = people.players.filter((p) => p.teamId).length;
+  return `
+    <section class="panel launch-reset" style="margin-bottom:20px">
+      <h2 style="margin-top:0">🚀 Launch reset: clear all clubs</h2>
+      <p class="small">Saves every club's line-up as it stands (shown to everyone in <b>Teams &amp; players → Pre-launch line-ups</b>), then disbands all <b>${clubs}</b> clubs and makes all <b>${inClubs}</b> players free agents, so everyone starts fresh. Results keep their club names. Club names can be registered again.</p>
+      <button class="btn btn-danger" type="button" data-launch-clear>Save line-ups and clear all clubs</button>
+    </section>`;
 }

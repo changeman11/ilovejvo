@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Launch club reset (button) + Pre-launch line-ups + launch announcement · site DEPLOYED (sw v92)
+- /admin/people: "🚀 Launch reset: clear all clubs" (type CONFIRM). `launchClearClubs` in admin-data.js saves `settings/prelaunchLineups` (every approved club: name, colours, logo, manager, players) once, then disbands every approved club (kept for results; names reusable) and sets every player's teamId to null. No per-player transfer news. **Waiting for the owner to press it** (needs an admin sign-in).
+- /teams?view=prelaunch: "🧪 Pre-launch line-ups" chip (only once the snapshot exists): team cards with the saved line-ups (current pictures), no join buttons.
+- Launch announcement posted in #i-love-jvowebapp (fresh start, new Stats page, FAQ/Roles, Discord colours/sections, 1st-only awards, #transfer-news, pickup AFK).
+
 ### 2026-11-21 · Claude (owner's PC) · Pickup Elo + 1v1 RP reset for launch · rules + site DEPLOYED (sw v91), bot UPLOADED
 - `FirestoreStore.resetRatings` (tested), run once at bot start (meta `ratingsReset = 'launch-2026-11-21'`): copied all 29 pickupRatings to `pickupMeta/prelaunchElo` and all 4 rankedRatings to `pickupMeta/prelaunchRP` ({ ratings: { discordId: record } }), then deleted the rating docs (firestore.rules: bot may delete them). Everyone is back at 1000. Game history (pickupGames/rankedGames) is kept; game numbers carry on.
 - /pickup: collapsible "🧪 Pre-launch ratings" (Elo + RP) from those docs (`loadPrelaunchRatings` in data.js). FAQ pickup answer mentions it.
