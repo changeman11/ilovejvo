@@ -317,3 +317,44 @@ export function claimRow({ result, i, profile, teamIds }) {
 }
 
 export { tallyVotes, matchState, checkResult };
+
+// ---------- Missing stats nudges (added 2026-11-21) ----------
+// When a match has its score but no usable screenshot, the bot tells the players off (nicely) and
+// says how to fix it themselves:
+//   noShot: no end-of-match screenshot 5 minutes after the score went in (again after 45 minutes,
+//           twice at most);
+//   unread: the bot couldn't read the screenshot it got (once per screenshot).
+// -> { kind, shot? } or null. thread: the matchThreads doc ({ doneAt, shotNudges, shotNudgedAt, unreadNudged }).
+const MIN = 60 * 1000;
+export function statsNudgeDue({ result, subs, thread, now }) {
+  if (!result || result.forfeit || result.statsStatus !== 'pending' || Object.keys(result.playerStats ?? {}).length) return null;
+  const err = result.statsDraft?.error;
+  if (err && result.statsDraft.shot && thread.unreadNudged !== result.statsDraft.shot) return { kind: 'unread', shot: result.statsDraft.shot, error: err };
+  if (!needsScreenshot(result, subs ?? [])) return null;
+  const n = thread.shotNudges ?? 0;
+  if (n >= 2 || now - (thread.doneAt ?? now) < 5 * MIN || (thread.shotNudgedAt && now - thread.shotNudgedAt < 45 * MIN)) return null;
+  return { kind: 'noShot', n: n + 1 };
+}
+
+// Should the thread stay open (so players can post a screenshot)? Up to 3 hours after the score.
+export function statsStillMissing({ result, subs, thread, now }) {
+  if (!result || result.forfeit || result.statsStatus !== 'pending' || Object.keys(result.playerStats ?? {}).length) return false;
+  if (now - (thread.doneAt ?? now) > 3 * 60 * MIN) return false;
+  return Boolean(result.statsDraft?.error) || needsScreenshot(result, subs ?? []);
+}
+
+// The message. ids: Discord IDs to ping (both teams). link: the match page on the site.
+export function statsNudgeText(due, { ids = [], link = '' }) {
+  const pings = ids.map((id) => `<@${id}>`).join(' ');
+  const how = [
+    '**How to fix it yourselves:**',
+    '1. On the end-of-match screen (the table with everyone\'s stats), take a **full-screen screenshot**: Print Screen, Steam\'s F12, or Win+Shift+S over the whole game window.',
+    '2. **Post it right here in this thread** as a picture (PNG or JPG, not a GIF, not a phone photo of the screen, not cropped).',
+    `3. No screenshot here? Use the site: open the match → **🛠 Fix this result** → add the screenshot${link ? ` (${link})` : ''}.`,
+    'The bot reads it within a few minutes and asks who\'s who if it needs to.',
+  ].join('\n');
+  if (due.kind === 'unread') {
+    return `🤨 ${pings}\nI couldn't read the stats from that screenshot (${String(due.error).replace(/[*_`~|>]/g, '').slice(0, 120)}). It's probably cropped, blurry, a phone photo or not the end-of-match screen.\n${how}`;
+  }
+  return `😤 ${pings}\n${due.n > 1 ? 'Still' : 'Oi!'} no end-of-match screenshot for this match, so **nobody gets stats or awards from it** until one turns up.\n${how}`;
+}

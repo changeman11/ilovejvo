@@ -61,6 +61,9 @@ A manager hands the club to another squad member first (Club hub → Manager →
 ## The score is wrong. What do I do?
 Open the match and press **🛠 Fix this result**. Send the right set scores, a screenshot or a note. If both teams send the same fix, it changes straight away; otherwise an admin looks at it.
 
+## The bot says there's no screenshot (or it can't read it)
+Stats come from the **end-of-match screen** (the table with everyone's stats). Take a **full-screen screenshot** of it (Print Screen, Steam's F12, or Win+Shift+S over the whole game window) and **post it in the match thread** on Discord as a PNG or JPG: not a GIF, not a phone photo of your screen, not cropped. Or open the match on the site → **🛠 Fix this result** → add the screenshot. The bot reads it within a few minutes. Until then, nobody gets stats or awards from that match.
+
 ## My stats are wrong or missing.
 Use **🛠 Fix this result** with a note, or ask an admin on Discord. Admins can fix stat lines and link your in-game name to your profile, so you're recognised automatically next time.
 

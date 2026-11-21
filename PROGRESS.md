@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Bot nudges for missing / unreadable screenshots · bot UPLOADED, site DEPLOYED (sw v102)
+- logic/matches.js `statsNudgeDue` / `statsStillMissing` / `statsNudgeText` (tested), matches.js `nudgeStats`: in the match thread, pings both teams: "😤 Oi! no end-of-match screenshot" 5 min after the score (again at +45 min, twice max), or "🤨 I couldn't read the stats from that screenshot" once per screenshot, each with how to fix it (full-screen PNG/JPG of the end-of-match screen in the thread, or 🛠 Fix this result on the site). Threads stay open up to 3 h while stats are missing so players can post. Thread doc fields: shotNudges, shotNudgedAt, unreadNudged. FAQ answer added. First live nudges fired in the 4v4 Launch Cup.
+
 ### 2026-11-21 · Claude (owner's PC) · 🎟️ Event Player role; role clean-up list · bot UPLOADED, site DEPLOYED (sw v101)
 - `bot/src/event-role.js` (tested; EVENT_ROLE=0 off): "🎟️ Event Player" (mentionable) for everyone in an upcoming/running, non-pre-launch event (club members of entered clubs, event roster incl. subs, solos), removed when they're in none (finished/cancelled, or 12 h after the start). Meta `eventRole` / `eventRoleHolders`. role-layout puts it in the TEAM section after Captain. First run: 37 given (4v4 Launch Cup).
 - Useless roles DELETED on the owner's yes (2026-11-21): Players (0), Guest (0), ---Awards--- (0), Team Captain (15, replaced by Captain), 🥇Playtest Champion (4, replaced by 🏆 Pre-launch Champion), Free Agent (1), NOV 15 EVENT (17, replaced by Event Player). FAQ/Roles/guide mention Event Player.

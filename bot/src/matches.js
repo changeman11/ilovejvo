@@ -25,7 +25,7 @@
 import {
   threadDocId, formatOf, isApprovedTeam, readScore, profileOf, squadOf, isCaptain, openMatches,
   reminderDue, voteDoc, agreedResult, toConfirm, tallyVotes, matchState,
-  unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot, screenshotLike,
+  unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot, screenshotLike, statsNudgeDue, statsStillMissing, statsNudgeText,
   confirmLines, fixLine, parseStatLine, lineNumbers, canEditLine,
 } from './logic/matches.js';
 import { shotToRead, placeLines, knownPrints, learnPrints } from './logic/reading.js';
@@ -201,9 +201,12 @@ export class MatchThreads {
       this.readStats(id, m, now);
       await this.askNames(id, m, now);
       await this.postCheck(id, m, now);
+      await this.nudgeStats(id, m, now);
       t = this.threads.get(id);
-      // Stays open while players can still sort out who's who or confirm their stats.
-      if (now - (t.doneAt ?? 0) >= this.config.matchCloseMinutes * 60000 && !unknownNames(m.result).length && !hasReading(m.result)) await this.close(id, t, now);
+      // Stays open while players can still sort out who's who or confirm their stats, or still owe
+      // a (readable) screenshot (up to 3 hours).
+      if (now - (t.doneAt ?? 0) >= this.config.matchCloseMinutes * 60000 && !unknownNames(m.result).length && !hasReading(m.result)
+        && !statsStillMissing({ result: m.result, subs: m.subs, thread: t, now })) await this.close(id, t, now);
       return;
     }
     if (t.status === 'done') t = await this.save(id, { status: 'open', doneAt: null }); // the score was removed
@@ -293,6 +296,19 @@ export class MatchThreads {
     const who = [...new Set(posted.map((p) => p.authorId))].map((a) => `<@${a}>`).join(', ');
     await this.io.post({ content: `📸 Found ${paths.length === 1 ? 'a screenshot' : `${paths.length} screenshots`} from ${who} here and added ${paths.length === 1 ? 'it' : 'them'} to the site. ${this.reader ? 'Reading the stats now…' : `Staff will read the stats from ${paths.length === 1 ? 'it' : 'them'}.`}`, allowedMentions: { parse: [] } }, t.threadId).catch(() => {});
     this.log.info?.(`[matches] copied ${paths.length} thread screenshot(s) for ${id}`);
+  }
+
+  // No screenshot, or one the bot couldn't read: tell both teams off and how to fix it.
+  async nudgeStats(id, m, now) {
+    const t = this.threads.get(id);
+    if (!t || t.status === 'closed') return;
+    const due = statsNudgeDue({ result: m.result, subs: m.subs, thread: t, now });
+    if (!due) return;
+    const ids = [...new Set([...m.homeSquad, ...m.awaySquad].map((p) => String(p.discordId ?? '')).filter((x) => /^\d{15,22}$/.test(x)))];
+    const link = this.config.siteUrl ? `${this.config.siteUrl}/match/${encodeURIComponent(m.b.event.id)}/${encodeURIComponent(m.f.id)}` : '';
+    await this.io.post({ content: statsNudgeText(due, { ids, link }), allowedMentions: { users: ids.slice(0, 100) } }, t.threadId).catch((err) => this.log.warn('[matches] stats nudge:', err.message));
+    await this.save(id, due.kind === 'unread' ? { unreadNudged: due.shot } : { shotNudges: due.n, shotNudgedAt: now });
+    this.log.info?.(`[matches] ${due.kind} nudge for ${id}`);
   }
 
   // ---------- Reading the screenshot (stats-read.js) ----------
