@@ -1,3 +1,4 @@
+import { isPreLaunch } from './eras.js';
 // Exhibition nights and tournaments. Pure helpers, no Firebase.
 //
 // An event: { id, type, title, summary, details, date (ms or null = TBD), timeTbd,
@@ -53,8 +54,11 @@ export function countdownParts(ms, now) {
 export const isUpcoming = (e) => (e.status ?? 'upcoming') === 'upcoming';
 
 // Upcoming first: dated events soonest first, then TBD ones (newest added first).
-// Then finished/cancelled, most recent first.
-export function sortEvents(events) {
+// Then finished/cancelled, most recent first. Events from before the game launched (rules/eras.js)
+// are their own group, preLaunch (newest first), and in neither of the others (2026-11-21).
+export function sortEvents(all) {
+  const preLaunch = all.filter((e) => isPreLaunch(e)).sort((a, b) => (b.date ?? b.createdAt ?? 0) - (a.date ?? a.createdAt ?? 0));
+  const events = all.filter((e) => !isPreLaunch(e));
   const upcoming = events.filter(isUpcoming).sort((a, b) => {
     if (a.date && b.date) return a.date - b.date;
     if (a.date) return -1;
@@ -62,7 +66,7 @@ export function sortEvents(events) {
     return (b.createdAt ?? 0) - (a.createdAt ?? 0);
   });
   const past = events.filter((e) => !isUpcoming(e)).sort((a, b) => (b.date ?? b.createdAt ?? 0) - (a.date ?? a.createdAt ?? 0));
-  return { upcoming, past };
+  return { upcoming, past, preLaunch };
 }
 
 const isWebUrl = (u) => {

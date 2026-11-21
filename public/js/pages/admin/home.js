@@ -39,7 +39,7 @@ export async function render() {
   // Launch reset still to do: clubs are active (button on /admin/people).
   const activeClubs = (await loadPeople({ fresh: true, admin: true }).catch(() => ({ teams: [] }))).teams
     .filter((t) => (t.status ?? 'approved') === 'approved' && !t.mix).length;
-  const { upcoming, past } = sortEvents(events);
+  const { upcoming, past, preLaunch } = sortEvents(events);
   const now = Date.now();
   const waiting = bundles.flatMap((b) => b.fixtures
     .filter((f) => !b.results[f.id] && f.scheduledAt && f.scheduledAt <= now && f.homeTeamId && f.awayTeamId)
@@ -116,7 +116,8 @@ export async function render() {
             <div class="section-head"><h2>Coming up</h2><span class="muted small">Tap an event to change its details, teams or fixtures</span></div>
             <div class="panel flush rows">${upcoming.map(row).join('') || '<p class="muted" style="padding:16px">No upcoming events. Make one with “New exhibition night” above.</p>'}</div>
           </section>
-          ${past.length ? `<section><div class="section-head"><h2>Finished</h2></div><div class="panel flush rows">${past.map(row).join('')}</div></section>` : ''}
+          ${past.length ? `<details class="adm-old adm-events"><summary>Past events (${past.length})</summary><div class="panel flush rows">${past.map(row).join('')}</div></details>` : ''}
+          ${preLaunch.length ? `<details class="adm-old adm-events"><summary>🧪 Pre-launch events (${preLaunch.length})</summary><div class="panel flush rows">${preLaunch.map(row).join('')}</div></details>` : ''}
         </div>
       </div>`,
   };

@@ -58,7 +58,7 @@ export async function checkinPanel(b, { fixture = null, st = null } = {}) {
     return `
       <div class="ru-side">
         <b>${teamDot(team)} ${esc(team?.name ?? 'TBC')}</b>
-        <span class="ru-count num${ins.length >= need ? ' full' : ''}">${Math.min(ins.length, need)}/${need}</span>
+        <span class="ru-count num${ins.length >= need ? ' full' : ''}">${Math.min(ins.length, need)}/${need}${ins.length > need ? ` <small>+${ins.length - need} sub${ins.length - need === 1 ? '' : 's'}</small>` : ''}</span>
         <ul>${rows || '<li class="muted small">Nobody yet</li>'}</ul>
       </div>`;
   };

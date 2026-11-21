@@ -17,7 +17,7 @@ Anyone with the **Staff** role on Discord is an admin on the site automatically 
 
 ## Getting around
 Admin pages have their own menu: down the left on a computer, a row you swipe along the top on a phone. "← Back to the site" returns to the normal site.
-- **🏠 Home**: the **Needs you** cards (everything waiting on an admin), **Quick jobs** and every event.
+- **🏠 Home**: the **Needs you** cards (everything waiting on an admin), **Quick jobs**, upcoming events, and past and 🧪 pre-launch events folded underneath.
 - **📥 Requests**: result fixes, disputed scores, new clubs, profile claims.
 - **📸 Stats to check**: check and publish stats read from screenshots.
 - **👥 Clubs & players**: edit any club or player.
@@ -89,6 +89,9 @@ On a finished event with semi-finals: **Add 3rd place match**. It's saved once b
 ## Before the start
 - Be online about 10 minutes before the start: sign-ups close, fixtures lock and save.
 - Check every club has enough players, and the solo players are in teams.
+
+## Discord reminders
+The bot posts in #match-threads by itself: 24 hours and 2 hours before an event it pings clubs with fewer players than the event's players per game; at the start it pings everyone to check in (or that matches are open); 10 minutes in it pings anyone still not checked in. The event needs a date and time.
 
 ## Check-in
 With check-in on, players check in once for the event. A match opens when enough players from each team are in. On the event page, staff can press **Check in for them** next to anyone who can't. **Admin: start this match now** starts one match without waiting.

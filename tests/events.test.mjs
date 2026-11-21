@@ -23,18 +23,21 @@ test('form date round-trips; TBD time is stored at noon', () => {
   assert.deepEqual(inputsFromDate(null, true), { dateStr: '', timeStr: '' });
 });
 
-test('sorting: dated upcoming first, then TBD, then past', () => {
+test('sorting: dated upcoming first, then TBD, then past; pre-launch events on their own', () => {
+  const L = 2e12; // after launch
   const list = [
-    { id: 'tbd-old', status: 'upcoming', date: null, createdAt: 1 },
-    { id: 'later', status: 'upcoming', date: 300 },
-    { id: 'done', status: 'finished', date: 50 },
-    { id: 'soon', status: 'upcoming', date: 200 },
-    { id: 'tbd-new', status: 'upcoming', date: null, createdAt: 2 },
-    { id: 'off', status: 'cancelled', date: 80 },
+    { id: 'tbd-old', status: 'upcoming', date: null, createdAt: L + 1 },
+    { id: 'later', status: 'upcoming', date: L + 300 },
+    { id: 'done', status: 'finished', date: L + 50 },
+    { id: 'soon', status: 'upcoming', date: L + 200 },
+    { id: 'tbd-new', status: 'upcoming', date: null, createdAt: L + 2 },
+    { id: 'off', status: 'cancelled', date: L + 80 },
+    { id: 'old-cup', status: 'upcoming', date: 1000 },
   ];
-  const { upcoming, past } = sortEvents(list);
+  const { upcoming, past, preLaunch } = sortEvents(list);
   assert.deepEqual(upcoming.map((e) => e.id), ['soon', 'later', 'tbd-new', 'tbd-old']);
   assert.deepEqual(past.map((e) => e.id), ['off', 'done']);
+  assert.deepEqual(preLaunch.map((e) => e.id), ['old-cup'], 'a pre-launch event still marked upcoming is not upcoming');
 });
 
 test('validation', () => {

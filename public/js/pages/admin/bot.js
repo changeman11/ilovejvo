@@ -178,9 +178,9 @@ export async function render() {
     </form>`;
 
   // Match threads by event: newest first (upcoming, then finished).
-  const { upcoming, past } = sortEvents(events);
+  const { upcoming, past, preLaunch } = sortEvents(events);
   const byEvent = status?.threadsByEvent ?? {};
-  const eventRows = [...upcoming, ...past].slice(0, 15).map((e) => {
+  const eventRows = [...upcoming, ...past, ...preLaunch].slice(0, 15).map((e) => {
     const t = byEvent[e.id] ?? { open: 0, total: 0 };
     const on = e.matchThreads !== false;
     return `

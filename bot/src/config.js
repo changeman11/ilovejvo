@@ -145,6 +145,8 @@ export function loadConfig(env = process.env) {
   // Role layout with TEAM / AWARDS dividers (role-layout.js, 2026-11-21): on unless ROLE_LAYOUT=0.
   config.roleLayout = text('ROLE_LAYOUT') !== '0';
   config.roleLayoutMinutes = number('ROLE_LAYOUT_MINUTES', 5, 1, 1440);
+  // Event reminders in #match-threads (event-pings.js, 2026-11-21): on unless EVENT_PINGS=0.
+  config.eventPings = text('EVENT_PINGS') !== '0';
   // #staff-desk: quick admin jobs with buttons (staff-desk.js, 2026-11-21): on unless STAFF_DESK=0.
   config.staffDesk = text('STAFF_DESK') !== '0';
   config.staffDeskChannelId = discordId('STAFF_DESK_CHANNEL_ID', '', false);

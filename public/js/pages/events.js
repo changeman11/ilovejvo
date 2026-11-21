@@ -158,16 +158,33 @@ export const eventsList = {
   title: 'Events',
   loading: () => skeleton([60, 240]),
   async render() {
-    const type = new URLSearchParams(location.search).get('type');
+    // Tabs (2026-11-21): Upcoming · Past · 🧪 Pre-launch (?when=), then the type filter (?type=).
+    const params = new URLSearchParams(location.search);
+    const type = params.get('type');
     const all = await loadPublicEvents();
-    const { upcoming, past } = sortEvents(all.filter((e) => !EVENT_TYPES[type] || e.type === type));
-    const chip = (t, label) => `<a class="chip-link" href="/events${t ? `?type=${t}` : ''}" data-link data-keep-scroll${(t || null) === (EVENT_TYPES[type] ? type : null) ? ' aria-current="true"' : ''}>${label}</a>`;
+    const groups = sortEvents(all.filter((e) => !EVENT_TYPES[type] || e.type === type));
+    const WHEN = [['upcoming', 'Upcoming', groups.upcoming], ['past', 'Past', groups.past], ['prelaunch', '🧪 Pre-launch', groups.preLaunch]];
+    const when = WHEN.some(([k]) => k === params.get('when')) ? params.get('when') : 'upcoming';
+    const link = (changes) => {
+      const q = new URLSearchParams(location.search);
+      for (const [k, v] of Object.entries(changes)) (v ? q.set(k, v) : q.delete(k));
+      const s = q.toString();
+      return `/events${s ? `?${s}` : ''}`;
+    };
+    const tabs = WHEN.filter(([k, , list]) => k === 'upcoming' || list.length || k === when)
+      .map(([k, label, list]) => `<a href="${esc(link({ when: k === 'upcoming' ? null : k }))}" data-link data-keep-scroll${k === when ? ' aria-current="page"' : ''}>${label}${k === 'upcoming' ? '' : ` <span class="muted">${list.length}</span>`}</a>`).join('');
+    const chip = (t, label) => `<a class="chip-link" href="${esc(link({ type: t || null }))}" data-link data-keep-scroll${(t || null) === (EVENT_TYPES[type] ? type : null) ? ' aria-current="true"' : ''}>${label}</a>`;
+    const list = WHEN.find(([k]) => k === when)[2];
+    const empty = when === 'upcoming'
+      ? notice('Nothing announced yet', ' Dates are still being worked out. Check back soon.', 'green')
+      : notice(when === 'past' ? 'No past events yet' : 'No pre-launch events', '', 'x');
     return `
       <div class="page-head">${pageTitle('Events', 'Exhibition nights and tournaments.', 'pink')}</div>
+      <nav class="stats-tabs events-tabs" aria-label="Which events">${tabs}</nav>
       <nav class="chips">${chip('', 'All')}${chip('exhibition', 'Exhibition nights')}${chip('tournament', 'Tournaments')}</nav>
       <div class="stack">
-        ${upcoming.length ? `<div class="event-list">${upcoming.map(eventCard).join('')}</div>` : notice('Nothing announced yet', ' Dates are still being worked out. Check back soon.', 'green')}
-        ${past.length ? `<section><div class="section-head"><h2>Past events</h2></div><div class="event-list">${past.map(eventCard).join('')}</div></section>` : ''}
+        ${when === 'prelaunch' ? '<p class="panel muted small prelaunch-note">🧪 Events from before just volleyball launched (21 November 2026). Their results and stats are kept here and in the pre-launch stats.</p>' : ''}
+        ${list.length ? `<div class="event-list">${list.map(eventCard).join('')}</div>` : empty}
       </div>`;
   },
 };

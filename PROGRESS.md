@@ -20,6 +20,12 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Logo required, Discord event reminders, Events tabs · site DEPLOYED (sw v99), bot UPLOADED
+- Club registration needs a logo (Club hub form, app-checked; the logo section is open with "required"). Staff desk cards flag "⚠️ No logo uploaded".
+- `bot/src/event-pings.js` (+ logic, tested; EVENT_PINGS=0 off): in #match-threads, 24 h and 2 h before an event it pings clubs with fewer players than players per game; at the start it pings everyone to check in (or "matches are open" without check-in); 10 min in it pings whoever still hasn't checked in. Players = club members + event roster (subs included). Needs a set date and time. Meta `eventPings`.
+- Check-in counter shows subs who checked in ("3/3 +1 sub").
+- `sortEvents()` now returns { upcoming, past, preLaunch }: pre-launch events (even with status "upcoming") are their own group. /events has tabs Upcoming / Past / 🧪 Pre-launch (`?when=`) above the type chips; admin Home folds Past and Pre-launch events away; the bot panel still lists all.
+
 ### 2026-11-21 · Claude (owner's PC) · Players per game + subs allowed per event · site DEPLOYED (sw v97)
 - Event form (Format): "Players per game" (teamSize) and new "Subs allowed" (`event.subs`, 0–8; missing = 6 − team size). Helpers in rules/events.js: `eventTeamSize`, `eventSubs`, `eventSquadMax`, `eventLineup` ("3v3 · 1 sub"), validation (tested).
 - Used: event page facts, Event rules text, check-in stops a team at players + subs (staff can go over after a confirm), managers get a warning when signing up with fewer players than the game needs. FAQ (new "How many players do we need?"), Rules and admin guide updated. Tested locally end to end.

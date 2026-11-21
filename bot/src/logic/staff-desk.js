@@ -30,8 +30,9 @@ export function deskCards(data) {
         description: [
           `Registered by **${name(t.managerPlayerId)}**${t.shortName ? ` · short name ${clean(t.shortName, 10)}` : ''}`,
           invites.length ? `Invites: ${invites.join(', ')}` : 'No invites picked',
+          logo ? '' : '⚠️ No logo uploaded',
           'Approving makes the founder its manager and sends their invites.',
-        ].join('\n'),
+        ].filter(Boolean).join('\n'),
         color: /^#[0-9a-f]{6}$/i.test(t.colors?.primary ?? '') ? parseInt(t.colors.primary.slice(1), 16) || 0x3b3b3b : 0x1438d8,
         ...(logo ? { thumbnail: { url: logo } } : {}),
       },

@@ -19,7 +19,7 @@ On the JVO Discord (link in the bottom bar and the footer). The site also has a 
 
 # Events
 ## What kinds of events are there?
-**Exhibition nights** (casual, often one night) and **tournaments** (groups, knockouts, elimination brackets). Each event is set up on its own, so the team size, number of sets, finals and sign-up rules can be different every time.
+**Exhibition nights** (casual, often one night) and **tournaments** (groups, knockouts, elimination brackets). Each event is set up on its own, so the team size, number of sets, finals and sign-up rules can be different every time. The Events page has tabs for **Upcoming**, **Past** and **🧪 Pre-launch** events (from before the game launched).
 
 ## How many players do we need?
 Each event sets **players per game** (for example 3v3) and how many **subs** a team may use. You'll see it as "3v3 · 2 subs" on the event page. A team can check in up to that many players (players per game + subs) for the event. Your club squad can still have up to 6 players.
@@ -37,14 +37,14 @@ If the event allows **solo sign-ups**, press **Sign up solo** on the event page.
 For events with automatic fixtures, you can see the draft schedule as clubs sign up. It locks at the start time and then doesn't change. Some events (like hand-made brackets) are filled in by the admins as rounds finish.
 
 ## What is check-in?
-Some events ask every player to **check in once** at the start (✋ on the event page or your match page). A match opens when enough players from both teams have checked in. If you can't, ask a staff member to check you in.
+Some events ask every player to **check in once** at the start (✋ on the event page or your match page). A match opens when enough players from both teams have checked in. If you can't, ask a staff member to check you in. The bot pings everyone in #match-threads when it's time, and again 10 minutes later if you still haven't.
 
 # Clubs
 ## How do I join a club?
 Open the club's page (Teams & players) and press **Request to join**, or accept an invite from a manager. Invites and answers show under the 🔔 bell. A squad can have up to **6 players** (for example 4 + 2 subs).
 
 ## How do I start a club?
-While you're a free agent, open the Club tab and register a team: name, colours, logo, and players you'd like to invite. An admin approves it, you become the **manager**, and your invites are sent.
+While you're a free agent, open the Club tab and register a team: name, colours, **a logo (required)**, and players you'd like to invite. An admin approves it, you become the **manager**, and your invites are sent.
 
 ## Can I leave or switch clubs?
 Yes, leave any time from the Club hub, no approval needed. You can add a short goodbye message: it shows under your move in #transfer-news and on the site's transfers ticker. One club at a time. **Moves are paused while an event is running** (from 10 minutes before the start until it's finished), so line-ups don't change mid-event.
@@ -169,6 +169,7 @@ At JVO everyone is one of these. You can be more than one, like a manager who's 
 # Managers (captains)
 ## Before an event
 - **Sign your club up** on the event page before sign-ups close (10 minutes before the start).
+- If your club is short of players, the bot pings you in #match-threads 24 hours and 2 hours before the start.
 - Make sure your squad is set: invites accepted, up to 6 players, enough for the event's team size.
 - Tell your players the start time and to read the event rules.
 

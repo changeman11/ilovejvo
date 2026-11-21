@@ -24,6 +24,7 @@ import { StaffAdmins } from './staff-admins.js';
 import { RoleLayout } from './role-layout.js';
 import { TransferHub } from './transfer-hub.js';
 import { StaffDesk } from './staff-desk.js';
+import { EventPings } from './event-pings.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -124,6 +125,7 @@ let staffAdmins = null;
 let roleLayout = null;
 let transferHub = null;
 let staffDesk = null;
+let eventPings = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -183,6 +185,12 @@ client.once(Events.ClientReady, async () => {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
       transferHub = new TransferHub({ io: discord.transferIo, site, store, config, log });
       transferHub.start().catch((err) => log.error(`[transfer hub] ${err.message}`));
+    }
+    // Event reminders (roster, check in) in the match threads channel.
+    if (config.eventPings && discord.matchIo) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      eventPings = new EventPings({ io: { post: (m) => discord.matchIo.post(m, discord.matchIo.channelId) }, site, store, config, log });
+      eventPings.start().catch((err) => log.error(`[event pings] ${err.message}`));
     }
     // #staff-desk: quick admin jobs with ✅ / ❌ (needs STORE=firebase: the bot saves the decisions).
     if (config.staffDesk && discord.deskIo && store.rest) {
@@ -375,6 +383,7 @@ async function stop(signal) {
   roleLayout?.stop();
   transferHub?.stop();
   staffDesk?.stop();
+  eventPings?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

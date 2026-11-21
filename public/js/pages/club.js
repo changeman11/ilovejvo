@@ -135,8 +135,9 @@ function registerBlock(me) {
         </div>
         <label class="field"><span>Club colour (the dot next to its name)</span><input type="color" name="color" value="#19c9b1" class="color-input"></label>
         ${invitePicker(me)}
-        <details class="team-extras">
-          <summary>Make your club page now (optional)</summary>
+        <details class="team-extras" open>
+          <summary>Club logo (required) and club page</summary>
+          <p class="small" style="margin:6px 0 0"><b>A logo is required</b> to register. Square works best; GIFs are fine.</p>
           ${customiseFields('team', {}, DEFAULT_STATS, '#19c9b1')}
         </details>
         <div class="save-bar"><button class="btn btn-primary" type="submit">Send for approval</button><p class="form-error" role="alert" hidden style="margin:0"></p></div>
@@ -514,6 +515,12 @@ export function mount(el) {
         const name = val('name');
         if (!name) return showError('Give your club a name.', form);
         if (me.teams.some((t) => t.status !== 'disbanded' && t.name.toLowerCase() === name.toLowerCase())) return showError('That name is taken.', form);
+        // A club logo is required to register (2026-11-21).
+        if (!form.querySelector('input[name="file-logo"]')?.files?.[0]) {
+          form.querySelector('.team-extras')?.setAttribute('open', '');
+          form.querySelector('input[name="file-logo"]')?.closest('.field, .img-field, label')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          return showError('Add a club logo first: it’s required to register.', form);
+        }
         for (const input of form.querySelectorAll('input[type=file][name^="file-"]')) {
           if (input.files?.[0]) await prepareImage(input.files[0], input.name.slice(5));
         }
