@@ -30,6 +30,24 @@ export function layoutFromWords(words) {
     }
     return { playerX: p.x, headerY: p.y, cols };
   }).filter((p) => p.cols.pts !== undefined && p.cols.spk !== undefined);
+  // A table whose "player" heading is hidden (the game's lobby list in the top-left corner covers
+  // the left one on some screenshots, 2026-11-21): found from its "pts" + "spk" headings instead,
+  // with the name column assumed to start 4 columns left of "pts".
+  const covered = (x) => panels.some((p) => x > p.playerX && x < (heads.find((h) => h.x > p.playerX)?.x ?? Infinity));
+  for (const pts of words.filter((w) => w.t?.toLowerCase() === 'pts').sort((a, b) => a.x - b.x)) {
+    if (covered(pts.x)) continue;
+    const spk = words.filter((v) => v.t?.toLowerCase() === 'spk' && v.x > pts.x && v.x - pts.x < 200 && Math.abs(v.y - pts.y) < 40).sort((a, b) => a.x - b.x)[0];
+    if (!spk) continue;
+    const gap = spk.x - pts.x;
+    const nextHead = [...heads.map((h) => h.x), ...panels.map((p) => p.playerX)].filter((x) => x > pts.x).sort((a, b) => a - b)[0] ?? Infinity;
+    const cols = {};
+    for (const stat of STAT_ORDER) {
+      const w = words.filter((v) => v.t?.toLowerCase() === stat && v.x >= pts.x - 5 && v.x < nextHead && Math.abs(v.y - pts.y) < 40).sort((a, b) => a.x - b.x)[0];
+      if (w) cols[stat] = w.x;
+    }
+    panels.push({ playerX: pts.x - 4 * gap, headerY: pts.y, cols, guessed: true });
+  }
+  panels.sort((a, b) => a.playerX - b.playerX);
   if (!panels.length) return null;
   const colGap = panels[0].cols.spk - panels[0].cols.pts;
   if (!(colGap > 10)) return null;

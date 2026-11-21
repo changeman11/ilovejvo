@@ -15,12 +15,17 @@ export function shotFor(result, subs) {
 
 // Does this match want the bot to read a screenshot? -> the path, or null.
 //   tried: Map path -> when the bot last failed on it (tried again after retryMs).
-export function shotToRead(result, subs, { tried = new Map(), now = Date.now(), retryMs = 15 * 60 * 1000 } = {}) {
+// READER_V: bumped when the reader gets better; an older bot reading that came out short (fewer
+// lines than minLines) or found no table is read again once. v2 (2026-11-21): tables whose
+// "player" heading is covered are found from their column headings.
+export const READER_V = 2;
+export function shotToRead(result, subs, { tried = new Map(), now = Date.now(), retryMs = 15 * 60 * 1000, minLines = 0 } = {}) {
   if (!result || result.forfeit || result.statsStatus !== 'pending') return null;
   const shot = shotFor(result, subs);
   if (!shot) return null;
   const d = result.statsDraft;
-  if (d?.shot === shot && (d.rows || d.error)) return null; // read already (by the bot or a browser)
+  const stale = d?.reader === 'bot' && (d.v ?? 1) < READER_V && (d.error || (d.rows && d.rows.length < minLines));
+  if (d?.shot === shot && (d.rows || d.error) && !stale) return null; // read already (by the bot or a browser)
   if (d?.shot === shot && d.reading && now - (d.at ?? 0) < 3 * 60 * 1000) return null; // a browser is on it
   if (tried.has(shot) && now - tried.get(shot) < retryMs) return null;
   return shot;

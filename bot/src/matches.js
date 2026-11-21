@@ -28,7 +28,7 @@ import {
   unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot, screenshotLike, statsNudgeDue, statsStillMissing, statsNudgeText,
   confirmLines, fixLine, parseStatLine, lineNumbers, canEditLine,
 } from './logic/matches.js';
-import { shotToRead, placeLines, knownPrints, learnPrints } from './logic/reading.js';
+import { shotToRead, READER_V, placeLines, knownPrints, learnPrints } from './logic/reading.js';
 import * as views from './match-views.js';
 
 // A reading players can confirm: stats not submitted yet, and at least one line down as a player.
@@ -317,7 +317,7 @@ export class MatchThreads {
   // The reading itself runs outside the queue (it takes a few seconds), so buttons aren't kept waiting.
   readStats(id, m, now) {
     if (!this.reader || this.reading) return;
-    const shot = shotToRead(m.result, m.subs, { tried: this.tried, now });
+    const shot = shotToRead(m.result, m.subs, { tried: this.tried, now, minLines: 2 * (Number(m.b.event?.teamSize) || 4) });
     if (!shot) return;
     this.tried.set(shot, now);
     const job = (async () => {
@@ -344,9 +344,9 @@ export class MatchThreads {
     const perSide = Number(m.b.event?.teamSize) || 4;
     if (!out.error && out.lines) out = { ...out, lines: out.lines.filter((l) => (l.row ?? 0) < perSide) };
     const statsDraft = out.error
-      ? { shot, readAt: now, by: botUid, reader: 'bot', error: out.error }
+      ? { shot, readAt: now, by: botUid, reader: 'bot', v: READER_V, error: out.error }
       : {
-        shot, readAt: now, by: botUid, reader: 'bot',
+        shot, readAt: now, by: botUid, reader: 'bot', v: READER_V,
         rows: placeLines(out.lines, {
           homeTeamId: m.f.homeTeamId, awayTeamId: m.f.awayTeamId,
           homeSquad: squad(m.homeSquad, m.f.homeTeamId), awaySquad: squad(m.awaySquad, m.f.awayTeamId),

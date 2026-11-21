@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Stats reader: covered "player" heading fixed · site DEPLOYED (sw v104), bot UPLOADED
+- Cause: the game's lobby list (top-left) covers the left table's "player" heading on some end-of-match screenshots, so the whole home side was skipped (4 lines instead of 8). `layoutFromWords` (rules/endscreen.js, shared with the bot) now also finds a table from its "pts" + "spk" headings (name column assumed 4 columns left of pts). Checked on tonight's 6 end-screen shots: all 8 lines, numbers right, WebP = PNG.
+- Bot re-reads once any older bot reading that came out short or found no table (`READER_V` 2 in logic/reading.js, `statsDraft.v`).
+- Still not readable: screenshots of the game's match-details pop-up from the menu (single column, often cropped, sometimes without headings). Next job: support that layout.
+
 ### 2026-11-21 · Claude (owner's PC) · Managers can disband clubs; automatic forfeits for clubs that leave an event · rules + site DEPLOYED (sw v103), bot UPLOADED
 - Club hub → Manager → "Disband the club" (type the club name): `disbandClub` in player-data.js releases everyone, the manager leaves, team → disbanded, one "disbanded" transfer news item, sign-ups to unlocked events withdrawn. Allowed during events (no move pause).
 - `bot/src/withdrawals.js` (tested; AUTO_FORFEITS=0 off): every 2 min, for published upcoming events with locked fixtures, unplayed saved matches of a club that's disbanded, or (auto-fixture events) no longer in entries/teamIds, are saved as forfeits (2–0, 10–0, no stats, `autoForfeit: true`). firestore.rules: bot may create such results only when `teamWithdrawn()`. Both-gone matches are left to admins. Impact's two Launch Cup matches had already been entered by hand.
