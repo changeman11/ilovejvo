@@ -145,6 +145,8 @@ export function loadConfig(env = process.env) {
   // Role layout with TEAM / AWARDS dividers (role-layout.js, 2026-11-21): on unless ROLE_LAYOUT=0.
   config.roleLayout = text('ROLE_LAYOUT') !== '0';
   config.roleLayoutMinutes = number('ROLE_LAYOUT_MINUTES', 5, 1, 1440);
+  // Forfeits for clubs that left an event (withdrawals.js, 2026-11-21): on unless AUTO_FORFEITS=0.
+  config.autoForfeits = text('AUTO_FORFEITS') !== '0';
   // 🎟️ Event Player role (event-role.js, 2026-11-21): on unless EVENT_ROLE=0.
   config.eventRole = text('EVENT_ROLE') !== '0';
   config.eventRoleMinutes = number('EVENT_ROLE_MINUTES', 5, 1, 1440);

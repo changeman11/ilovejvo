@@ -201,6 +201,26 @@ export async function releasePlayer({ uid, player }) {
   invalidate();
 }
 
+// The manager disbands the club (added 2026-11-21): every player becomes a free agent, the club is
+// kept as 'disbanded' (results keep its name; the name can be used again), its sign-ups to events
+// that haven't locked are withdrawn, and one "disbanded" news item is posted. Allowed even while an
+// event is on: the bot then records its remaining matches there as forfeits (bot/src/withdrawals.js).
+// No per-player news (it would flood #transfer-news).
+export async function disbandClub({ uid, team, squad, manager, note = '' }) {
+  const ops = [];
+  for (const p of squad) if (p.id !== manager.id) ops.push({ type: 'update', path: `players/${p.id}`, before: p, data: { teamId: null } });
+  ops.push({ type: 'update', path: `players/${manager.id}`, before: manager, data: { teamId: null } });
+  ops.push(transferOp({ playerId: manager.id, from: team.id, to: null, kind: 'disbanded', note }));
+  ops.push({ type: 'update', path: `teams/${team.id}`, before: team, data: { status: 'disbanded', managerUid: null, managerPlayerId: null, disbandedAt: serverTimestamp() } });
+  for (const b of await loadAllBundles().catch(() => [])) {
+    if (b.event.status !== 'upcoming' || b.event.fixturesLockedAt) continue;
+    const entry = b.entries.find((x) => x.teamId === team.id);
+    if (entry) ops.push({ type: 'delete', path: `events/${b.event.id}/entries/${entry.id}`, before: entry });
+  }
+  await commit(uid, ops);
+  invalidate();
+}
+
 // The manager hands the club over to another squad player (they must have signed in with Discord).
 export async function handOverClub({ uid, team, player }) {
   await commit(uid, [{ type: 'update', path: `teams/${team.id}`, before: team, data: { managerUid: player.uid, managerPlayerId: player.id } }]);

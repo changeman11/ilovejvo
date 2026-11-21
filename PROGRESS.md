@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Managers can disband clubs; automatic forfeits for clubs that leave an event · rules + site DEPLOYED (sw v103), bot UPLOADED
+- Club hub → Manager → "Disband the club" (type the club name): `disbandClub` in player-data.js releases everyone, the manager leaves, team → disbanded, one "disbanded" transfer news item, sign-ups to unlocked events withdrawn. Allowed during events (no move pause).
+- `bot/src/withdrawals.js` (tested; AUTO_FORFEITS=0 off): every 2 min, for published upcoming events with locked fixtures, unplayed saved matches of a club that's disbanded, or (auto-fixture events) no longer in entries/teamIds, are saved as forfeits (2–0, 10–0, no stats, `autoForfeit: true`). firestore.rules: bot may create such results only when `teamWithdrawn()`. Both-gone matches are left to admins. Impact's two Launch Cup matches had already been entered by hand.
+- FAQ (disbanding, forfeits), Rules, admin guide ("A club leaves mid-event") updated.
+
 ### 2026-11-21 · Claude (owner's PC) · Bot nudges for missing / unreadable screenshots · bot UPLOADED, site DEPLOYED (sw v102)
 - logic/matches.js `statsNudgeDue` / `statsStillMissing` / `statsNudgeText` (tested), matches.js `nudgeStats`: in the match thread, pings both teams: "😤 Oi! no end-of-match screenshot" 5 min after the score (again at +45 min, twice max), or "🤨 I couldn't read the stats from that screenshot" once per screenshot, each with how to fix it (full-screen PNG/JPG of the end-of-match screen in the thread, or 🛠 Fix this result on the site). Threads stay open up to 3 h while stats are missing so players can post. Thread doc fields: shotNudges, shotNudgedAt, unreadNudged. FAQ answer added. First live nudges fired in the 4v4 Launch Cup.
 

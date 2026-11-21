@@ -21,7 +21,7 @@ import { matchesToReport } from './report.js';
 import { chatBlock, mountChat } from './team-chat.js';
 import { signupsOpen, lockTime } from '../rules/autofix.js';
 import { checkText } from '../rules/profanity.js';
-import { signUpTeam, withdrawTeam, handOverClub } from '../player-data.js';
+import { signUpTeam, withdrawTeam, handOverClub, disbandClub } from '../player-data.js';
 
 export const title = 'Club hub';
 export const loading = () => skeleton([160, 260]);
@@ -280,6 +280,11 @@ function managerTab(ctx) {
             }).join('')}</div>
             <p class="muted small">Making someone manager hands the club over to them; you stay in the squad.</p>
           </section>
+          <section class="panel danger-zone">
+            <h3 style="margin-top:0">Disband the club</h3>
+            <p class="small">Everyone becomes a free agent and the club closes. Results keep its name, and the name can be used again. If it’s in an event that’s already started, its remaining matches there are counted as forfeits.</p>
+            <button class="btn btn-danger" type="button" data-act="disband">Disband ${esc(team.name)}</button>
+          </section>
           <section class="panel">
             <h3 style="margin-top:0">Club page</h3>
             <p class="small">Logo, banner, background, bio, colours and showcase stats.</p>
@@ -468,6 +473,20 @@ export function mount(el) {
       if (act === 'event-out' && !window.confirm(`Pull ${team.name} out of ${ev?.b.event.title}?`)) return;
       b.disabled = true;
       if (act === 'hand-over') await handOverClub({ uid: user.uid, team, player: me.playersById[id] });
+      if (act === 'disband') {
+        const squad = me.players.filter((p) => p.teamId === team.id);
+        const typed = window.prompt(`Disband ${team.name}?
+
+• All ${squad.length} players become free agents.
+• Its sign-ups to events that haven't started are withdrawn.
+• Matches left in an event that's already started count as forfeits.
+• There's no undo.
+
+Type the club's name to confirm:`);
+        if (typed === null) { b.disabled = false; return; }
+        if (typed.trim().toLowerCase() !== team.name.trim().toLowerCase()) { b.disabled = false; throw Object.assign(new Error('name'), { friendly: 'That didn’t match the club’s name, so nothing changed.' }); }
+        await disbandClub({ uid: user.uid, team, squad, manager: me.player });
+      }
       if (act === 'event-in') await signUpTeam({ uid: user.uid, eventId: id, team });
       if (act === 'event-out') await withdrawTeam({ uid: user.uid, eventId: id, entry: ev.entry });
       const full = (teamId) => squadSize(me.players, teamId) >= SQUAD_MAX;

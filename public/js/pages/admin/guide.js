@@ -103,6 +103,9 @@ On the event's **Fixtures & results** tab:
 - **Open finals now** ends the break early (or opens the finals if the break is set to wait for an admin).
 - **Stuck matches** (disputed, one-sided or no votes for too long) are listed there and on the bell.
 
+## A club leaves mid-event
+If a club in an event that has started is **disbanded** (by its manager or you) or **taken out** of an event with automatic fixtures, the bot records its remaining matches as forfeits within 2 minutes (the other team wins 2–0, no stats). Played results stay. If both teams in a match are gone, it's left for you.
+
 ## Disputes and no-shows
 When teams vote different scores, look at the screenshots in the match thread or result page and save the right score. For a no-show, open the result and record a **forfeit**: the other team wins 2–0 (10–0, 10–0) with no stats.
 

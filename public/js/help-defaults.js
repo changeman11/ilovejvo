@@ -49,6 +49,9 @@ While you're a free agent, open the Club tab and register a team: name, colours,
 ## Can I leave or switch clubs?
 Yes, leave any time from the Club hub, no approval needed. You can add a short goodbye message: it shows under your move in #transfer-news and on the site's transfers ticker. One club at a time. **Moves are paused while an event is running** (from 10 minutes before the start until it's finished), so line-ups don't change mid-event.
 
+## Can a manager close the club?
+Yes: Club hub → **Manager** → **Disband the club**, then type the club's name. Everyone becomes a free agent, its sign-ups to events that haven't started are withdrawn, and the name can be used again. If the club is in an event that's already started, its remaining matches there count as **forfeits** (the other team wins 2–0).
+
 ## What if the manager leaves?
 A manager hands the club to another squad member first (Club hub → Manager → hand over). If the manager is the last player and leaves, the club is **disbanded**: its results and history stay, and the name can be used again.
 
@@ -118,6 +121,7 @@ Every event has its own settings. **The event's 📜 Event rules section (on its
 
 # Forfeits
 - A team that doesn't show (or can't field enough players) can be given a forfeit loss by staff.
+- A club that disbands or is taken out of an event after its fixtures are set forfeits its remaining matches there automatically.
 - A forfeit counts as a **2–0** win, with both sets **10–0**. No player stats are recorded.
 
 # Tables

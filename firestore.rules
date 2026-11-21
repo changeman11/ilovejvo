@@ -189,6 +189,14 @@ service cloud.firestore {
     }
 
     // Result fixes (public/js/rules/corrections.js): a fix as it will be after this save.
+    // A club no longer in an event: disbanded, or (events with automatic fixtures) taken out of it.
+    function teamWithdrawn(eventId, teamId) {
+      let e = get(/databases/$(database)/documents/events/$(eventId)).data;
+      return get(/databases/$(database)/documents/teams/$(teamId)).data.get('status', '') == 'disbanded'
+          || (e.get('autoFixtures', 'off') != 'off' && e.get('fixturesLockedAt', null) != null
+              && !exists(/databases/$(database)/documents/events/$(eventId)/entries/$(teamId))
+              && !(teamId in e.get('teamIds', [])));
+    }
     function fixAfter(eventId, fixId) { return getAfter(/databases/$(database)/documents/events/$(eventId)/corrections/$(fixId)).data; }
 
     // A player's fix for a match that already has a score: they're signed in as that player, the
@@ -242,6 +250,14 @@ service cloud.firestore {
         allow create: if agreedResult(eventId, fixtureId);
         // ... and change its score only when both teams send the same fix (see agreedCorrection).
         allow update: if agreedCorrection(eventId, fixtureId);
+        // A club that left the event (disbanded, or taken out of an event with automatic fixtures)
+        // forfeits its matches without a result: the bot records them (bot/src/withdrawals.js).
+        allow create: if isPickupBot() && stampedByMe() && eventPublished(eventId) && validResult()
+          && request.resource.data.keys().hasOnly(['sets', 'playerStats', 'mvpPlayerId', 'forfeit', 'autoForfeit', 'enteredBy', 'enteredAt', 'updatedBy', 'updatedAt'])
+          && request.resource.data.playerStats.size() == 0
+          && request.resource.data.forfeit is map
+          && request.resource.data.forfeit.teamId in [fixtureDoc(eventId, fixtureId).homeTeamId, fixtureDoc(eventId, fixtureId).awayTeamId]
+          && teamWithdrawn(eventId, request.resource.data.forfeit.teamId);
         // ... or staff press ✅ "Use this score" on a result fix in Discord's staff desk
         // (bot/src/staff-desk.js): the bot copies that one open fix's set scores and closes it.
         allow update: if isPickupBot() && stampedByMe() && eventPublished(eventId) && validResult()

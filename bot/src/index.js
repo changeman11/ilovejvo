@@ -26,6 +26,7 @@ import { TransferHub } from './transfer-hub.js';
 import { StaffDesk } from './staff-desk.js';
 import { EventPings } from './event-pings.js';
 import { EventRole } from './event-role.js';
+import { Withdrawals } from './withdrawals.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -128,6 +129,7 @@ let transferHub = null;
 let staffDesk = null;
 let eventPings = null;
 let eventRole = null;
+let withdrawals = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -187,6 +189,12 @@ client.once(Events.ClientReady, async () => {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
       transferHub = new TransferHub({ io: discord.transferIo, site, store, config, log });
       transferHub.start().catch((err) => log.error(`[transfer hub] ${err.message}`));
+    }
+    // Matches of clubs that left an event (disbanded / removed) become forfeits (needs STORE=firebase).
+    if (config.autoForfeits && store.rest) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      withdrawals = new Withdrawals({ site, rest: store.rest, config, log });
+      withdrawals.start().catch((err) => log.error(`[forfeits] ${err.message}`));
     }
     // 🎟️ Event Player role for everyone in an upcoming or running event.
     if (config.eventRole) {
@@ -393,6 +401,7 @@ async function stop(signal) {
   staffDesk?.stop();
   eventPings?.stop();
   eventRole?.stop();
+  withdrawals?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

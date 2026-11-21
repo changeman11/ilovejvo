@@ -96,3 +96,22 @@ test('missing stats nudges: no screenshot (5 min in, twice max), unreadable scre
   assert.match(text, /^😤 <@111111111111111111>\nOi! no end-of-match screenshot/);
   assert.match(text, /Fix this result.*https:\/\/s\/m/);
 });
+
+test('withdrawn clubs: disbanded or taken out of an auto-fixture event forfeit their unplayed matches', async () => {
+  const { forfeitsDue } = await import('../src/withdrawals.js');
+  const teams = new Map([['a', {}], ['b', {}], ['gone', { status: 'disbanded' }], ['out', {}], ['mix', { mix: true }]]);
+  const event = { published: true, status: 'upcoming', fixturesLockedAt: 1, autoFixtures: 'once', teamIds: [] };
+  const fixtures = [
+    { id: 'played', homeTeamId: 'a', awayTeamId: 'gone' },
+    { id: 'f1', homeTeamId: 'a', awayTeamId: 'gone' },
+    { id: 'f2', homeTeamId: 'out', awayTeamId: 'b' },
+    { id: 'f3', homeTeamId: 'a', awayTeamId: 'b' },
+    { id: 'f4', homeTeamId: 'gone', awayTeamId: 'out' },
+    { id: 'tbd', homeTeamId: 'gone', awayTeamId: null },
+  ];
+  const due = forfeitsDue({ event, fixtures, results: { played: {} }, entryIds: ['a', 'b', 'mix'], teams });
+  assert.deepEqual(due.map((d) => [d.fixture.id, d.teamId]), [['f1', 'gone'], ['f2', 'out']]);
+  // Manual-fixture events: only disbanded clubs count (who's "in" isn't tracked there).
+  assert.deepEqual(forfeitsDue({ event: { ...event, autoFixtures: 'off' }, fixtures, results: {}, entryIds: [], teams }).map((d) => d.fixture.id), ['played', 'f1', 'f4']);
+  assert.equal(forfeitsDue({ event: { ...event, fixturesLockedAt: null }, fixtures, results: {}, entryIds: [], teams }).length, 0, 'not locked yet: fixtures rebuild by themselves');
+});
