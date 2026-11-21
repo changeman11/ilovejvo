@@ -2037,3 +2037,4 @@ body.admin-mode .save-bar, body.admin-mode.has-reel .save-bar { bottom: calc(var
 .adm-old .rows { margin-top: 6px; opacity: 0.85; }
 .adm-maint { margin-top: 20px; }
 .adm-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--tint-coral); }
+.ru-ready { margin-left: 4px; padding: 1px 6px; border-radius: 999px; background: var(--tint-teal, #d2f5ee); color: var(--ink); font-size: 11px; font-weight: 800; }

@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Check-in counts the whole roster incl. subs · site DEPLOYED (sw v100)
+- Check-in panel: each team shows checked-in / roster (players + subs, up to players per game + subs, never below players per game), e.g. "4/5 ✓ ready"; "✓ ready" once players-per-game are in (matches still start then, so a missing sub can't hold a game up). Wording asks everyone incl. subs to check in; FAQ updated. A manual "check in now" reminder was posted for the 4v4 Launch Cup (16 pinged).
+
 ### 2026-11-21 · Claude (owner's PC) · Logo required, Discord event reminders, Events tabs · site DEPLOYED (sw v99), bot UPLOADED
 - Club registration needs a logo (Club hub form, app-checked; the logo section is open with "required"). Staff desk cards flag "⚠️ No logo uploaded".
 - `bot/src/event-pings.js` (+ logic, tested; EVENT_PINGS=0 off): in #match-threads, 24 h and 2 h before an event it pings clubs with fewer players than players per game; at the start it pings everyone to check in (or "matches are open" without check-in); 10 min in it pings whoever still hasn't checked in. Players = club members + event roster (subs included). Needs a set date and time. Meta `eventPings`.

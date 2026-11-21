@@ -46,6 +46,9 @@ export async function checkinPanel(b, { fixture = null, st = null } = {}) {
     const team = b.teamsById[teamId];
     const ins = checkedIn(b, teamId);
     const squad = squadOf(b, teamId);
+    // Everyone on the roster is asked to check in, subs too (up to players per game + subs);
+    // the team is ready to play once `need` of them are in.
+    const target = Math.max(need, Math.min(squad.length, eventSquadMax(b.event)));
     // Admins see the whole squad with a button each; everyone else sees who's checked in.
     const rows = ctx.adminUid
       ? squad.map((p) => {
@@ -58,7 +61,7 @@ export async function checkinPanel(b, { fixture = null, st = null } = {}) {
     return `
       <div class="ru-side">
         <b>${teamDot(team)} ${esc(team?.name ?? 'TBC')}</b>
-        <span class="ru-count num${ins.length >= need ? ' full' : ''}">${Math.min(ins.length, need)}/${need}${ins.length > need ? ` <small>+${ins.length - need} sub${ins.length - need === 1 ? '' : 's'}</small>` : ''}</span>
+        <span class="ru-count num${ins.length >= target ? ' full' : ''}" title="${ins.length} of ${target} on the roster checked in; matches start once ${need} are in">${ins.length}/${target}${ins.length >= need ? ' <small class="ru-ready">✓ ready</small>' : ''}</span>
         <ul>${rows || '<li class="muted small">Nobody yet</li>'}</ul>
       </div>`;
   };
@@ -74,8 +77,8 @@ export async function checkinPanel(b, { fixture = null, st = null } = {}) {
     <section class="panel ready-up" data-checkin-panel>
       <h2 class="pro-h">✋ Check in${fixture ? '' : ' for the event'}</h2>
       <p class="small" style="margin-top:0">${fixture
-        ? `This match starts once <b>${need} player${need === 1 ? '' : 's'} from each team</b> have checked in for the event. Then score reporting opens and the match thread starts on Discord.`
-        : `Every player checks in <b>once</b>, before or during the event. A team’s matches start when ${need} of its players have checked in.`}
+        ? `Everyone on each roster checks in, subs too. This match starts once <b>${need} player${need === 1 ? '' : 's'} from each team</b> are in (✓ ready). Then score reporting opens and the match thread starts on Discord.`
+        : `<b>Everyone on the roster checks in once</b>, subs too, before or during the event. A team’s matches can start once ${need} are in (it shows ✓ ready).`}
         ${ctx.adminUid ? ' <b>Staff:</b> check in anyone who can’t do it themselves.' : ''}</p>
       <div class="ru-sides">${teamIds.map(teamCard).join('')}</div>
       <div class="actions" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">

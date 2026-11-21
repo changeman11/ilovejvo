@@ -37,7 +37,7 @@ If the event allows **solo sign-ups**, press **Sign up solo** on the event page.
 For events with automatic fixtures, you can see the draft schedule as clubs sign up. It locks at the start time and then doesn't change. Some events (like hand-made brackets) are filled in by the admins as rounds finish.
 
 ## What is check-in?
-Some events ask every player to **check in once** at the start (✋ on the event page or your match page). A match opens when enough players from both teams have checked in. If you can't, ask a staff member to check you in. The bot pings everyone in #match-threads when it's time, and again 10 minutes later if you still haven't.
+Some events ask every player on the roster, **subs included**, to **check in once** at the start (✋ on the event page or your match page). A match opens when enough players from both teams have checked in. If you can't, ask a staff member to check you in. The bot pings everyone in #match-threads when it's time, and again 10 minutes later if you still haven't.
 
 # Clubs
 ## How do I join a club?
