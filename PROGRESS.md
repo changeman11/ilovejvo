@@ -20,6 +20,11 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Re-reads actually saved; repeat nudges · bot UPLOADED, site DEPLOYED (sw v105)
+- `saveReading` dropped a re-read when an older reading of the same picture existed; it now replaces an older bot reading (v < READER_V). Chikchester City v Speed-O'-LightSpikez re-read: 8 lines, 8 placed.
+- Nudges repeat every 15 min until the stats are sorted (`NUDGE_EVERY`; thread fields nudges / nudgedAt / unreadNudged); unreadable shots get "📐 That screenshot is cropped or the wrong screen" with steps (end-of-match screen, not the menu pop-up, don't crop). Threads stay open up to 12 h while stats are missing.
+- Still unreadable by design: menu pop-up shots (Impact v Chikchester, Bong Bong Grape v red powerade: two cropped halves) and an instant-replay frame (red powerade v Deja Vu On Crack). Those teams are being pinged.
+
 ### 2026-11-21 · Claude (owner's PC) · Stats reader: covered "player" heading fixed · site DEPLOYED (sw v104), bot UPLOADED
 - Cause: the game's lobby list (top-left) covers the left table's "player" heading on some end-of-match screenshots, so the whole home side was skipped (4 lines instead of 8). `layoutFromWords` (rules/endscreen.js, shared with the bot) now also finds a table from its "pts" + "spk" headings (name column assumed 4 columns left of pts). Checked on tonight's 6 end-screen shots: all 8 lines, numbers right, WebP = PNG.
 - Bot re-reads once any older bot reading that came out short or found no table (`READER_V` 2 in logic/reading.js, `statsDraft.v`).

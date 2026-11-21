@@ -334,7 +334,10 @@ export class MatchThreads {
   async saveReading(id, shot, out) {
     const m = this.view(id);
     if (!m?.result || m.result.statsStatus !== 'pending') return; // staff finished it meanwhile
-    if (m.result.statsDraft?.shot === shot && m.result.statsDraft.rows) return; // read meanwhile (a browser)
+    // Read meanwhile (a browser) -> keep that. An older bot reading of the same picture (an earlier
+    // READER_V) is replaced: that's the point of reading it again.
+    const old = m.result.statsDraft;
+    if (old?.shot === shot && old.rows && !(old.reader === 'bot' && (old.v ?? 1) < READER_V)) return;
     await this.rest.token();
     const botUid = this.rest.uid;
     const now = this.clock.now();
