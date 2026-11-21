@@ -17,7 +17,9 @@ export const statRoleStyle = (stat) => STAT_ROLE_STYLE[stat.key] ?? { title: sta
 export const PLACE_MEDAL = ['🥇', '🥈', '🥉'];
 export const placeWord = (place) => ['1st', '2nd', '3rd'][place - 1] ?? `${place}th`;
 // "🥇 1st · Spike Royalty 💥"
-export const statRoleName = (stat, place) => { const s = statRoleStyle(stat); return `${PLACE_MEDAL[place - 1] ?? '🏅'} ${placeWord(place)} · ${s.title} ${s.emoji}`; };
+// With only 1st place given (STAT_ROLES_TOP=1, since 2026-11-21) the role is just the title, like a
+// nickname: "Spike Royalty 💥". With more places: "🥈 2nd · Spike Royalty 💥".
+export const statRoleName = (stat, place, top = 1) => { const s = statRoleStyle(stat); return top <= 1 ? `${s.title} ${s.emoji}` : `${PLACE_MEDAL[place - 1] ?? '🏅'} ${placeWord(place)} · ${s.title} ${s.emoji}`; };
 export const roleKey = (statKey, place) => `${statKey}:${place}`;
 // Bump when the look changes, so the bot restyles roles it made before.
 // 5 (2026-11-21): no colour and no icon, so names show the club's colour (and logo).

@@ -20,6 +20,9 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Award role names are just the title · bot UPLOADED, site DEPLOYED (sw v108)
+- `statRoleName(stat, place, top)`: with 1st place only (STAT_ROLES_TOP=1) the role is just "Point Machine 👑", "Spike Royalty 💥", …; medal names only come back with more places. Live roles renamed. FAQ / Roles / guide wording updated.
+
 ### 2026-11-21 · Claude (owner's PC) · Match threads → #matches forum · bot UPLOADED, site DEPLOYED (sw v107)
 - discord-io.js: a forum channel #matches (made next to #match-threads; MATCH_FORUM=0 = old threads; MATCH_FORUM_ID optional) with tags Live / Score in / Needs stats / Done / Event (moderated). New matches are posts whose first message is the card (`createThread(name, card, tag)` → { threadId, messageId }); matches.js `tagPost` keeps the tag in step (thread doc field `tag`); closing sets Done. Threads already open in #match-threads carry on there.
 - Event reminders (event-pings.js `postFor`) go in one "📢 <event> · check-in & reminders" post per event (meta `eventPingThreads`).

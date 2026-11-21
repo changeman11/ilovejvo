@@ -84,7 +84,7 @@ On the Stats page: **🔥 Last event**, **🌏 All time** or **🗄️ Archived*
 
 # Awards, roles and trophies
 ## How do awards work?
-Each stat has a 🥇 1st, 🥈 2nd and 🥉 3rd place, worked out from the **last event with stats** (shown on the Stats page). The 🥇 1st place for each stat also gets a matching Discord role, like "🥇 1st · Spike Royalty 💥". When the next event's stats come in, the roles move to that event's top 3s automatically.
+Each stat has a 🥇 1st, 🥈 2nd and 🥉 3rd place, worked out from the **last event with stats** (shown on the Stats page). The 🥇 1st place for each stat also gets a matching Discord role named after the award, like "Spike Royalty 💥" or "Point Machine 👑". When the next event's stats come in, the roles move to that event's top 3s automatically.
 
 ## What are the Discord roles?
 - **Club role:** your club's name in its colour, so teammates share a name colour.
@@ -158,7 +158,7 @@ At JVO everyone is one of these. You can be more than one, like a manager who's 
 - **Club role:** given automatically to everyone whose profile is in a club, in the club's colour. That's why your name shows your club colour.
 - **Captain:** given automatically to every club's manager.
 - **🎟️ Event Player:** given automatically while you're in an upcoming or running event (your club signed up, you're on its roster as a sub, or you signed up solo). It comes off after the event. Staff use it to ping everyone playing.
-- **Award roles (🥇 1st · stat name):** the leader of each stat at the last event with stats (2nd and 3rd are shown on the site). They move by themselves when the next event's stats come in. They don't change your name colour.
+- **Award roles (like "Point Machine 👑"):** the leader of each stat at the last event with stats (2nd and 3rd are shown on the site). They move by themselves when the next event's stats come in. They don't change your name colour.
 - **Staff:** given by the server owners. Anyone with it is automatically an admin on the site.
 - Your Discord account must be linked (sign in to the site with Discord) for any of this to work.
 

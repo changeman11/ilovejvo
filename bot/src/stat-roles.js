@@ -83,7 +83,7 @@ export class StatRoles {
     // No colour and no icon (2026-11-21): the medal and emoji are in the name, and a member's name
     // shows their club's colour (and logo) instead. clearIcon removes an icon set by an older look.
     const features = new Set((await this.io.features?.().catch(() => [])) ?? []);
-    const look = (stat, place) => ({ name: statRoleName(stat, place), color: 0, hoist: false, ...(features.has('ROLE_ICONS') ? { clearIcon: true } : {}) });
+    const look = (stat, place) => ({ name: statRoleName(stat, place, top), color: 0, hoist: false, ...(features.has('ROLE_ICONS') ? { clearIcon: true } : {}) });
     const restyle = (this.store.getMeta('statRoleLook') ?? 0) !== STAT_ROLE_LOOK;
     let made = 0;
     // New roles go just under the bot's own, so making 3rd, then 2nd, then 1st keeps 1st on top.
@@ -92,7 +92,7 @@ export class StatRoles {
         const key = roleKey(stat.key, place);
         const id = roleMap[key];
         if (id && existing.has(id)) {
-          if (restyle || existing.get(id).name !== statRoleName(stat, place) || existing.get(id).color) await this.io.editRole(id, look(stat, place)).catch((err) => this.log.warn('[stat roles]', err.message));
+          if (restyle || existing.get(id).name !== statRoleName(stat, place, top) || existing.get(id).color) await this.io.editRole(id, look(stat, place)).catch((err) => this.log.warn('[stat roles]', err.message));
           continue;
         }
         roleMap[key] = await this.io.createRole(look(stat, place));

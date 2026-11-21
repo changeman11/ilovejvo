@@ -168,7 +168,7 @@ Pressing a button saves straight to the site and the card shows who did it. Anyt
 The **🏐 Pickup** section shows the live queue, ready checks, drafts and games. Start a game, cancel a match, set or correct a result, or remove someone from the queue. Discord's **/pickup** admin commands do the same, plus **/pickup setmode** to fix the mode.
 
 ## Roles on Discord
-Club roles (club colour), Captain (managers), 🎟️ Event Player (everyone in an upcoming or running event: @mention it to reach them all), award roles (🥇 1st per stat, from the last event with stats), the TEAM / AWARDS divider roles and site admin from the Staff role are all automatic. Club logos will show after names once the server reaches boost level 2.
+Club roles (club colour), Captain (managers), 🎟️ Event Player (everyone in an upcoming or running event: @mention it to reach them all), award roles (one per stat for the leader, named like "Point Machine 👑", from the last event with stats), the TEAM / AWARDS divider roles and site admin from the Staff role are all automatic. Club logos will show after names once the server reaches boost level 2.
 
 # Help pages and characters
 ## Edit the FAQ and rules
