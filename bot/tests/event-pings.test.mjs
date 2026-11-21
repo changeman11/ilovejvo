@@ -74,27 +74,24 @@ test('🎟️ Event Player: clubs in the event, roster subs and solos; not pre-l
   assert.equal(eventPlayerIds({ events: [ev({ status: 'finished' })], teams, players, now }).size, 0);
 });
 
-test('missing stats nudges: no screenshot (5 min in, twice max), unreadable screenshot (once per picture)', async () => {
+test('missing stats nudges: repeat every 15 minutes until fixed; a new unreadable screenshot warns straight away', async () => {
   const { statsNudgeDue, statsStillMissing, statsNudgeText } = await import('../src/logic/matches.js');
   const M = 60e3;
   const result = { sets: [{ home: 10, away: 5 }], statsStatus: 'pending', playerStats: {} };
-  const t = { doneAt: 0 };
-  assert.equal(statsNudgeDue({ result, subs: [], thread: t, now: 3 * M }), null, 'not before 5 minutes');
-  const first = statsNudgeDue({ result, subs: [], thread: t, now: 6 * M });
-  assert.deepEqual(first, { kind: 'noShot', n: 1 });
-  assert.equal(statsNudgeDue({ result, subs: [], thread: { doneAt: 0, shotNudges: 1, shotNudgedAt: 6 * M }, now: 20 * M }), null, 'waits 45 minutes');
-  assert.equal(statsNudgeDue({ result, subs: [], thread: { doneAt: 0, shotNudges: 1, shotNudgedAt: 6 * M }, now: 52 * M }).n, 2);
-  assert.equal(statsNudgeDue({ result, subs: [], thread: { doneAt: 0, shotNudges: 2, shotNudgedAt: 0 }, now: 200 * M }), null, 'twice at most');
-  const unread = { ...result, statsDraft: { shot: 'players/p/shot/a.png', error: 'no table found' } };
-  assert.equal(statsNudgeDue({ result: unread, subs: [], thread: t, now: M }).kind, 'unread');
-  assert.equal(statsNudgeDue({ result: unread, subs: [], thread: { doneAt: 0, unreadNudged: 'players/p/shot/a.png' }, now: M }), null);
-  assert.equal(statsNudgeDue({ result: { ...result, statsStatus: 'reviewed' }, subs: [], thread: t, now: 10 * M }), null, 'stats done');
-  assert.equal(statsNudgeDue({ result: { ...result, threadShots: ['players/p/shot/x.png'] }, subs: [], thread: t, now: 10 * M }), null, 'has a screenshot');
-  assert.equal(statsStillMissing({ result, subs: [], thread: t, now: 60 * M }), true, 'thread stays open');
-  assert.equal(statsStillMissing({ result, subs: [], thread: t, now: 200 * M }), false, 'but not for ever');
-  const text = statsNudgeText(first, { ids: ['111111111111111111'], link: 'https://s/m' });
-  assert.match(text, /^😤 <@111111111111111111>\nOi! no end-of-match screenshot/);
-  assert.match(text, /Fix this result.*https:\/\/s\/m/);
+  assert.equal(statsNudgeDue({ result, subs: [], thread: { doneAt: 0 }, now: 3 * M }), null, 'not before 5 minutes');
+  assert.deepEqual(statsNudgeDue({ result, subs: [], thread: { doneAt: 0 }, now: 6 * M }), { kind: 'noShot', n: 1 });
+  assert.equal(statsNudgeDue({ result, subs: [], thread: { doneAt: 0, nudges: 1, nudgedAt: 6 * M }, now: 15 * M }), null, 'waits 15 minutes');
+  assert.equal(statsNudgeDue({ result, subs: [], thread: { doneAt: 0, nudges: 7, nudgedAt: 0 }, now: 200 * M }).n, 8, 'no limit');
+  const unread = { ...result, statsDraft: { shot: 'a.png', error: 'no stats table found' } };
+  assert.equal(statsNudgeDue({ result: unread, subs: [], thread: { doneAt: 0, nudges: 3, nudgedAt: M }, now: 2 * M }).kind, 'unread', 'new screenshot: straight away');
+  assert.equal(statsNudgeDue({ result: unread, subs: [], thread: { doneAt: 0, nudges: 3, nudgedAt: M, unreadNudged: 'a.png' }, now: 2 * M }), null);
+  assert.equal(statsNudgeDue({ result: { ...result, statsStatus: 'reviewed' }, subs: [], thread: { doneAt: 0 }, now: 10 * M }), null, 'stats done: stops');
+  assert.equal(statsStillMissing({ result, subs: [], thread: { doneAt: 0 }, now: 6 * 60 * M }), true);
+  assert.equal(statsStillMissing({ result, subs: [], thread: { doneAt: 0 }, now: 13 * 60 * M }), false);
+  const text = statsNudgeText({ kind: 'unread', n: 2, error: 'x' }, { ids: ['111111111111111111'], link: 'https://s/m' });
+  assert.ok(text.startsWith('📐 <@111111111111111111>\n**That screenshot is cropped or the wrong screen**'));
+  assert.match(text, /reminder 2/);
+  assert.ok(text.includes('Fix this result** → add it (https://s/m)'));
 });
 
 test('withdrawn clubs: disbanded or taken out of an auto-fixture event forfeit their unplayed matches', async () => {

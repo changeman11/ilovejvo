@@ -307,7 +307,7 @@ export class MatchThreads {
     const ids = [...new Set([...m.homeSquad, ...m.awaySquad].map((p) => String(p.discordId ?? '')).filter((x) => /^\d{15,22}$/.test(x)))];
     const link = this.config.siteUrl ? `${this.config.siteUrl}/match/${encodeURIComponent(m.b.event.id)}/${encodeURIComponent(m.f.id)}` : '';
     await this.io.post({ content: statsNudgeText(due, { ids, link }), allowedMentions: { users: ids.slice(0, 100) } }, t.threadId).catch((err) => this.log.warn('[matches] stats nudge:', err.message));
-    await this.save(id, due.kind === 'unread' ? { unreadNudged: due.shot } : { shotNudges: due.n, shotNudgedAt: now });
+    await this.save(id, { nudges: due.n, nudgedAt: now, ...(due.kind === 'unread' ? { unreadNudged: due.shot } : {}) });
     this.log.info?.(`[matches] ${due.kind} nudge for ${id}`);
   }
 
