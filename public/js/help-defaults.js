@@ -80,6 +80,7 @@ Each stat has a 🥇 1st, 🥈 2nd and 🥉 3rd place, worked out from the **las
 ## What are the Discord roles?
 - **Club role:** your club's name in its colour, so teammates share a name colour.
 - **Captain:** every club manager.
+- **🎟️ Event Player:** you're in an upcoming or running event.
 - **Award roles:** your current 🥇 1st places.
 - **🏆 Pre-launch Champion:** you won an event before the game launched.
 - **Divider roles (━ TEAM ━ / ━ AWARDS ━):** just split your roles into sections on your profile.
@@ -146,6 +147,7 @@ At JVO everyone is one of these. You can be more than one, like a manager who's 
 # Discord roles
 - **Club role:** given automatically to everyone whose profile is in a club, in the club's colour. That's why your name shows your club colour.
 - **Captain:** given automatically to every club's manager.
+- **🎟️ Event Player:** given automatically while you're in an upcoming or running event (your club signed up, you're on its roster as a sub, or you signed up solo). It comes off after the event. Staff use it to ping everyone playing.
 - **Award roles (🥇 1st · stat name):** the leader of each stat at the last event with stats (2nd and 3rd are shown on the site). They move by themselves when the next event's stats come in. They don't change your name colour.
 - **Staff:** given by the server owners. Anyone with it is automatically an admin on the site.
 - Your Discord account must be linked (sign in to the site with Discord) for any of this to work.

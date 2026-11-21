@@ -61,3 +61,15 @@ test('subs on the event roster are pinged too (club players + roster)', () => {
   assert.ok(p[0].userIds.includes('444444444444444444'));
   assert.ok(p[0].userIds.includes(A));
 });
+
+test('🎟️ Event Player: clubs in the event, roster subs and solos; not pre-launch or long-finished events', async () => {
+  const { eventPlayerIds } = await import('../src/event-role.js');
+  const players = new Map([['a', { teamId: 'reef', discordId: A }], ['s', { discordId: B }], ['solo', { discordId: C }], ['x', { teamId: 'other', discordId: '444444444444444444' }]]);
+  const teams = new Map([['reef', { name: 'Reef' }], ['other', { name: 'Other' }]]);
+  const now = 3e12;
+  const ev = (extra) => ({ event: { id: 'e', published: true, status: 'upcoming', date: now + 3600e3, ...extra }, teamIds: ['reef'], rosters: { reef: { playerIds: ['s'] } }, soloIds: ['solo'] });
+  assert.deepEqual([...eventPlayerIds({ events: [ev({})], teams, players, now })].sort(), [A, B, C].sort());
+  assert.equal(eventPlayerIds({ events: [ev({ date: 1000 })], teams, players, now }).size, 0, 'pre-launch');
+  assert.equal(eventPlayerIds({ events: [ev({ date: now - 13 * 3600e3 })], teams, players, now }).size, 0, 'started over 12 h ago');
+  assert.equal(eventPlayerIds({ events: [ev({ status: 'finished' })], teams, players, now }).size, 0);
+});

@@ -25,6 +25,7 @@ import { RoleLayout } from './role-layout.js';
 import { TransferHub } from './transfer-hub.js';
 import { StaffDesk } from './staff-desk.js';
 import { EventPings } from './event-pings.js';
+import { EventRole } from './event-role.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -126,6 +127,7 @@ let roleLayout = null;
 let transferHub = null;
 let staffDesk = null;
 let eventPings = null;
+let eventRole = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -185,6 +187,12 @@ client.once(Events.ClientReady, async () => {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
       transferHub = new TransferHub({ io: discord.transferIo, site, store, config, log });
       transferHub.start().catch((err) => log.error(`[transfer hub] ${err.message}`));
+    }
+    // 🎟️ Event Player role for everyone in an upcoming or running event.
+    if (config.eventRole) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      eventRole = new EventRole({ io: discord.roleIo, site, store, config, log });
+      eventRole.start().catch((err) => log.error(`[event role] ${err.message}`));
     }
     // Event reminders (roster, check in) in the match threads channel.
     if (config.eventPings && discord.matchIo) {
@@ -384,6 +392,7 @@ async function stop(signal) {
   transferHub?.stop();
   staffDesk?.stop();
   eventPings?.stop();
+  eventRole?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);

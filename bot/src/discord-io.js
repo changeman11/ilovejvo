@@ -193,8 +193,8 @@ export async function setupDiscord(client, config, log = console) {
       return [...(guild.features ?? [])];
     },
     // color2: a gradient (needs ENHANCED_ROLE_COLORS); emoji: a role icon (needs ROLE_ICONS).
-    async createRole({ name, color, color2, emoji, hoist }) {
-      const role = await guild.roles.create({ name, colors: { primaryColor: color, ...(color2 ? { secondaryColor: color2 } : {}) }, ...(emoji ? { unicodeEmoji: emoji } : {}), hoist, mentionable: false, permissions: [], reason: 'I<3JVO role' });
+    async createRole({ name, color, color2, emoji, hoist, mentionable = false }) {
+      const role = await guild.roles.create({ name, colors: { primaryColor: color, ...(color2 ? { secondaryColor: color2 } : {}) }, ...(emoji ? { unicodeEmoji: emoji } : {}), hoist, mentionable, permissions: [], reason: 'I<3JVO role' });
       const top = (await guild.members.fetchMe({ force: true })).roles.highest;
       await guild.roles.setPosition(role, Math.max(1, top.position - 1)).catch((err) => log.warn(`Couldn't move the ${name} role up: ${err.message}`));
       return role.id;

@@ -56,13 +56,14 @@ export class RoleLayout {
     const awardIds = [];
     for (let place = 1; place <= 3; place++) for (const s of STAT_ROLE_STATS) if (statMap[roleKey(s.key, place)]) awardIds.push(statMap[roleKey(s.key, place)]);
     const captainId = this.store.getMeta('captainRole') ?? null;
+    const eventRoleId = this.store.getMeta('eventRole') ?? null;
     // The 🏆 Pre-launch Champion role heads the AWARDS section.
     const championId = this.store.getMeta('championRole') ?? null;
     if (championId) awardIds.unshift(championId);
     const { roles, botTop } = await this.io.positions();
     // Clubs keep their current order among themselves.
     const clubsSorted = clubIds.filter((id) => roles.has(id)).sort((a, b) => roles.get(b).position - roles.get(a).position);
-    const order = layoutOrder({ teamDivider: dividers.team, clubIds: clubsSorted, captainId, awardsDivider: dividers.awards, awardIds });
+    const order = layoutOrder({ teamDivider: dividers.team, clubIds: clubsSorted, captainId, eventRoleId, awardsDivider: dividers.awards, awardIds });
     let moved = false;
     if (needsOrdering(roles, order, botTop)) {
       await this.io.raiseRoles(order);
@@ -77,7 +78,7 @@ export class RoleLayout {
       const plan = planDividers({
         members,
         sections: [
-          { dividerId: dividers.team, roleIds: [...clubIds, captainId].filter(Boolean) },
+          { dividerId: dividers.team, roleIds: [...clubIds, captainId, eventRoleId].filter(Boolean) },
           { dividerId: dividers.awards, roleIds: awardIds },
         ],
       });

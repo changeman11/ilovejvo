@@ -14,8 +14,8 @@ export const DIVIDERS = {
 };
 
 // The wanted order of the managed blocks (first = highest). Missing ids are skipped.
-export function layoutOrder({ teamDivider, clubIds = [], captainId, awardsDivider, awardIds = [] }) {
-  return [teamDivider, ...clubIds, captainId, awardsDivider, ...awardIds].filter(Boolean);
+export function layoutOrder({ teamDivider, clubIds = [], captainId, eventRoleId, awardsDivider, awardIds = [] }) {
+  return [teamDivider, ...clubIds, captainId, eventRoleId, awardsDivider, ...awardIds].filter(Boolean);
 }
 
 // True when the order isn't one block directly under the bot's role.
