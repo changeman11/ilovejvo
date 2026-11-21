@@ -41,8 +41,8 @@ const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'im
 
 export class MatchThreads {
   // reader: a ShotReader (stats-read.js), or null to leave reading screenshots to admin browsers.
-  constructor({ io, site, rest, config, log = console, clock = systemClock, reader = null }) {
-    Object.assign(this, { io, site, rest, config, log, clock, reader });
+  constructor({ io, site, rest, config, log = console, clock = systemClock, reader = null, store = null }) {
+    Object.assign(this, { io, site, rest, config, log, clock, reader, store });
     this.tried = new Map(); // screenshot path -> when the bot last read it
     this.reading = null; // the screenshot being read now (one at a time), as a promise
     this.namePrints = {}; // { playerId: [name picture as text] } (pickupMeta/namePrints)
@@ -155,6 +155,7 @@ export class MatchThreads {
           const m = this.view(id);
           if (m?.result) await this.findShots(id, m, now);
           if (m?.result) this.readStats(id, m, now);
+          if (m?.result) this.reopenShort(id, m, now);
           if (m?.result && unknownNames(m.result).length && t.askShot !== m.result.statsDraft?.shot) await this.askNames(id, m, now);
           if (m?.result && hasReading(m.result) && this.threads.get(id).checkShot !== m.result.statsDraft?.shot) await this.postCheck(id, m, now);
           continue;
@@ -199,6 +200,7 @@ export class MatchThreads {
       if (t.status === 'open') t = await this.finish(id, t, m, now);
       await this.findShots(id, m, now);
       this.readStats(id, m, now);
+      this.reopenShort(id, m, now);
       await this.askNames(id, m, now);
       await this.postCheck(id, m, now);
       await this.nudgeStats(id, m, now);
@@ -309,6 +311,82 @@ export class MatchThreads {
     await this.io.post({ content: statsNudgeText(due, { ids, link }), allowedMentions: { users: ids.slice(0, 100) } }, t.threadId).catch((err) => this.log.warn('[matches] stats nudge:', err.message));
     await this.save(id, { nudges: due.n, nudgedAt: now, ...(due.kind === 'unread' ? { unreadNudged: due.shot } : {}) });
     this.log.info?.(`[matches] ${due.kind} nudge for ${id}`);
+  }
+
+  // ---------- Published with players missing (added 2026-11-21) ----------
+  // Staff sometimes publish a match with stat lines missing (players the reading couldn't name, or
+  // no stats at all) to keep an event moving. Once per match, the bot re-reads its screenshots
+  // (all of them, combined) and, if that finds more lines, sends it back to "Stats to check" with
+  // the fuller reading: lines already published are matched by their identical numbers, so only the
+  // missing players are asked in who's who. firestore.rules allows exactly this (reopenShortStats).
+  reopenShort(id, m, now) {
+    if (!this.reader || this.reading) return;
+    const r = m.result;
+    if (!r || r.forfeit || r.statsStatus !== 'reviewed') return;
+    const need = 2 * (Number(m.b.event?.teamSize) || 4);
+    const have = Object.keys(r.playerStats ?? {}).length;
+    if (have >= need) return;
+    const done = this.store?.getMeta?.('statsReopened') ?? this.reopened ?? [];
+    this.reopened = done;
+    if (done.includes(id)) return;
+    const shots = shotsFor(r, m.subs).slice(0, 3);
+    if (!shots.length) return;
+    const maxRows = Number(m.b.event?.teamSize) || 4;
+    const job = (async () => {
+      const outs = [];
+      for (const p of shots) {
+        const files = await this.shotFiles(p);
+        outs.push(files.length ? await this.reader.read(files[0].data, { maxRows }) : { error: 'couldn’t download' });
+      }
+      return mergeReadings(outs);
+    })().catch((err) => ({ error: err.message }));
+    this.reading = job.then((out) => this.run(() => this.saveReopen(id, shots[0], out, have)))
+      .catch((err) => this.log.warn('[matches] reopen:', err.message))
+      .finally(() => { this.reading = null; });
+  }
+
+  async saveReopen(id, shot, out, have) {
+    const mark = async () => {
+      const list = [...new Set([...(this.reopened ?? []), id])];
+      this.reopened = list;
+      await this.store?.setMeta?.('statsReopened', list).catch(() => {});
+    };
+    const m = this.view(id);
+    if (!m?.result || m.result.statsStatus !== 'reviewed') return;
+    if (out.error || !out.lines || out.lines.length <= have) { await mark(); return; }
+    await this.rest.token();
+    const botUid = this.rest.uid;
+    const now = this.clock.now();
+    const extra = (teamId) => (m.b.rosters?.[teamId]?.playerIds ?? []).map((pid) => m.playersById[pid]).filter(Boolean);
+    const squad = (list, teamId) => [...list, ...extra(teamId).filter((p) => !list.some((q) => q.id === p.id))];
+    const rows = placeLines(out.lines, {
+      homeTeamId: m.f.homeTeamId, awayTeamId: m.f.awayTeamId,
+      homeSquad: squad(m.homeSquad, m.f.homeTeamId), awaySquad: squad(m.awaySquad, m.f.awayTeamId),
+      prints: knownPrints(this.namePrints),
+    });
+    // Lines already published: the same numbers -> the same player.
+    const keys = ['pts', 'spk', 'blk', 'rec', 'set', 'ast', 'ace', 'dig'];
+    const published = Object.entries(m.result.playerStats ?? {});
+    const used = new Set();
+    for (const row of rows) {
+      const hit = published.find(([pid, line]) => !used.has(pid) && keys.every((k) => Number(line[k] ?? 0) === Number(row.stats?.[k]?.value ?? -1)));
+      if (hit) { row.playerId = hit[0]; row.matchedBy = 'published'; used.add(hit[0]); }
+      else if (row.playerId && used.has(row.playerId)) { row.playerId = null; row.matchedBy = null; }
+      if (row.playerId) used.add(row.playerId);
+    }
+    const statsDraft = { shot, readAt: now, by: botUid, reader: 'bot', v: READER_V, rows, reopened: true };
+    const path = `events/${m.b.event.id}/results/${m.f.id}`;
+    const data = { statsStatus: 'pending', statsDraft, updatedBy: botUid, ...(m.result.noStats ? { noStats: false } : {}) };
+    try {
+      await this.rest.commit([
+        { path, data, mask: Object.keys(data), serverTime: ['updatedAt'] },
+        { path: `auditLog/${now.toString(36)}${Math.random().toString(36).slice(2, 12)}`, data: { by: botUid, action: 'update', path, before: { statsStatus: 'reviewed' }, after: { statsStatus: 'pending', reopened: true, lines: rows.length } }, serverTime: ['at'] },
+      ]);
+      this.log.info?.(`[matches] reopened ${id}: ${have} published lines -> ${rows.length} read, ${rows.filter((r) => r.playerId).length} placed`);
+    } catch (err) {
+      this.log.warn('[matches] could not reopen stats:', err.message);
+    }
+    await mark();
   }
 
   // ---------- Reading the screenshot (stats-read.js) ----------

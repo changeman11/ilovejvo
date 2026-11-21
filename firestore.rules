@@ -258,6 +258,17 @@ service cloud.firestore {
           && request.resource.data.forfeit is map
           && request.resource.data.forfeit.teamId in [fixtureDoc(eventId, fixtureId).homeTeamId, fixtureDoc(eventId, fixtureId).awayTeamId]
           && teamWithdrawn(eventId, request.resource.data.forfeit.teamId);
+        // Published with stat lines missing (fewer than both teams' players): the bot sends it back to
+        // "Stats to check" once, with a fuller reading of its screenshots (bot/src/matches.js reopenShort).
+        allow update: if isPickupBot() && stampedByMe()
+          && resource.data.get('statsStatus', '') == 'reviewed'
+          && resource.data.get('forfeit', null) == null
+          && resource.data.playerStats.size() < 2 * get(/databases/$(database)/documents/events/$(eventId)).data.get('teamSize', 4)
+          && request.resource.data.statsStatus == 'pending'
+          && request.resource.data.statsDraft.reader == 'bot'
+          && request.resource.data.statsDraft.reopened == true
+          && request.resource.data.get('noStats', false) == false
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statsStatus', 'statsDraft', 'noStats', 'updatedBy', 'updatedAt']);
         // ... or staff press ✅ "Use this score" on a result fix in Discord's staff desk
         // (bot/src/staff-desk.js): the bot copies that one open fix's set scores and closes it.
         allow update: if isPickupBot() && stampedByMe() && eventPublished(eventId) && validResult()

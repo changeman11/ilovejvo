@@ -155,7 +155,7 @@ client.once(Events.ClientReady, async () => {
     if (config.matchThreads) {
       matchSite = new SiteWatch({ firebase: config.firebase, log, onChange: () => matches?.sync() });
       const reader = config.readStats ? new ShotReader({ log }) : null;
-      matches = new MatchThreads({ io: discord.matchIo, site: matchSite, rest: store.rest, config, log, reader });
+      matches = new MatchThreads({ io: discord.matchIo, site: matchSite, rest: store.rest, config, log, reader, store });
       matchSite.start();
       await matches.start();
       if (!(await checkMessageContent(config.token))) {

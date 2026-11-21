@@ -20,6 +20,13 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Matches published with stats missing: re-opened and finished · rules DEPLOYED, bot UPLOADED
+- matches.js `reopenShort` / `saveReopen` (+ firestore.rules branch): a published ('reviewed') match with fewer stat lines than both teams' players is re-read once (all screenshots combined) and, if that finds more lines, sent back to 'pending' with the fuller draft; lines already published are matched by identical numbers. Meta `statsReopened`. Launch Cup: 6 matches re-opened with 8 lines.
+- Who's who filled in from the screenshots (owner asked; via the bot account, audited): Bong Bong Grape v red powerade, Oven Makers v Speed-O'-LightSpikez (tav's fanboy = PINK, OM - Evori = 《◇🅔🅥🅞🅡🅘◇》), Deja Vu v Impact, Speed v Igg Pig, Speed v red powerade: all 8/8, ready for "Publish all" in Stats to check.
+- Igg Pig Joe Fan v Deja Vu On Crack: its screenshot is from Deja Vu v Oven Makers (wrong match); flagged so the bot asks for the right one. Its earlier published lines came from that wrong game.
+- Still short (no screenshot shows the missing players): Impact v Chikchester (7), Speed v Bong Bong Grape (7), red powerade v Deja Vu (6), Chikchester v Oven Makers (6).
+- Seen: in-game "home"/"away" doesn't always match the fixture (the lobby host is home); whoIsWho already tries both ways round.
+
 ### 2026-11-21 · Claude (owner's PC) · Reader: menu pop-up screenshots + combining a match's screenshots · bot UPLOADED, site DEPLOYED (sw v106)
 - `bot/src/popup-layout.js`: finds the game's match-details pop-up without heading words (green home / pink away bars, number-ink row bands, the 8 rightmost number columns in game order). `ShotReader.readPopup` reads it when no end-screen table is found. Tonight's 3 pop-up shots: every number right (14 lines checked), all sure. Names on the pop-up are still unreliable (the who's who question sorts them out): tune `popupNameRect` / name ink next.
 - matches.js: a short or unreadable reading also reads the match's other screenshots (up to 3) and combines them per team (`shotsFor`, `mergeReadings` in logic/reading.js, tested). READER_V 3 re-reads older failures. Nudge text and FAQ now say the pop-up works if every player is in the picture.
