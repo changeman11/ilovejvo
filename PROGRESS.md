@@ -22,7 +22,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ### 2026-11-21 · Claude (owner's PC) · 🎟️ Event Player role; role clean-up list · bot UPLOADED, site DEPLOYED (sw v101)
 - `bot/src/event-role.js` (tested; EVENT_ROLE=0 off): "🎟️ Event Player" (mentionable) for everyone in an upcoming/running, non-pre-launch event (club members of entered clubs, event roster incl. subs, solos), removed when they're in none (finished/cancelled, or 12 h after the start). Meta `eventRole` / `eventRoleHolders`. role-layout puts it in the TEAM section after Captain. First run: 37 given (4v4 Launch Cup).
-- Useless roles shown to the owner (not deleted yet): Players (0), Guest (0), ---Awards--- (0), Team Captain (15, replaced by Captain), 🥇Playtest Champion (4, replaced by 🏆 Pre-launch Champion), Free Agent (1), NOV 15 EVENT (17, replaced by Event Player). FAQ/Roles/guide mention Event Player.
+- Useless roles DELETED on the owner's yes (2026-11-21): Players (0), Guest (0), ---Awards--- (0), Team Captain (15, replaced by Captain), 🥇Playtest Champion (4, replaced by 🏆 Pre-launch Champion), Free Agent (1), NOV 15 EVENT (17, replaced by Event Player). FAQ/Roles/guide mention Event Player.
 
 ### 2026-11-21 · Claude (owner's PC) · Check-in counts the whole roster incl. subs · site DEPLOYED (sw v100)
 - Check-in panel: each team shows checked-in / roster (players + subs, up to players per game + subs, never below players per game), e.g. "4/5 ✓ ready"; "✓ ready" once players-per-game are in (matches still start then, so a missing sub can't hold a game up). Wording asks everyone incl. subs to check in; FAQ updated. A manual "check in now" reminder was posted for the 4v4 Launch Cup (16 pinged).
