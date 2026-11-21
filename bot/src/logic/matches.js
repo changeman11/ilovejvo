@@ -353,7 +353,7 @@ export function statsNudgeText(due, { ids = [], link = '' }) {
   const again = due.n > 1 ? ` (reminder ${due.n}: I'll keep pinging every 15 minutes until it's fixed)` : '';
   const how = [
     '**How to fix it:**',
-    '1. Use the **end-of-match screen** (the one straight after the game, with **both teams side by side** and the pts / spk / blk… headings). **Not** the match details pop-up from the menu.',
+    '1. Best: the **end-of-match screen** (straight after the game, both teams side by side). The match details pop-up from the menu works too, but **every player must be in the picture** (screenshot it twice if you have to scroll).',
     '2. Take a **full-screen** screenshot: Print Screen, Steam’s F12, or Win+Shift+S over the **whole** game window. **Don’t crop it.**',
     '3. **Post it right here in this thread** (PNG or JPG, not a GIF, not a phone photo of the screen).',
     `4. No screenshot here? Open the match on the site → **🛠 Fix this result** → add it${link ? ` (${link})` : ''}.`,

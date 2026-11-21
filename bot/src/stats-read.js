@@ -18,6 +18,7 @@ import sharp from 'sharp';
 import { STAT_ORDER, layoutFromWords, cellRect, nameSearchRect, cleanName } from './site-rules/endscreen.js';
 import { readCell } from './site-rules/glyphs.js';
 import { isNameInk, nameArea, namePrint, printToText } from './site-rules/namepics.js';
+import { popupLayout, popupCellRect, popupNameRect } from './popup-layout.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const MAX_ROWS = 6;
@@ -104,7 +105,7 @@ export class ShotReader {
     await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '' });
     const { data: hd } = await worker.recognize(await sharp(head, { raw: { width: w2, height: h2, channels: 1 } }).png().toBuffer());
     const layout = layoutFromWords(hd.words.map((w) => ({ t: w.text, x: (w.bbox.x0 + w.bbox.x1) / 2 / H, y: (w.bbox.y0 + w.bbox.y1) / 2 / H })));
-    if (!layout) return { error: 'no stats table found (is it the end-of-match screen?)', size };
+    if (!layout) return this.readPopup(worker, raw, info, size, rowsPerSide);
 
     // 2. Every row's numbers and name.
     const grey = greyOf(raw, info);
@@ -130,6 +131,32 @@ export class ShotReader {
       }
     }
     return { size, lines };
+  }
+
+  // The menu's match-details pop-up (popup-layout.js), often cropped: rows and columns found from
+  // the coloured team bars and the number ink, columns in the game's order.
+  async readPopup(worker, raw, info, size, rowsPerSide) {
+    const lay = popupLayout(raw, info);
+    if (!lay) return { error: 'no stats table found (is it the end-of-match screen?)', size };
+    const grey = greyOf(raw, info);
+    await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '' });
+    const lines = [];
+    const perSide = [0, 0];
+    for (const r of lay.rows) {
+      if (perSide[r.side] >= rowsPerSide) continue;
+      const stats = {};
+      let empty = 0;
+      STAT_ORDER.forEach((stat, i) => {
+        const cell = cutCell(grey, popupCellRect(lay, i, r.cy));
+        stats[stat] = cell ? readCell(cell, this.templates) : { value: null, sure: false, why: 'off the picture' };
+        if (stats[stat].why === 'nothing there') empty++;
+      });
+      if (empty > STAT_ORDER.length / 2) continue;
+      const name = await this.readName(worker, raw, info, popupNameRect(lay, r.cy));
+      lines.push({ side: r.side, row: perSide[r.side]++, ...name, stats, layout: 'popup' });
+    }
+    if (!lines.length) return { error: 'no stats table found (is it the end-of-match screen?)', size };
+    return { size, lines, layout: 'popup' };
   }
 
   // One line's name: its picture (as text, to store) and its text, read from just the name.

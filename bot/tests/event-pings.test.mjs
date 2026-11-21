@@ -112,3 +112,15 @@ test('withdrawn clubs: disbanded or taken out of an auto-fixture event forfeit t
   assert.deepEqual(forfeitsDue({ event: { ...event, autoFixtures: 'off' }, fixtures, results: {}, entryIds: [], teams }).map((d) => d.fixture.id), ['played', 'f1', 'f4']);
   assert.equal(forfeitsDue({ event: { ...event, fixturesLockedAt: null }, fixtures, results: {}, entryIds: [], teams }).length, 0, 'not locked yet: fixtures rebuild by themselves');
 });
+
+test('several screenshots of one match: each team from the reading that has most of it', async () => {
+  const { mergeReadings, shotsFor } = await import('../src/logic/reading.js');
+  const l = (side, row) => ({ side, row, stats: {} });
+  const top = { lines: [l(0, 0), l(0, 1), l(0, 2), l(0, 3)] };
+  const bottom = { lines: [l(0, 0), l(0, 1), l(1, 0), l(1, 1), l(1, 2), l(1, 3)] };
+  const m = mergeReadings([{ error: 'no stats table found' }, top, bottom]);
+  assert.equal(m.lines.filter((x) => x.side === 0).length, 4);
+  assert.equal(m.lines.filter((x) => x.side === 1).length, 4);
+  assert.equal(mergeReadings([{ error: 'x' }]).error, 'x');
+  assert.deepEqual(shotsFor({ threadShots: ['c.png', 'd.gif'] }, [{ id: 'v', screenshotPaths: ['a.webp', 'b.png'] }]), ['a.webp', 'b.png', 'c.png']);
+});

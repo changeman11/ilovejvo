@@ -28,7 +28,7 @@ import {
   unknownNames, askRows, unplacedPlayers, answerRow, NOT_A_PLAYER, needsScreenshot, screenshotLike, statsNudgeDue, statsStillMissing, statsNudgeText,
   confirmLines, fixLine, parseStatLine, lineNumbers, canEditLine,
 } from './logic/matches.js';
-import { shotToRead, READER_V, placeLines, knownPrints, learnPrints } from './logic/reading.js';
+import { shotToRead, shotsFor, mergeReadings, READER_V, placeLines, knownPrints, learnPrints } from './logic/reading.js';
 import * as views from './match-views.js';
 
 // A reading players can confirm: stats not submitted yet, and at least one line down as a player.
@@ -321,10 +321,23 @@ export class MatchThreads {
     if (!shot) return;
     this.tried.set(shot, now);
     const job = (async () => {
-      const files = await this.shotFiles(shot);
-      if (!files.length) return { error: 'couldn’t download the screenshot' };
       // Only as many lines per side as there are players per team in this event.
-      return this.reader.read(files[0].data, { maxRows: Number(m.b.event?.teamSize) || 4 });
+      const maxRows = Number(m.b.event?.teamSize) || 4;
+      const readOne = async (path) => {
+        const files = await this.shotFiles(path);
+        if (!files.length) return { error: 'couldn’t download the screenshot' };
+        return this.reader.read(files[0].data, { maxRows });
+      };
+      const first = await readOne(shot);
+      const full = !first.error && [0, 1].every((side) => first.lines.filter((l) => l.side === side).length >= maxRows);
+      if (full) return first;
+      // Short or unreadable: also read the match's other screenshots (up to 3 in all) and combine
+      // them, e.g. a pop-up screenshotted in two halves.
+      const others = shotsFor(m.result, m.subs).filter((p) => p !== shot).slice(0, 2);
+      if (!others.length) return first;
+      const outs = [first];
+      for (const p of others) outs.push(await readOne(p).catch((err) => ({ error: err.message })));
+      return mergeReadings(outs);
     })().catch((err) => ({ error: `couldn’t read it (${err.message})` }));
     this.reading = job.then((out) => this.run(() => this.saveReading(id, shot, out)))
       .catch((err) => this.log.warn('[matches] stats reading:', err.message))

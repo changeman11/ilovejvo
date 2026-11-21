@@ -13,12 +13,33 @@ export function shotFor(result, subs) {
   return all.find((p) => !/\.gif$/i.test(p)) ?? null;
 }
 
+// Every still screenshot of a match, in the same order as shotFor (the first is shotFor's).
+export function shotsFor(result, subs) {
+  const confirmed = result?.confirmedBy ?? [];
+  const votes = subs.filter((v) => v.screenshotPaths?.length)
+    .sort((x, y) => Number(confirmed.includes(y.id)) - Number(confirmed.includes(x.id)) || (y.updatedAt ?? 0) - (x.updatedAt ?? 0));
+  return [...new Set([...votes.flatMap((v) => v.screenshotPaths), ...(result?.threadShots ?? [])])].filter((p) => !/\.gif$/i.test(p));
+}
+
+// Several readings of one match (e.g. a pop-up screenshotted in two halves) -> one: for each team,
+// the reading with the most lines for it. -> { lines } or the first error.
+export function mergeReadings(outs) {
+  const ok = outs.filter((o) => o && !o.error && o.lines?.length);
+  if (!ok.length) return outs.find((o) => o?.error) ?? { error: 'nothing read' };
+  const lines = [];
+  for (const side of [0, 1]) {
+    const best = ok.map((o) => o.lines.filter((l) => l.side === side)).sort((a, b) => b.length - a.length)[0] ?? [];
+    lines.push(...best);
+  }
+  return { ...ok[0], lines };
+}
+
 // Does this match want the bot to read a screenshot? -> the path, or null.
 //   tried: Map path -> when the bot last failed on it (tried again after retryMs).
 // READER_V: bumped when the reader gets better; an older bot reading that came out short (fewer
 // lines than minLines) or found no table is read again once. v2 (2026-11-21): tables whose
 // "player" heading is covered are found from their column headings.
-export const READER_V = 2;
+export const READER_V = 3; // v3 (2026-11-21): reads the menu pop-up and combines a match's screenshots
 export function shotToRead(result, subs, { tried = new Map(), now = Date.now(), retryMs = 15 * 60 * 1000, minLines = 0 } = {}) {
   if (!result || result.forfeit || result.statsStatus !== 'pending') return null;
   const shot = shotFor(result, subs);

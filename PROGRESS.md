@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Reader: menu pop-up screenshots + combining a match's screenshots · bot UPLOADED, site DEPLOYED (sw v106)
+- `bot/src/popup-layout.js`: finds the game's match-details pop-up without heading words (green home / pink away bars, number-ink row bands, the 8 rightmost number columns in game order). `ShotReader.readPopup` reads it when no end-screen table is found. Tonight's 3 pop-up shots: every number right (14 lines checked), all sure. Names on the pop-up are still unreliable (the who's who question sorts them out): tune `popupNameRect` / name ink next.
+- matches.js: a short or unreadable reading also reads the match's other screenshots (up to 3) and combines them per team (`shotsFor`, `mergeReadings` in logic/reading.js, tested). READER_V 3 re-reads older failures. Nudge text and FAQ now say the pop-up works if every player is in the picture.
+
 ### 2026-11-21 · Claude (owner's PC) · Re-reads actually saved; repeat nudges · bot UPLOADED, site DEPLOYED (sw v105)
 - `saveReading` dropped a re-read when an older reading of the same picture existed; it now replaces an older bot reading (v < READER_V). Chikchester City v Speed-O'-LightSpikez re-read: 8 lines, 8 placed.
 - Nudges repeat every 15 min until the stats are sorted (`NUDGE_EVERY`; thread fields nudges / nudgedAt / unreadNudged); unreadable shots get "📐 That screenshot is cropped or the wrong screen" with steps (end-of-match screen, not the menu pop-up, don't crop). Threads stay open up to 12 h while stats are missing.
