@@ -84,3 +84,19 @@ test('club moves pause while an event is running: from the lock until it is done
   assert.equal(eventBlockingMoves([{ ...e, published: false }], start), null);
   assert.equal(eventBlockingMoves([{ ...e, timeTbd: true }], start), null);
 });
+
+test('players per game and subs: defaults to the club squad limit, can be set per event', async () => {
+  const { eventTeamSize, eventSubs, eventSquadMax, eventLineup, validateEvent } = await import('../public/js/rules/events.js');
+  assert.equal(eventTeamSize({}), 4);
+  assert.equal(eventSubs({ teamSize: 4 }), 2, 'no setting: up to the 6-player squad');
+  assert.equal(eventSubs({ teamSize: 3, subs: 0 }), 0);
+  assert.equal(eventSubs({ teamSize: 3, subs: null }), 3);
+  assert.equal(eventSquadMax({ teamSize: 3, subs: 1 }), 4);
+  assert.equal(eventLineup({ teamSize: 3, subs: 1 }), '3v3 · 1 sub');
+  assert.equal(eventLineup({ teamSize: 2, subs: 0 }), '2v2 · no subs');
+  if (validateEvent) {
+    const base = { title: 'x', status: 'upcoming', type: 'exhibition' };
+    assert.ok(validateEvent({ ...base, subs: 9 }).some((p) => /Subs/.test(p)));
+    assert.ok(!validateEvent({ ...base, subs: 2 }).some((p) => /Subs/.test(p)));
+  }
+});

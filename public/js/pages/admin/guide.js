@@ -43,7 +43,7 @@ Most things can be undone by editing again. These can't: **Delete event**, **Cle
 
 ## The format
 In the Details tab, the **Format**, **Sign-ups** and **Match night** sections. Everything here is for this event only, and the event page's **📜 Event rules** are written from it.
-- **Players per team:** 2, 3, 4… (the team size for this event).
+- **Players per game:** 2, 3, 4… on court per team. **Subs allowed:** extra players a team may use at this event (a team can check in players per game + subs; staff can go over after a warning). Shown as "3v3 · 2 subs" on the event page.
 - **Matches are best of** and points per set (finals can have their own best-of).
 - **Fixtures:** automatic round robin (once, or home and away), or none if you'll add them by hand.
 - **Groups:** how many, and the draw (automatic or by hand).

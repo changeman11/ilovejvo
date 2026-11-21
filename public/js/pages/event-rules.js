@@ -3,7 +3,7 @@
 // Sections: Teams & sign-ups · Matches · Fixtures · Knockout · On the night · Results & integrity · Table.
 
 import { esc, fmtDay, fmtTime } from '../ui.js';
-import { zoneLabel } from '../rules/events.js';
+import { zoneLabel, eventSubs } from '../rules/events.js';
 import { groupCount } from '../rules/autofix.js';
 import { flowOf } from '../rules/flow.js';
 import { DEFAULT_FORMAT, DEFAULT_STANDINGS, SQUAD_MAX } from '../rules/defaults.js';
@@ -24,7 +24,7 @@ export function eventRulesSections(e, { teams = 0 } = {}) {
 
   const sections = [];
   sections.push(['Teams & sign-ups', [
-    `${size}v${size}. Club squads have up to ${SQUAD_MAX} players (${size} + ${SQUAD_MAX - size} subs); any squad player can play.`,
+    (() => { const subs = eventSubs(e); return `${size}v${size}: ${size} players per team on court, ${subs ? `with up to ${subs} sub${subs === 1 ? '' : 's'}, so a team can use ${size + subs} players at this event` : 'no subs'}. Clubs can have up to ${SQUAD_MAX} players in their squad.`; })(),
     e.signups ? `Club managers sign their club up on this page${lock ? `, until ${esc(at(lock))} (10 minutes before the start)` : ' until an admin locks the fixtures'}. They can pull out until then.` : 'Admins choose the teams for this event.',
     e.solos ? 'No club? Sign up solo: admins group solo players into mix teams for this event only (your club doesn’t change).' : '',
   ]]);

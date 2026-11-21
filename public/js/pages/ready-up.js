@@ -11,6 +11,7 @@ import { esc, teamDot, playerLink } from '../ui.js';
 import { checkIn, checkOut } from '../player-data.js';
 import { startMatchNow, staffCheckIn, staffCheckOut } from '../admin-data.js';
 import { readyNeeded, checkedIn } from '../rules/flow.js';
+import { eventSquadMax, eventSubs, eventTeamSize } from '../rules/events.js';
 import { refresh } from '../nav.js';
 
 let ctx = null; // { b, f, user, player, playerTeamId, mine, adminUid, adminName }
@@ -99,6 +100,11 @@ export function mountReady(root) {
     const act = btn.dataset.ci;
     btn.disabled = true;
     try {
+      // A team can use players per game + subs at this event: no more check-ins after that.
+      const max = eventSquadMax(b.event);
+      const teamIn = (teamId) => checkedIn(b, teamId).length;
+      if (act === 'in' && teamIn(ctx.playerTeamId) >= max) throw Object.assign(new Error('full'), { friendly: `Your team already has ${max} checked in: the most for this event (${eventTeamSize(b.event)} players + ${eventSubs(b.event)} subs).` });
+      if (act === 'staff-in' && teamIn(btn.dataset.team) >= max && !window.confirm(`This team already has ${max} checked in (${eventTeamSize(b.event)} + ${eventSubs(b.event)} subs, the most for this event). Check this player in anyway?`)) { btn.disabled = false; return; }
       if (act === 'in') await checkIn({ uid: user.uid, eventId: b.event.id, player });
       if (act === 'out') {
         if (!window.confirm('Undo your check-in? Your team’s matches may wait until enough players check in again.')) { btn.disabled = false; return; }
@@ -121,7 +127,7 @@ export function mountReady(root) {
     } catch (err) {
       console.error(err);
       btn.disabled = false;
-      error.textContent = err.code === 'permission-denied'
+      error.textContent = err.friendly ? err.friendly : err.code === 'permission-denied'
         ? 'That couldn’t be saved: you may not be on a team in this event any more. Refresh and try again.'
         : 'Something went wrong. Check your connection and try again.';
       error.hidden = false;

@@ -100,7 +100,8 @@ function detailsHtml(e) {
         `<span class="adm-pill date-preview">${esc(eventDateLabel(e))}</span>`)}
       ${sec('format', '🏐', 'Format', `
         <div class="field-row">
-          <label class="field"><span>Players per team</span><input type="number" name="teamSize" min="1" max="12" inputmode="numeric" value="${esc(e.teamSize ?? 4)}"></label>
+          <label class="field"><span>Players per game</span><input type="number" name="teamSize" min="1" max="12" inputmode="numeric" value="${esc(e.teamSize ?? 4)}"></label>
+          <label class="field"><span>Subs allowed</span><input type="number" name="subs" min="0" max="8" inputmode="numeric" value="${esc(e.subs ?? Math.max(0, 6 - (Number(e.teamSize) || 4)))}"></label>
           <label class="field"><span>Matches: best of</span><select name="bestOf">${[3, 5].map((n) => opt(n, String(n), e.matchFormat?.bestOf ?? 3)).join('')}</select></label>
         </div>
         <label class="field"><span>Fixtures</span><select name="autoFixtures">${Object.entries(AUTO_MODES).map(([k, v]) => opt(k, v, e.autoFixtures ?? 'off')).join('')}</select></label>
@@ -170,6 +171,7 @@ function readDetails(form) {
     date,
     timeTbd,
     teamSize: val('teamSize') === '' ? null : Number(val('teamSize')),
+    subs: val('subs') === '' ? null : Number(val('subs')),
     matchFormat: { bestOf: Number(val('bestOf')) || 3 },
     formatNote: type === 'tournament' ? val('formatNote').trim() || null : null,
     prize: type === 'tournament' ? val('prize').trim() || null : null,

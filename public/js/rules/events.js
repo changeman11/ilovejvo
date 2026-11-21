@@ -88,6 +88,7 @@ export function validateEvent(e) {
   if (e.type === 'tournament' && e.teamSize != null && (!Number.isInteger(e.teamSize) || e.teamSize < 1 || e.teamSize > 12)) {
     problems.push('Team size must be a whole number from 1 to 12');
   }
+  if (e.subs != null && (!Number.isInteger(e.subs) || e.subs < 0 || e.subs > 8)) problems.push('Subs must be a whole number from 0 to 8');
   return problems;
 }
 
@@ -123,3 +124,15 @@ export function eventBlockingMoves(events, now, phaseOf = () => null) {
     && now >= e.date - MOVES_PAUSE.beforeMs && now < e.date + MOVES_PAUSE.maxMs
     && phaseOf(e) !== 'done') ?? null;
 }
+
+// Players per game and subs (added 2026-11-21). event.teamSize = players on court per team;
+// event.subs = extra players a team may use at this event (missing = the club squad limit,
+// SQUAD_MAX, minus the team size). The most of one team who can check in = teamSize + subs.
+export const eventTeamSize = (e) => (Number.isInteger(Number(e?.teamSize)) && Number(e?.teamSize) > 0 ? Number(e.teamSize) : 4);
+export function eventSubs(e) {
+  if (e?.subs != null && Number.isInteger(Number(e.subs)) && Number(e.subs) >= 0) return Number(e.subs);
+  return Math.max(0, 6 - eventTeamSize(e));
+}
+export const eventSquadMax = (e) => eventTeamSize(e) + eventSubs(e);
+// "4v4 · 2 subs"
+export const eventLineup = (e) => `${eventTeamSize(e)}v${eventTeamSize(e)}${eventSubs(e) ? ` · ${eventSubs(e)} sub${eventSubs(e) === 1 ? '' : 's'}` : ' · no subs'}`;

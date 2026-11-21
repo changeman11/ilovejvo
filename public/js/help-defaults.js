@@ -21,6 +21,9 @@ On the JVO Discord (link in the bottom bar and the footer). The site also has a 
 ## What kinds of events are there?
 **Exhibition nights** (casual, often one night) and **tournaments** (groups, knockouts, elimination brackets). Each event is set up on its own, so the team size, number of sets, finals and sign-up rules can be different every time.
 
+## How many players do we need?
+Each event sets **players per game** (for example 3v3) and how many **subs** a team may use. You'll see it as "3v3 · 2 subs" on the event page. A team can check in up to that many players (players per game + subs) for the event. Your club squad can still have up to 6 players.
+
 ## How do I know the format of an event?
 Open the event and read its **📜 Event rules** section. It's written from that event's own settings: team size, best of how many sets, points per set, groups, finals, check-in and how results work. If it's there, it beats anything general in this FAQ.
 
@@ -98,7 +101,7 @@ export const DEFAULT_RULES = `# How rules work at JVO
 Every event has its own settings. **The event's 📜 Event rules section (on its page) is the final word** on team size, match length, groups, finals, check-in and timings. The rules below are the general ones that apply unless an event says otherwise.
 
 # Matches
-- **Team size is set per event** (for example 2v2, 3v3 or 4v4). Play with the number the event says.
+- **Players per game and subs are set per event** (for example 3v3 with 2 subs). Play with the number the event says; only that many players plus subs can check in for a team.
 - Matches are usually **best of 3 sets**. Finals or special events can be best of 5.
 - A set is usually **first to 10, win by 2**, with no cap, unless the event sets something else.
 - Play the match as scheduled once it opens. If you can't, tell the other team and the staff as early as you can.

@@ -20,6 +20,10 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+### 2026-11-21 · Claude (owner's PC) · Players per game + subs allowed per event · site DEPLOYED (sw v97)
+- Event form (Format): "Players per game" (teamSize) and new "Subs allowed" (`event.subs`, 0–8; missing = 6 − team size). Helpers in rules/events.js: `eventTeamSize`, `eventSubs`, `eventSquadMax`, `eventLineup` ("3v3 · 1 sub"), validation (tested).
+- Used: event page facts, Event rules text, check-in stops a team at players + subs (staff can go over after a confirm), managers get a warning when signing up with fewer players than the game needs. FAQ (new "How many players do we need?"), Rules and admin guide updated. Tested locally end to end.
+
 ### 2026-11-21 · Claude (owner's PC) · Rest of the admin pages tidied · site DEPLOYED (sw v96)
 - Requests: only sections with something waiting, with counts and a one-line tip; one "All caught up" card otherwise. Home Quick jobs: new night / tournament / add club / add player (sidebar covers the rest). Clubs & players: live search, disbanded/rejected clubs folded away, club name on player rows, "Move older pictures" moved into a Maintenance fold at the bottom. Discord bot: tabs (Pickup / Match threads / Quick fixes / Settings, `?tab=`). Stats to check, Characters: short headings. Help pages: warns when a saved own copy hides new built-in answers, with "Use the site's latest text" (saves an empty body = built-in text).
 - Not done yet: admin guide wording for these pages (bot tabs, Help pages reset), result entry page (result.js) not reviewed.

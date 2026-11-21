@@ -6,7 +6,7 @@ import { homeProfilePrompt, profileState } from './discord-cta.js';
 import { menuCards } from '../menu.js';
 import { inAClub } from '../shell.js';
 import { characterSpot, characterPicker, charactersOn, startCharacters } from '../characters.js';
-import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming } from '../rules/events.js';
+import { EVENT_TYPES, EVENT_STATUSES, eventDateLabel, sortEvents, isUpcoming, eventLineup, eventTeamSize } from '../rules/events.js';
 import { computeStandings } from '../rules/standings.js';
 import { formatFor } from '../rules/season.js';
 import { esc, skeleton, notice, pageTitle, safeUrl, fmtNum, teamDot, teamLink, playerLink, paragraphs, urls, fmtDay, fmtTime, managerTag, staffTag } from '../ui.js';
@@ -34,7 +34,7 @@ function tags(e) {
 
 function facts(e) {
   const items = [];
-  if (e.teamSize) items.push(['Teams', `${e.teamSize}v${e.teamSize}`]);
+  if (e.teamSize) items.push(['Teams', eventLineup(e)]);
   if (e.formatNote) items.push(['Format', e.formatNote]);
   if (e.prize) items.push(['Prize', e.prize]);
   return items.length ? `<dl class="facts">${items.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '';
@@ -200,7 +200,7 @@ async function signupBox(b) {
   const manager = Boolean(team && team.managerUid === user.uid);
   const entry = team ? b.entries.find((x) => x.teamId === team.id) : null;
   const solo = me ? (b.solos ?? []).find((x) => x.playerId === me.id) ?? null : null;
-  signupCtx = { user, team, entry, eventId: e.id, manager, adminUid, entries: b.entries, me, solo };
+  signupCtx = { user, team, entry, eventId: e.id, manager, adminUid, entries: b.entries, me, solo, squad: team ? Object.values(b.playersById ?? {}).filter((p) => p.teamId === team.id).length : 0, need: eventTeamSize(e) };
   const managerOf = (t) => (t?.managerPlayerId ? b.playersById[t.managerPlayerId] : null);
 
   const when = closes ? `Sign-ups close ${fmtDay(closes)} ${fmtTime(closes)} (10 minutes before the start).` : 'Sign-ups stay open until the start time is set.';
@@ -280,13 +280,14 @@ export const eventPage = {
   mount(el) {
     mountReady(el); // check-in panel (once per event)
     if (!signupCtx) return;
-    const { user, team, entry, eventId, adminUid, entries, me, solo } = signupCtx;
+    const { user, team, entry, eventId, adminUid, entries, me, solo, squad, need } = signupCtx;
     el.querySelector('.signup-box')?.addEventListener('click', async (ev) => {
       const btn = ev.target.closest('[data-act]');
       if (!btn) return;
       const act = btn.dataset.act;
       if (act === 'withdraw-entry' && !window.confirm(`Pull ${team.name} out of this event?`)) return;
       if (act === 'admin-remove' && !window.confirm('Take this club out of the event?')) return;
+      if (act === 'sign-up' && squad < need && !window.confirm(`${team.name} has ${squad} player${squad === 1 ? '' : 's'}, but this event is ${need}v${need}. Sign up anyway and find more players before it starts?`)) return;
       btn.disabled = true;
       try {
         if (act === 'sign-up') await signUpTeam({ uid: user.uid, eventId, team });
