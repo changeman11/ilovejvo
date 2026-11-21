@@ -363,12 +363,66 @@ export async function setupDiscord(client, config, log = console) {
         });
     }
     check(channel, ['ViewChannel', 'SendMessages', 'SendMessagesInThreads', 'CreatePublicThreads', 'ManageThreads', 'EmbedLinks', 'AttachFiles'], `#${channel.name}`);
+    // Since 2026-11-21 new matches are posts in a forum channel (#matches, next to the old
+    // #match-threads), each with a status tag; MATCH_FORUM=0 keeps plain threads. Threads already
+    // started in the old channel carry on there (everything else goes by thread id).
+    const TAGS = [['live', 'Live', '🟢'], ['scored', 'Score in', '✅'], ['stats', 'Needs stats', '📸'], ['done', 'Done', '🏁'], ['event', 'Event', '📢']];
+    const tagDef = ([, name, emoji]) => ({ name, emoji: { id: null, name: emoji }, moderated: true });
+    let forum = null;
+    if (config.matchForum) {
+      const all = await guild.channels.fetch().catch(() => guild.channels.cache);
+      forum = (config.matchForumId ? await guild.channels.fetch(config.matchForumId).catch(() => null) : null)
+        ?? all.find((c) => c?.type === ChannelType.GuildForum && c.name === 'matches') ?? null;
+      try {
+        if (!forum) {
+          forum = await guild.channels.create({
+            name: 'matches',
+            type: ChannelType.GuildForum,
+            parent: channel.parentId ?? category?.id,
+            topic: 'One post per I<3JVO match: report the score with the buttons and post your end-of-match screenshot. Each event has a 📢 post for check-in and reminders.',
+            availableTags: TAGS.map(tagDef),
+            permissionOverwrites: [
+              { id: guild.roles.everyone.id, type: OverwriteType.Role, deny: [P.SendMessages, P.CreatePublicThreads, P.CreatePrivateThreads], allow: [P.SendMessagesInThreads, P.AttachFiles, P.AddReactions, P.ReadMessageHistory] },
+              { id: me.id, type: OverwriteType.Member, allow: [P.ViewChannel, P.SendMessages, P.SendMessagesInThreads, P.EmbedLinks, P.AttachFiles, P.ReadMessageHistory, P.CreatePublicThreads, P.ManageThreads, P.MentionEveryone] },
+            ],
+            reason: 'I<3JVO match posts',
+          });
+          if (channel.position != null) await forum.setPosition(channel.position).catch(() => {});
+          log.info?.(`Made the #matches forum (id ${forum.id}).`);
+        }
+        const missing = TAGS.filter(([, name]) => !forum.availableTags.some((t) => t.name === name));
+        if (missing.length) await forum.setAvailableTags([...forum.availableTags, ...missing.map(tagDef)]);
+        check(forum, ['ViewChannel', 'SendMessages', 'SendMessagesInThreads', 'ManageThreads', 'EmbedLinks', 'AttachFiles'], `#${forum.name}`);
+      } catch (err) {
+        log.warn(`Could not set up the #matches forum (${err.message}); match threads stay in #${channel.name}.`);
+        forum = null;
+      }
+    }
+    const tagId = (key) => { const name = TAGS.find(([k]) => k === key)?.[1]; return forum?.availableTags.find((t) => t.name === name)?.id ?? null; };
     matchIo = {
       guildId: guild.id,
-      channelId: channel.id,
-      async createThread(name) {
+      channelId: forum?.id ?? channel.id,
+      forum: Boolean(forum),
+      // A new match: a forum post whose first message is the card -> { threadId, messageId };
+      // without a forum, a thread -> threadId (the card is posted after).
+      async createThread(name, first = null, tag = 'live') {
+        if (forum && first) {
+          const t = tagId(tag);
+          const post = await forum.threads.create({ name, message: first, autoArchiveDuration: 1440, ...(t ? { appliedTags: [t] } : {}), reason: 'I<3JVO match post' });
+          return { threadId: post.id, messageId: post.id };
+        }
         const thread = await channel.threads.create({ name, autoArchiveDuration: 1440, type: ChannelType.PublicThread, reason: 'I<3JVO match thread' });
         return thread.id;
+      },
+      // The status tag of a forum post (nothing for plain threads).
+      async setTag(threadId, key) {
+        if (!forum) return;
+        const t = tagId(key);
+        if (!t) return;
+        const thread = await channelFor(threadId).catch(() => null);
+        if (!thread || thread.parentId !== forum.id) return;
+        if (thread.archived) await thread.setArchived(false).catch(() => {});
+        await thread.setAppliedTags([t]);
       },
       async post(message, threadId, files = []) {
         const out = files.length ? { ...message, files: files.map((f) => ({ attachment: f.data, name: f.name })) } : message;
@@ -388,6 +442,7 @@ export async function setupDiscord(client, config, log = console) {
       async close(threadId) {
         const thread = await channelFor(threadId).catch(() => null);
         if (!thread) return;
+        if (forum && thread.parentId === forum.id) { const t = tagId('done'); if (t) await thread.setAppliedTags([t]).catch(() => {}); }
         await thread.setLocked(true, 'Match finished');
         await thread.setArchived(true, 'Match finished');
       },

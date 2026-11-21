@@ -37,7 +37,7 @@ If the event allows **solo sign-ups**, press **Sign up solo** on the event page.
 For events with automatic fixtures, you can see the draft schedule as clubs sign up. It locks at the start time and then doesn't change. Some events (like hand-made brackets) are filled in by the admins as rounds finish.
 
 ## What is check-in?
-Some events ask every player on the roster, **subs included**, to **check in once** at the start (✋ on the event page or your match page). A match opens when enough players from both teams have checked in. If you can't, ask a staff member to check you in. The bot pings everyone in #match-threads when it's time, and again 10 minutes later if you still haven't.
+Some events ask every player on the roster, **subs included**, to **check in once** at the start (✋ on the event page or your match page). A match opens when enough players from both teams have checked in. If you can't, ask a staff member to check you in. The bot pings everyone in #matches when it's time, and again 10 minutes later if you still haven't.
 
 # Clubs
 ## How do I join a club?
@@ -56,6 +56,9 @@ Yes: Club hub → **Manager** → **Disband the club**, then type the club's nam
 A manager hands the club to another squad member first (Club hub → Manager → hand over). If the manager is the last player and leaves, the club is **disbanded**: its results and history stay, and the name can be used again.
 
 # Results and stats
+## Where are the match threads?
+In the **#matches** forum on Discord. Every match has its own post (named after the two clubs) with a status tag: 🟢 Live, ✅ Score in, 📸 Needs stats, 🏁 Done. Filter by tag to find yours. Each event also has a **📢 check-in & reminders** post.
+
 ## How do results get on the site?
 1. After the match, players from each team vote the set scores on the match page (or in the Discord match thread) and attach the end-of-match screenshot.
 2. When a home vote and an away vote agree, the score goes up straight away. A captain can also tap **✓ Confirm this score** on the other team's vote.
@@ -178,7 +181,7 @@ At JVO everyone is one of these. You can be more than one, like a manager who's 
 # Managers (captains)
 ## Before an event
 - **Sign your club up** on the event page before sign-ups close (10 minutes before the start).
-- If your club is short of players, the bot pings you in #match-threads 24 hours and 2 hours before the start.
+- If your club is short of players, the bot pings you in #matches 24 hours and 2 hours before the start.
 - Make sure your squad is set: invites accepted, up to 6 players, enough for the event's team size.
 - Tell your players the start time and to read the event rules.
 

@@ -91,7 +91,7 @@ On a finished event with semi-finals: **Add 3rd place match**. It's saved once b
 - Check every club has enough players, and the solo players are in teams.
 
 ## Discord reminders
-The bot posts in #match-threads by itself: 24 hours and 2 hours before an event it pings clubs with fewer players than the event's players per game; at the start it pings everyone to check in (or that matches are open); 10 minutes in it pings anyone still not checked in. The event needs a date and time.
+The bot posts in #matches by itself: 24 hours and 2 hours before an event it pings clubs with fewer players than the event's players per game; at the start it pings everyone to check in (or that matches are open); 10 minutes in it pings anyone still not checked in. The event needs a date and time.
 
 ## Check-in
 With check-in on, players check in once for the event. A match opens when enough players from each team are in. On the event page, staff can press **Check in for them** next to anyone who can't. **Admin: start this match now** starts one match without waiting.

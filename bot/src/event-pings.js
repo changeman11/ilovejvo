@@ -29,6 +29,21 @@ export class EventPings {
     return run;
   }
 
+  // Each event's reminders go in one post of its own ("📢 <event> · check-in & reminders") in the
+  // #matches forum (or a thread, without a forum). Remembered as eventPingThreads = { eventId: threadId }.
+  async postFor(event, message) {
+    const map = { ...(this.store.getMeta('eventPingThreads') ?? {}) };
+    if (map[event.id]) {
+      try { await this.io.post(message, map[event.id]); return; } catch (err) { this.log.warn('[event pings] old post gone, making a new one:', err.message); }
+    }
+    if (!this.io.createThread) { await this.io.post(message); return; }
+    const made = await this.io.createThread(`📢 ${String(event.title ?? 'Event').slice(0, 70)} · check-in & reminders`, message, 'event');
+    const threadId = typeof made === 'string' ? made : made.threadId;
+    if (typeof made === 'string') await this.io.post(message, threadId);
+    map[event.id] = threadId;
+    await this.store.setMeta('eventPingThreads', map);
+  }
+
   async syncNow() {
     const now = this.now();
     const events = (await this.site.query('events', 'published', true))
@@ -58,9 +73,10 @@ export class EventPings {
     let posted = 0;
     for (const p of due) {
       if (p.content) {
+        const event = ctxs.find((c) => c.event.id === p.eventId)?.event ?? { id: p.eventId, title: 'Event' };
         for (const part of chunks(p.content)) {
           const ids = p.userIds.filter((id) => part.includes(`<@${id}>`)).slice(0, 100);
-          await this.io.post({ content: part, allowedMentions: { users: ids } });
+          await this.postFor(event, { content: part, allowedMentions: { users: ids } });
         }
         posted++;
         this.log.info?.(`[event pings] ${p.kind} for ${p.eventId}: ${p.userIds.length} pinged`);

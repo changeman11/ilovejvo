@@ -170,8 +170,10 @@ export class MatchThreads {
   async open(id) {
     const m = this.view(id);
     if (!m) return;
-    const threadId = await this.io.createThread(views.threadName(m));
-    const messageId = await this.io.post(views.matchCard(m, this.config, { ping: true }), threadId);
+    const card = views.matchCard(m, this.config, { ping: true });
+    const made = await this.io.createThread(views.threadName(m), card, 'live');
+    const threadId = typeof made === 'string' ? made : made.threadId;
+    const messageId = typeof made === 'string' ? await this.io.post(card, threadId) : made.messageId;
     // Remembered as the plain card, so the next look doesn't edit it just to drop the pings.
     this.cards.set(id, JSON.stringify(views.matchCard(m, this.config)));
     const now = this.clock.now();
@@ -196,6 +198,7 @@ export class MatchThreads {
       return;
     }
     await this.drawCard(id, t, m);
+    await this.tagPost(id, m);
     if (m.result) {
       if (t.status === 'open') t = await this.finish(id, t, m, now);
       await this.findShots(id, m, now);
@@ -223,6 +226,17 @@ export class MatchThreads {
     }
     await this.io.post(views.reminder(m, due, this.config), t.threadId);
     await this.save(id, { prompts: due.n, lastPromptAt: now });
+  }
+
+  // Forum posts: the status tag follows the match (Live, Score in, Needs stats, Done).
+  async tagPost(id, m) {
+    const t = this.threads.get(id);
+    if (!t || !this.io.setTag || t.status === 'closed') return;
+    const r = m?.result;
+    const key = !r ? 'live' : r.forfeit || r.statsStatus === 'reviewed' ? 'done' : r.statsStatus === 'pending' ? 'stats' : 'scored';
+    if (t.tag === key) return;
+    await this.io.setTag(t.threadId, key).catch((err) => this.log.warn('[matches] tag:', err.message));
+    await this.save(id, { tag: key });
   }
 
   async drawCard(id, t, m, extra = {}) {

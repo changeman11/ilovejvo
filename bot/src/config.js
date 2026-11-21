@@ -120,6 +120,9 @@ export function loadConfig(env = process.env) {
     // MATCH_REMIND_MAX times, then admins are pinged) until the score is in.
     matchThreads: text('MATCH_THREADS') === '1',
     matchChannelId: discordId('MATCH_CHANNEL_ID', '', false),
+    // Match posts in a forum channel #matches (2026-11-21); MATCH_FORUM=0 = plain threads.
+    matchForum: text('MATCH_FORUM') !== '0',
+    matchForumId: discordId('MATCH_FORUM_ID', '', false),
     matchRemindMinutes: number('MATCH_REMIND_MINUTES', 10, 1, 240),
     matchRemindMax: number('MATCH_REMIND_MAX', 6, 0, 50),
     matchCloseMinutes: number('MATCH_CLOSE_MINUTES', 15, 0, 1440),

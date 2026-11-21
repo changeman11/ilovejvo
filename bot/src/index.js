@@ -205,7 +205,7 @@ client.once(Events.ClientReady, async () => {
     // Event reminders (roster, check in) in the match threads channel.
     if (config.eventPings && discord.matchIo) {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
-      eventPings = new EventPings({ io: { post: (m) => discord.matchIo.post(m, discord.matchIo.channelId) }, site, store, config, log });
+      eventPings = new EventPings({ io: { post: (m, threadId) => discord.matchIo.post(m, threadId), createThread: (name, first, tag) => discord.matchIo.createThread(name, first, tag) }, site, store, config, log });
       eventPings.start().catch((err) => log.error(`[event pings] ${err.message}`));
     }
     // #staff-desk: quick admin jobs with ✅ / ❌ (needs STORE=firebase: the bot saves the decisions).
