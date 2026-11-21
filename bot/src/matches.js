@@ -137,6 +137,7 @@ export class MatchThreads {
   async syncNow() {
     if (!this.site.ready()) return; // still loading: don't take "not there yet" for "gone"
     const now = this.clock.now();
+    await this.retireOldChannel(now);
     // 1. New threads for matches that just opened (not for events with threads switched off on
     //    the site: event.matchThreads === false).
     for (const b of this.site.bundles()) {
@@ -164,6 +165,21 @@ export class MatchThreads {
       } catch (err) {
         this.log.warn(`[matches] ${id}:`, err.message);
       }
+    }
+  }
+
+  // The old #match-threads channel (owner asked, 2026-11-21): deleted once, after 4am Sydney on
+  // 22 Nov 2026, when no match thread in it is still open. Its matches stay on the site.
+  async retireOldChannel(now) {
+    const old = this.io.oldChannelId;
+    if (!old || this.retired || now < Date.UTC(2026, 10, 21, 17, 0)) return;
+    const busy = [...this.threads.values()].some((t) => t.channelId === old && t.status !== 'closed');
+    if (busy) return;
+    this.retired = true;
+    try {
+      if (await this.io.deleteOldChannel()) this.log.info?.('[matches] deleted the old #match-threads channel (the #matches forum has taken over)');
+    } catch (err) {
+      this.log.warn('[matches] could not delete the old #match-threads channel:', err.message);
     }
   }
 

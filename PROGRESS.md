@@ -23,7 +23,7 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 ### 2026-11-21 · Claude (owner's PC) · Match threads → #matches forum · bot UPLOADED, site DEPLOYED (sw v107)
 - discord-io.js: a forum channel #matches (made next to #match-threads; MATCH_FORUM=0 = old threads; MATCH_FORUM_ID optional) with tags Live / Score in / Needs stats / Done / Event (moderated). New matches are posts whose first message is the card (`createThread(name, card, tag)` → { threadId, messageId }); matches.js `tagPost` keeps the tag in step (thread doc field `tag`); closing sets Done. Threads already open in #match-threads carry on there.
 - Event reminders (event-pings.js `postFor`) go in one "📢 <event> · check-in & reminders" post per event (meta `eventPingThreads`).
-- FAQ "Where are the match threads?"; #match-threads → #matches in help text. The old #match-threads channel is left as it is (can be archived/deleted once its open threads finish).
+- FAQ "Where are the match threads?"; #match-threads → #matches in help text. Owner said delete the old #match-threads after tonight: matches.js `retireOldChannel` deletes it once, after 4am Sydney on 22 Nov, when none of its threads is still open.
 
 ### 2026-11-21 · Claude (owner's PC) · Matches published with stats missing: re-opened and finished · rules DEPLOYED, bot UPLOADED
 - matches.js `reopenShort` / `saveReopen` (+ firestore.rules branch): a published ('reviewed') match with fewer stat lines than both teams' players is re-read once (all screenshots combined) and, if that finds more lines, sent back to 'pending' with the fuller draft; lines already published are matched by identical numbers. Meta `statsReopened`. Launch Cup: 6 matches re-opened with 8 lines.

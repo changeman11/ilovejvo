@@ -458,6 +458,13 @@ export async function setupDiscord(client, config, log = console) {
             .filter((a) => /^image\/(png|jpeg|webp|gif)$/.test(a.contentType ?? ''))
             .map((a) => ({ url: a.url, name: a.name, contentType: a.contentType, width: a.width ?? null, height: a.height ?? null, authorId: msg.author.id, messageId: msg.id })));
       },
+      // The old #match-threads text channel, once the forum has taken over (owner asked, 2026-11-21).
+      oldChannelId: forum ? channel.id : null,
+      async deleteOldChannel() {
+        if (!forum || channel.type !== ChannelType.GuildText) return false;
+        await channel.delete('Match threads moved to the #matches forum');
+        return true;
+      },
       async reopen(threadId) {
         const thread = await channelFor(threadId);
         await thread.setArchived(false, 'Asking who’s who for the stats');
