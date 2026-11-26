@@ -92,7 +92,7 @@ Each stat has a 🥇 1st, 🥈 2nd and 🥉 3rd place, worked out from the **las
 - **🎟️ Event Player:** you're in an upcoming or running event.
 - **Award roles:** your current 🥇 1st places.
 - **🏆 Pre-launch Champion:** you won an event before the game launched.
-- **Event winner roles** (e.g. "🏆 TOURNAMENT 2 Champion"): some events give their winning team a role. Every player on that team gets it once the final is played, and keeps it.
+- **Event winner roles** (e.g. "🏆 TOURNAMENT 2 Champion"): some events give their winning team a role. Every player on that team gets it once the final is played, and keeps it. Tournaments use **🏆 1x Tournament Champion**, which goes up to 2x, 3x… with every title you win.
 - **Divider roles (━ TEAM ━ / ━ AWARDS ━):** just split your roles into sections on your profile.
 - **Staff:** the JVO team, who are also admins on the site.
 More in the **Roles** tab.

@@ -50,7 +50,7 @@ In the Details tab, the **Format**, **Sign-ups** and **Match night** sections. E
 - **Knockout:** none, final, semi-finals or quarter-finals, plus the **🥉 3rd place match**.
 - **Show a table**, club sign-ups, **solo sign-ups**.
 - **Match night:** run matches by themselves, check-in, break before the finals, stuck-match alerts.
-- **Winner role:** pick a preset (e.g. "🏆 {event} Champion") or a custom name, and the bot gives that Discord role to every player on the winning team once the event is decided. Several events can share one ("🏐 Cup Winner"). Turn it off and the role is deleted.
+- **Winner role:** pick a preset (e.g. "🏆 {event} Champion") or a custom name, and the bot gives that Discord role to every player on the winning team once the event is decided. Several events can share one ("🏐 Cup Winner"). **Counts up** gives "🏆 1x Tournament Champion", then 2x, 3x… for players who win more of those events. Turn it off and the role is deleted.
 - **MVP:** always the winning team's player. If you pick someone from the losing team, the winners' top scorer is used instead.
 - **Discord match threads** for this event.
 - **Use suggestion** fills in a sensible setup for the number of teams.

@@ -80,3 +80,10 @@ test('winner role names come from the event preset', () => {
   assert.equal(winnerRoleName({ title: 'Cup 2', winnerRole: { preset: 'custom', name: '{event} Legends' } }), 'Cup 2 Legends');
   assert.equal(winnerRoleName({ title: 'Cup 2', winnerRole: { preset: 'custom', name: ' ' } }), null);
 });
+
+import { tallyRoleName, isTallyEvent } from '../public/js/rules/winner-role.js';
+test('count-up winner roles', () => {
+  assert.equal(isTallyEvent({ winnerRole: { preset: 'tally' } }), true);
+  assert.equal(winnerRoleName({ title: 'T2', winnerRole: { preset: 'tally' } }), null);
+  assert.equal(tallyRoleName(2), '🏆 2x Tournament Champion');
+});

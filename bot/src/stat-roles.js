@@ -11,7 +11,7 @@
 // roleIo: the same as club roles (discord-io.js).
 import { awardEvent, seasonOf } from './site-rules/award-event.js';
 import { allChampions } from './site-rules/champions.js';
-import { winnerRoleName } from './site-rules/winner-role.js';
+import { winnerRoleName, isTallyEvent, tallyRoleName } from './site-rules/winner-role.js';
 
 // The role for players who won a pre-launch event (added 2026-11-21). No colour, so names keep
 // the club colour; it sits at the top of the AWARDS section (role-layout.js).
@@ -183,8 +183,17 @@ export class StatRoles {
   // A name no event uses any more: the role is deleted. No colour, so names keep the club colour.
   async syncWinnerRoles(bundles, players, existing) {
     const want = new Map();
+    // Count-up events: each player gets one role for how many they've won (1x, 2x, …).
+    const tally = new Map();
     for (const c of allChampions(bundles)) {
       const event = bundles.find((b) => b.event.id === c.eventId)?.event;
+      if (isTallyEvent(event)) {
+        for (const pid of c.playerIds) {
+          const id = String(players.get(pid)?.discordId ?? '');
+          if (/^\d{15,22}$/.test(id)) tally.set(id, (tally.get(id) ?? 0) + 1);
+        }
+        continue;
+      }
       const name = winnerRoleName(event);
       if (!name || name === CHAMPION_ROLE) continue;
       if (!want.has(name)) want.set(name, new Set());
@@ -192,6 +201,11 @@ export class StatRoles {
         const id = String(players.get(pid)?.discordId ?? '');
         if (/^\d{15,22}$/.test(id)) want.get(name).add(id);
       }
+    }
+    for (const [id, n] of tally) {
+      const name = tallyRoleName(n);
+      if (!want.has(name)) want.set(name, new Set());
+      want.get(name).add(id);
     }
     const roles = { ...(this.store.getMeta('winnerRoles') ?? {}) };
     const holders = { ...(this.store.getMeta('winnerRoleHolders') ?? {}) };

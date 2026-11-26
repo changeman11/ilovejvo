@@ -5,7 +5,7 @@
 // /admin/event/new?type=exhibition  or  /admin/event/<id>?tab=details|teams|fixtures[&edit=<fixtureId>|new]
 
 import { loadEventBundle, loadPeople, NotFoundError } from '../../data.js';
-import { WINNER_ROLE_PRESETS, winnerRoleName } from '../../rules/winner-role.js';
+import { WINNER_ROLE_PRESETS, winnerRoleName, isTallyEvent } from '../../rules/winner-role.js';
 import {
   EVENT_TYPES, EVENT_STATUSES, validateEvent, dateFromInputs, inputsFromDate, eventDateLabel,
 } from '../../rules/events.js';
@@ -126,7 +126,7 @@ function detailsHtml(e) {
       ${sec('prize', '🏆', 'Winner role', `
         <label class="field"><span>Discord role for the winning team</span><select name="winnerPreset">${Object.entries(WINNER_ROLE_PRESETS).map(([k, v]) => opt(k, v.label.replace('{event}', e.title || 'Event'), e.winnerRole?.preset ?? 'off')).join('')}</select></label>
         <label class="field winner-custom"${(e.winnerRole?.preset ?? 'off') === 'custom' ? '' : ' hidden'}><span>Custom role name</span><input type="text" name="winnerName" maxlength="100" value="${esc(e.winnerRole?.name ?? '')}" placeholder="e.g. 🌟 {event} Legends ({event} = the event's name)"></label>
-        <p class="muted small adm-note">${winnerRoleName(e) ? `Winners get <b>${esc(winnerRoleName(e))}</b> on Discord when the final is played (or the table is finished). They keep it.` : 'Every player on the winning team gets the role on Discord when the event is decided, and keeps it.'}</p>`)}
+        <p class="muted small adm-note">${isTallyEvent(e) ? 'Each winner gets <b>🏆 1x Tournament Champion</b>, or goes up to 2x, 3x… if they’ve won count-up events before.' : winnerRoleName(e) ? `Winners get <b>${esc(winnerRoleName(e))}</b> on Discord when the final is played (or the table is finished). They keep it.` : 'Every player on the winning team gets the role on Discord when the event is decided, and keeps it.'}</p>`)}
       ${sec('page', '📣', 'Event page', `
         ${tick('showTable', e.showTable, 'Show a table', 'Wins, sets and points on the event page.')}
         ${isTournament ? `
