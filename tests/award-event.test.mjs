@@ -62,3 +62,21 @@ test('champions: the winning team’s players (stat lines + roster), pre-launch 
   assert.equal(titlesOf(allChampions([b]), 'a2').length, 1);
   assert.equal(titlesOf(allChampions([b]), 'b1').length, 0);
 });
+
+test('match MVP is always from the winning team', async () => {
+  const { matchMvp } = await import('../public/js/rules/results.js');
+  const playerStats = { w1: { teamId: 'A', pts: 5 }, w2: { teamId: 'A', pts: 9 }, l1: { teamId: 'B', pts: 20 } };
+  assert.equal(matchMvp({ playerStats, mvpPlayerId: 'w1' }, 'A'), 'w1', 'a winning-team pick stays');
+  assert.equal(matchMvp({ playerStats, mvpPlayerId: 'l1' }, 'A'), 'w2', 'a losing-team pick is replaced by the winners’ top scorer');
+  assert.equal(matchMvp({ playerStats, mvpPlayerId: null }, 'A'), 'w2');
+  assert.equal(matchMvp({ playerStats, forfeit: { teamId: 'B' } }, 'A'), null);
+});
+
+import { winnerRoleName } from '../public/js/rules/winner-role.js';
+test('winner role names come from the event preset', () => {
+  assert.equal(winnerRoleName({ title: 'Cup 2' }), null);
+  assert.equal(winnerRoleName({ title: 'Cup 2', winnerRole: { preset: 'off' } }), null);
+  assert.equal(winnerRoleName({ title: 'Cup 2', winnerRole: { preset: 'champion' } }), '🏆 Cup 2 Champion');
+  assert.equal(winnerRoleName({ title: 'Cup 2', winnerRole: { preset: 'custom', name: '{event} Legends' } }), 'Cup 2 Legends');
+  assert.equal(winnerRoleName({ title: 'Cup 2', winnerRole: { preset: 'custom', name: ' ' } }), null);
+});

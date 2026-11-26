@@ -54,6 +54,15 @@ export function suggestMvp(playerStats, winnerTeamId) {
   return ranked[0]?.[0] ?? null;
 }
 
+// The match's MVP (2026-11-21: always from the WINNING team): the saved pick when that player is on
+// the winning team, otherwise the winning team's top scorer. Forfeits and unfinished matches: none.
+export function matchMvp(result, winnerTeamId) {
+  if (!result || result.forfeit || !winnerTeamId) return null;
+  const line = result.playerStats?.[result.mvpPlayerId];
+  if (line && line.teamId === winnerTeamId) return result.mvpPlayerId;
+  return suggestMvp(result.playerStats, winnerTeamId);
+}
+
 // "Something to check" notes for a saved or draft result. These don't block saving,
 // except that the scores themselves must pass checkResult() (that's an error, not a warning).
 // Returns { errors: [...], warnings: [...] }

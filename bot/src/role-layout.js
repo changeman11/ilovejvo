@@ -60,6 +60,9 @@ export class RoleLayout {
     // The 🏆 Pre-launch Champion role heads the AWARDS section.
     const championId = this.store.getMeta('championRole') ?? null;
     if (championId) awardIds.unshift(championId);
+    // Event winner roles (stat-roles.js syncWinnerRoles) come next, before the stat awards.
+    const winnerIds = Object.values(this.store.getMeta('winnerRoles') ?? {});
+    awardIds.splice(championId ? 1 : 0, 0, ...winnerIds);
     const { roles, botTop } = await this.io.positions();
     // Clubs keep their current order among themselves.
     const clubsSorted = clubIds.filter((id) => roles.has(id)).sort((a, b) => roles.get(b).position - roles.get(a).position);

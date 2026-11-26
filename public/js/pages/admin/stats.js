@@ -15,7 +15,7 @@ import { loadAllBundles } from '../../data.js';
 import { saveResult, rememberGameNames } from '../../admin-data.js';
 import { checkResult } from '../../rules/match.js';
 import { formatFor } from '../../rules/season.js';
-import { suggestMvp } from '../../rules/results.js';
+import { suggestMvp, matchMvp } from '../../rules/results.js';
 import { draftSummary, playerStatsFromDraft } from '../../rules/stats-draft.js';
 import { statFlags, perSetHighs, setsPlayed } from '../../rules/stat-checks.js';
 import { shotFor } from '../../stats-reader.js';
@@ -184,7 +184,7 @@ async function publish(root, items) {
         result: {
           ...keep,
           playerStats,
-          mvpPlayerId: result.mvpPlayerId ?? (check.ok ? suggestMvp(playerStats, check.winner === 'home' ? f.homeTeamId : f.awayTeamId) : null),
+          mvpPlayerId: check.ok ? matchMvp({ ...result, playerStats }, check.winner === 'home' ? f.homeTeamId : f.awayTeamId) : null,
           statsStatus: 'reviewed',
         },
       });

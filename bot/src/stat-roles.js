@@ -11,6 +11,7 @@
 // roleIo: the same as club roles (discord-io.js).
 import { awardEvent, seasonOf } from './site-rules/award-event.js';
 import { allChampions } from './site-rules/champions.js';
+import { winnerRoleName } from './site-rules/winner-role.js';
 
 // The role for players who won a pre-launch event (added 2026-11-21). No colour, so names keep
 // the club colour; it sits at the top of the AWARDS section (role-layout.js).
@@ -139,6 +140,7 @@ export class StatRoles {
     if (JSON.stringify(holders) !== JSON.stringify(this.store.getMeta('statRoleHolders') ?? {})) await this.store.setMeta('statRoleHolders', holders);
     if (made || added || removed) this.log.info?.(`[stat roles] ${made} roles made, ${added} given, ${removed} taken away`);
     if (this.config.championRole !== false) await this.syncChampions(bundles, players, existing).catch((err) => this.log.warn('[stat roles] champions:', err.message));
+    if (this.config.winnerRoles !== false) await this.syncWinnerRoles(bundles, players, existing).catch((err) => this.log.warn('[stat roles] winner roles:', err.message));
     return { made, added, removed };
   }
 
@@ -172,5 +174,60 @@ export class StatRoles {
     }
     if (JSON.stringify([...now].sort()) !== JSON.stringify([...had].sort())) await this.store.setMeta('championHolders', [...now].sort());
     if (given) this.log.info?.(`[stat roles] ${CHAMPION_ROLE}: given to ${given}`);
+  }
+
+  // Event winner roles (2026-11-26): an event's winnerRole (chosen in the event form, site
+  // rules/winner-role.js) goes to every player of the team that won it, once the event is decided.
+  // Several events can share a name (e.g. "🏐 Cup Winner"). Kept for good while the event stays won.
+  // Remembered as winnerRoles = { name: roleId } and winnerRoleHolders = { name: [discordIds] }.
+  // A name no event uses any more: the role is deleted. No colour, so names keep the club colour.
+  async syncWinnerRoles(bundles, players, existing) {
+    const want = new Map();
+    for (const c of allChampions(bundles)) {
+      const event = bundles.find((b) => b.event.id === c.eventId)?.event;
+      const name = winnerRoleName(event);
+      if (!name || name === CHAMPION_ROLE) continue;
+      if (!want.has(name)) want.set(name, new Set());
+      for (const pid of c.playerIds) {
+        const id = String(players.get(pid)?.discordId ?? '');
+        if (/^\d{15,22}$/.test(id)) want.get(name).add(id);
+      }
+    }
+    const roles = { ...(this.store.getMeta('winnerRoles') ?? {}) };
+    const holders = { ...(this.store.getMeta('winnerRoleHolders') ?? {}) };
+    let changed = false;
+    // Names no longer used: delete the role.
+    for (const name of Object.keys(roles)) {
+      if (want.has(name)) continue;
+      if (existing.has(roles[name])) await this.io.deleteRole?.(roles[name]).catch((err) => this.log.warn('[stat roles]', err.message));
+      delete roles[name];
+      delete holders[name];
+      changed = true;
+    }
+    let given = 0;
+    for (const [name, ids] of want) {
+      let roleId = roles[name] ?? null;
+      if (roleId && !existing.has(roleId)) roleId = null;
+      if (!roleId) {
+        roleId = await this.io.createRole({ name, color: 0, hoist: false });
+        roles[name] = roleId;
+        holders[name] = [];
+        changed = true;
+      }
+      const had = new Set(holders[name] ?? []);
+      const now = new Set();
+      for (const id of had) if (!ids.has(id)) await this.io.removeRole(id, roleId).catch(() => {});
+      for (const id of ids) {
+        if (had.has(id)) { now.add(id); continue; }
+        try { await this.io.addRole(id, roleId); now.add(id); given++; } catch (err) { if (!/Unknown (Member|User)/i.test(err.message)) this.log.warn('[stat roles]', err.message); }
+      }
+      const list = [...now].sort();
+      if (JSON.stringify(list) !== JSON.stringify([...had].sort())) { holders[name] = list; changed = true; }
+    }
+    if (changed) {
+      await this.store.setMeta('winnerRoles', roles);
+      await this.store.setMeta('winnerRoleHolders', holders);
+    }
+    if (given) this.log.info?.(`[stat roles] winner roles: given to ${given}`);
   }
 }

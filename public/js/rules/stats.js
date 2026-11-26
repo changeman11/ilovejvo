@@ -1,3 +1,4 @@
+import { matchMvp } from './results.js';
 // Player and team stats, built from results every time. Nothing here is stored.
 // Pure functions, no Firebase, so they run in the browser and in tests.
 //
@@ -20,6 +21,8 @@ export function seasonPlayerStats({ matches, results, statKeys, teamId = null })
     const r = results[m.fixtureId];
     if (!r?.playerStats) continue;
     const setsInMatch = m.homeSets + m.awaySets;
+    // MVP: always from the winning team (rules/results.js matchMvp).
+    const mvpId = matchMvp(r, m.winner === 'home' ? m.homeTeamId : m.winner === 'away' ? m.awayTeamId : null);
 
     for (const [playerId, raw] of Object.entries(r.playerStats)) {
       const isHome = raw.teamId === m.homeTeamId;
@@ -33,7 +36,7 @@ export function seasonPlayerStats({ matches, results, statKeys, teamId = null })
       }
       const p = players.get(playerId);
       const won = m.winner === (isHome ? 'home' : 'away');
-      const mvp = r.mvpPlayerId === playerId;
+      const mvp = mvpId === playerId;
       const line = {};
       for (const k of statKeys) {
         line[k] = Number(raw[k]) || 0;

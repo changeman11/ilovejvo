@@ -5,7 +5,7 @@
 import { loadEventBundle, NotFoundError } from '../../data.js';
 import { checkResult } from '../../rules/match.js';
 import { formatFor } from '../../rules/season.js';
-import { forfeitSets, visibleSetCount, cleanStatLine, suggestMvp, reviewResult } from '../../rules/results.js';
+import { forfeitSets, visibleSetCount, cleanStatLine, suggestMvp, reviewResult, matchMvp } from '../../rules/results.js';
 import { voteLabel } from '../../rules/votes.js';
 import { shotThumbs } from '../report.js';
 import { saveResult, deleteResult, rememberGameNames } from '../../admin-data.js';
@@ -87,7 +87,10 @@ function draftResult() {
         if (row.played) playerStats[row.pid] = { teamId, ...cleanStatLine(row.line, statKeys()) };
       }
     }
-    result = { sets, playerStats, mvpPlayerId: s.mvp && playerStats[s.mvp] ? s.mvp : null, forfeit: null };
+    // MVP: from the winning team only (rules/results.js matchMvp); a pick from the other team is replaced.
+    const won = checkResult(sets, page.format);
+    const winId = won.ok ? (won.winner === 'home' ? s.homeId : s.awayId) : null;
+    result = { sets, playerStats, mvpPlayerId: winId ? matchMvp({ playerStats, mvpPlayerId: s.mvp || null }, winId) : null, forfeit: null };
     problems.push(...checkResult(sets, page.format).errors);
   }
   const vod = s.vod.trim();

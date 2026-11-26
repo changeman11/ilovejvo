@@ -36,7 +36,7 @@ Most things can be undone by editing again. These can't: **Delete event**, **Cle
 # Setting up an event
 ## Create an event
 1. Admin home → **New exhibition night** or **New tournament**.
-2. **Details** is split into sections (jump between them with the buttons at the top): **Basics** (type, status, title, summary, Published, Featured), **When**, **Format**, **Sign-ups**, **Match night** and **Event page** (table, links). Leave the date or time empty for "TBD". Longer explanations are under **How it works**.
+2. **Details** is split into sections (jump between them with the buttons at the top): **Basics** (type, status, title, summary, Published, Featured), **When**, **Format**, **Sign-ups**, **Match night**, **Winner role** and **Event page** (table, links). Leave the date or time empty for "TBD". Longer explanations are under **How it works**.
 3. Leave **Published** off while you set it up: only admins can see drafts.
 4. Tick **★ Feature this event** to pin it on every page (otherwise the next upcoming event is featured).
 5. Fill in the **Format** section too, then press **Save** (the bar at the bottom).
@@ -50,6 +50,8 @@ In the Details tab, the **Format**, **Sign-ups** and **Match night** sections. E
 - **Knockout:** none, final, semi-finals or quarter-finals, plus the **🥉 3rd place match**.
 - **Show a table**, club sign-ups, **solo sign-ups**.
 - **Match night:** run matches by themselves, check-in, break before the finals, stuck-match alerts.
+- **Winner role:** pick a preset (e.g. "🏆 {event} Champion") or a custom name, and the bot gives that Discord role to every player on the winning team once the event is decided. Several events can share one ("🏐 Cup Winner"). Turn it off and the role is deleted.
+- **MVP:** always the winning team's player. If you pick someone from the losing team, the winners' top scorer is used instead.
 - **Discord match threads** for this event.
 - **Use suggestion** fills in a sensible setup for the number of teams.
 

@@ -1,5 +1,6 @@
 // Match page: score, sets, MVP, box scores, VOD and screenshots.
 
+import { matchMvp } from '../rules/results.js';
 import { loadEventBundle, loadMatchThread, NotFoundError } from '../data.js';
 import { esc, skeleton, notice, safeUrl, fmtDay, fmtTime, teamDot, teamLink, playerLink, urls } from '../ui.js';
 import { formatFor } from '../rules/season.js';
@@ -42,7 +43,9 @@ export async function render({ eventId, fixtureId }) {
   if (!f) throw new NotFoundError('That match doesn’t exist');
   const home = b.teamsById[f.homeTeamId];
   const away = b.teamsById[f.awayTeamId];
-  const { result, check } = resultOf(b, f);
+  const { result: saved, check } = resultOf(b, f);
+  // MVP shown: always from the winning team (rules/results.js matchMvp).
+  const result = saved && check?.ok ? { ...saved, mvpPlayerId: matchMvp(saved, check.winner === 'home' ? f.homeTeamId : f.awayTeamId) } : saved;
   const played = Boolean(check?.ok);
   const homeWon = played && check.winner === 'home';
 

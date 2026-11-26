@@ -5,6 +5,7 @@
 // /admin/event/new?type=exhibition  or  /admin/event/<id>?tab=details|teams|fixtures[&edit=<fixtureId>|new]
 
 import { loadEventBundle, loadPeople, NotFoundError } from '../../data.js';
+import { WINNER_ROLE_PRESETS, winnerRoleName } from '../../rules/winner-role.js';
 import {
   EVENT_TYPES, EVENT_STATUSES, validateEvent, dateFromInputs, inputsFromDate, eventDateLabel,
 } from '../../rules/events.js';
@@ -77,7 +78,7 @@ const sec = (id, icon, title, body, sub = '') => `
 function detailsHtml(e) {
   const { dateStr, timeStr } = inputsFromDate(e.date, e.timeTbd);
   const isTournament = e.type === 'tournament';
-  const jump = [['basics', 'Basics'], ['when', 'When'], ['format', 'Format'], ['signups', 'Sign-ups'], ['night', 'Match night'], ['page', 'Event page']];
+  const jump = [['basics', 'Basics'], ['when', 'When'], ['format', 'Format'], ['signups', 'Sign-ups'], ['night', 'Match night'], ['prize', 'Winner role'], ['page', 'Event page']];
   return `
     <form class="stack adm-form" data-form="details" novalidate>
       <nav class="adm-jump" aria-label="Form sections">${jump.map(([id, label]) => `<a href="#sec-${id}">${label}</a>`).join('')}</nav>
@@ -122,6 +123,10 @@ function detailsHtml(e) {
         ${tick('signups', e.signups, 'Clubs sign up themselves', 'On the event page, until 10 minutes before the start.')}
         ${tick('solos', e.solos, 'Solo sign-ups', 'Players without a club sign up; you group them on the Teams tab.')}`)}
       ${flowConfigHtml(e)}
+      ${sec('prize', '🏆', 'Winner role', `
+        <label class="field"><span>Discord role for the winning team</span><select name="winnerPreset">${Object.entries(WINNER_ROLE_PRESETS).map(([k, v]) => opt(k, v.label.replace('{event}', e.title || 'Event'), e.winnerRole?.preset ?? 'off')).join('')}</select></label>
+        <label class="field winner-custom"${(e.winnerRole?.preset ?? 'off') === 'custom' ? '' : ' hidden'}><span>Custom role name</span><input type="text" name="winnerName" maxlength="100" value="${esc(e.winnerRole?.name ?? '')}" placeholder="e.g. 🌟 {event} Legends ({event} = the event's name)"></label>
+        <p class="muted small adm-note">${winnerRoleName(e) ? `Winners get <b>${esc(winnerRoleName(e))}</b> on Discord when the final is played (or the table is finished). They keep it.` : 'Every player on the winning team gets the role on Discord when the event is decided, and keeps it.'}</p>`)}
       ${sec('page', '📣', 'Event page', `
         ${tick('showTable', e.showTable, 'Show a table', 'Wins, sets and points on the event page.')}
         ${isTournament ? `
@@ -176,6 +181,7 @@ function readDetails(form) {
     formatNote: type === 'tournament' ? val('formatNote').trim() || null : null,
     prize: type === 'tournament' ? val('prize').trim() || null : null,
     showTable: form.querySelector('[name=showTable]').checked,
+    winnerRole: (() => { const preset = val('winnerPreset') || 'off'; return preset === 'off' ? null : { preset, ...(preset === 'custom' ? { name: val('winnerName').trim().slice(0, 100) } : {}) }; })(),
     autoFixtures: val('autoFixtures') || 'off',
     finals: { type: val('finalsType') || 'none', semiBestOf: Number(val('semiBestOf')) || 3, finalBestOf: Number(val('finalBestOf')) || 5, thirdPlace: form.querySelector('[name=thirdPlace]')?.checked ?? false },
     signups: form.querySelector('[name=signups]').checked,
@@ -631,6 +637,10 @@ export function mount(el) {
     if (e.target.matches('[data-form="details"] [name=groupCount], [data-form="details"] [name=autoFixtures]')) {
       const hint = root.querySelector('.group-hint');
       if (hint) hint.textContent = groupHint({ ...payload(), ...readDetails(e.target.form) });
+    }
+    if (e.target.matches('[data-form="details"] [name=winnerPreset]')) {
+      const box = root.querySelector('.winner-custom');
+      if (box) box.hidden = e.target.value !== 'custom';
     }
     if (e.target.matches('[data-form="details"] [name=type]')) {
       root.querySelector('.entry').innerHTML = detailsHtml({ ...payload(), ...readDetails(e.target.form) });

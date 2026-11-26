@@ -74,7 +74,7 @@ Stats come from the **end-of-match screen** (the table with everyone's stats). T
 Use **🛠 Fix this result** with a note, or ask an admin on Discord. Admins can fix stat lines and link your in-game name to your profile, so you're recognised automatically next time.
 
 ## What do the stats mean?
-They come straight from the game's end-of-match screen: **PTS** points, **SPK** spikes, **BLK** blocks, **REC** receives, **SET** sets, **AST** assists, **ACE** aces, **DIG** digs. **MVP** is the player of the match.
+They come straight from the game's end-of-match screen: **PTS** points, **SPK** spikes, **BLK** blocks, **REC** receives, **SET** sets, **AST** assists, **ACE** aces, **DIG** digs. **MVP** is the player of the match, and always comes from the **winning team**.
 
 ## Where did my old stats go?
 just volleyball launched on **21 November 2026**, so everyone's stats started again from 0. Everything from before is kept in **🧪 Pre-launch stats** on the Stats page, and on each player's page. It doesn't count towards live stats, awards, levels or badges.
@@ -92,12 +92,13 @@ Each stat has a 🥇 1st, 🥈 2nd and 🥉 3rd place, worked out from the **las
 - **🎟️ Event Player:** you're in an upcoming or running event.
 - **Award roles:** your current 🥇 1st places.
 - **🏆 Pre-launch Champion:** you won an event before the game launched.
+- **Event winner roles** (e.g. "🏆 TOURNAMENT 2 Champion"): some events give their winning team a role. Every player on that team gets it once the final is played, and keeps it.
 - **Divider roles (━ TEAM ━ / ━ AWARDS ━):** just split your roles into sections on your profile.
 - **Staff:** the JVO team, who are also admins on the site.
 More in the **Roles** tab.
 
 ## Where are trophies shown?
-Event winners go in the club's **🏆 Trophy cabinet** on its page, and the latest champions show on the right of every page. Every player who played for the winning team gets a **🏆 Honours** entry on their profile. Winners of pre-launch events also get the **🏆 Pre-launch Champion** role on Discord.
+Event winners go in the club's **🏆 Trophy cabinet** on its page, and the latest champions show on the right of every page. Every player who played for the winning team gets a **🏆 Honours** entry on their profile. Winners of pre-launch events also get the **🏆 Pre-launch Champion** role on Discord, and events with a winner role give it to every player on the winning team.
 
 # Pickup games
 ## What is pickup?
