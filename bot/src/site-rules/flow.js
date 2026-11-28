@@ -19,7 +19,7 @@
 
 import { tallyVotes } from './votes.js';
 
-export const FLOW_DEFAULTS = { on: true, breakMinutes: 15, stuckMinutes: 10, matchMinutes: 20 };
+export const FLOW_DEFAULTS = { on: true, breakMinutes: 5, stuckMinutes: 10, matchMinutes: 20 };
 
 // Check-in (flow.readyUp; off unless switched on, so events already running aren't affected).
 // Changed 2026-10-26: players check in ONCE per event (events/{e}/checkins/{playerId}), not before

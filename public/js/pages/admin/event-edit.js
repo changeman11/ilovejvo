@@ -9,7 +9,7 @@ import { WINNER_ROLE_PRESETS, winnerRoleName, isTallyEvent } from '../../rules/w
 import {
   EVENT_TYPES, EVENT_STATUSES, validateEvent, dateFromInputs, inputsFromDate, eventDateLabel,
 } from '../../rules/events.js';
-import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, isLocked, schedulePlan, drawToSave, matchCount, groupCount, suggestSetup, suggestionText } from '../../rules/autofix.js';
+import { AUTO_MODES, FINALS_TYPES, GROUP_DRAWS, LETTERS, lockTime, signupsCloseTime, isLocked, schedulePlan, drawToSave, matchCount, groupCount, suggestSetup, suggestionText } from '../../rules/autofix.js';
 import { syncSchedules } from '../../admin-sync.js';
 import { FLOW_DEFAULTS, flowOf, eventPhase, liveSummary } from '../../rules/flow.js';
 import { zoneLabel } from '../../rules/events.js';
@@ -118,7 +118,7 @@ function detailsHtml(e) {
           <label class="field"><span>Final: best of</span><select name="finalBestOf">${[3, 5].map((n) => opt(n, String(n), e.finals?.finalBestOf ?? 5)).join('')}</select></label>
         </div>
         ${tick('thirdPlace', e.finals?.thirdPlace, '🥉 3rd place match', 'Semi-final losers play for 3rd.')}
-        ${howTo('Fixtures build themselves from these settings and the teams in the event, until 10 minutes before the start. Every set is first to 10, win by 2. Knockout places go to group winners, then runners-up (best runners-up on points), paired so group mates don’t meet in the first knockout round. Knockout matches don’t count in the tables.')}`)}
+        ${howTo('Fixtures build themselves from these settings and the teams in the event, until 5 minutes before the start. Every set is first to 10, win by 2. Knockout places go to group winners, then runners-up (best runners-up on points), paired so group mates don’t meet in the first knockout round. Knockout matches don’t count in the tables.')}`)}
       ${sec('signups', '✍️', 'Sign-ups', `
         ${tick('signups', e.signups, 'Clubs sign up themselves', 'On the event page, until 10 minutes before the start.')}
         ${tick('solos', e.solos, 'Solo sign-ups', 'Players without a club sign up; you group them on the Teams tab.')}`)}
@@ -401,7 +401,7 @@ function scheduleSettingsHtml() {
   let lockLine;
   if (e.fixturesLockedAt) lockLine = `Fixtures locked ${fmtDay(e.fixturesLockedAt)} ${fmtTime(e.fixturesLockedAt)}.`;
   else if (locked) lockLine = 'Locked: the fixtures are being saved.';
-  else if (closes) lockLine = `Sign-ups close and the fixtures lock at ${fmtDay(closes)} ${fmtTime(closes)} (10 minutes before the start).`;
+  else if (closes) { const su = signupsCloseTime(e); lockLine = `Sign-ups close at ${fmtDay(su)} ${fmtTime(su)} (10 minutes before the start); the fixtures lock at ${fmtTime(closes)} (5 minutes before).`; }
   else lockLine = 'This event has no start time, so it won’t lock by itself. Set a date and time on Details, or lock it yourself.';
   const auto = e.autoFixtures && e.autoFixtures !== 'off';
   const rules = [

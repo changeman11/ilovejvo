@@ -20,6 +20,8 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+- **2026-11-28 (Claude):** Sign-ups close 10 min before the start, fixtures lock 5 min before (`SIGNUP_CLOSE_MINUTES`/`LOCK_MINUTES`, `signupsCloseTime()` in rules/autofix.js; firestore.rules still 10). Default break before finals 5 min (FLOW_DEFAULTS). Admin tabs now run the lock/finals jobs every minute while an event is near or running (`adminTick` in admin-sync.js), not only on page loads.
+
 - **2026-11-28 (Claude):** Fixed players not being able to leave/join clubs or save LFT: for well-decorated profiles the player-update rule ran the long profile checks before `changedOnly`, so club moves went over Firestore's 1000-expression limit (PERMISSION_DENIED). `changedOnly` now comes first in the owner-edit branches of players and teams. Reproduced and checked on a copy of live data in the emulator (SB9 leaving red powerade, LFT, invite + accept). Rules deployed.
 
 - **2026-11-26 (Claude):** Event winner roles: the event form has a "Winner role" section (presets in `rules/winner-role.js`: 🏆 {event} Champion, 👑 Champions, 🥇 Winner, 🏐 Cup Winner, custom). The bot (`syncWinnerRoles` in stat-roles.js) gives it to every player of the winning team once the event is decided, keeps it, and deletes roles no event uses; they sit at the top of AWARDS. MVP is now always from the winning team (`matchMvp` in rules/results.js: on match pages, careers, stats, admin saves). Count-up preset "🏆 1x / 2x / 3x Tournament Champion" (each player by titles won). Created TOURNAMENT 2 - 4v4 (Sat 28 Nov 8pm AEDT, semis + Bo5 final, count-up role) and announced it in #announcements with @Community. Hosting v109 deployed, bot uploaded.

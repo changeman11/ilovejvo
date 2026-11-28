@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lockTime, isLocked, signupsOpen, entrantIds, groupFixtures, schedulePlan } from '../public/js/rules/autofix.js';
+import { lockTime, signupsCloseTime, isLocked, signupsOpen, entrantIds, groupFixtures, schedulePlan } from '../public/js/rules/autofix.js';
 
 const HOUR = 3600000;
 const start = Date.UTC(2026, 10, 1, 9, 0);
@@ -10,8 +10,11 @@ const entry = (teamId, createdAt) => ({ teamId, createdAt });
 const win = { sets: [{ home: 10, away: 5 }, { home: 10, away: 6 }] };
 const lose = { sets: [{ home: 5, away: 10 }, { home: 6, away: 10 }] };
 
-test('sign-ups close 10 minutes before the start', () => {
-  assert.equal(lockTime(ev()), start - 10 * 60000);
+test('sign-ups close 10 minutes before the start, fixtures lock 5 before', () => {
+  assert.equal(lockTime(ev()), start - 5 * 60000);
+  assert.equal(signupsCloseTime(ev()), start - 10 * 60000);
+  assert.equal(isLocked(ev(), start - 6 * 60000), false);
+  assert.equal(isLocked(ev(), start - 5 * 60000), true);
   assert.equal(signupsOpen(ev(), start - 11 * 60000), true);
   assert.equal(signupsOpen(ev(), start - 10 * 60000), false);
   assert.equal(signupsOpen(ev({ signups: false }), start - HOUR), false);

@@ -15,7 +15,7 @@ import { eventRulesHtml } from './event-rules.js';
 import { elimView } from '../rules/elim-fill.js';
 import { checkinPanel, mountReady } from './ready-up.js';
 import { allFixtures, fixtureRow, fixturesByDay, fixturesByRound, resultOf, standingsTable, groupTablesHtml, groupFixturesHtml, bracketHtml, elimBracketHtml, stageOrder } from './parts.js';
-import { signupsOpen, lockTime } from '../rules/autofix.js';
+import { signupsOpen, signupsCloseTime } from '../rules/autofix.js';
 import { currentUser, currentAdmin } from '../auth.js';
 import { adminAddEntry, removeEntry } from '../admin-data.js';
 import { signUpTeam, withdrawTeam, signUpSolo, withdrawSolo } from '../player-data.js';
@@ -209,7 +209,7 @@ async function signupBox(b) {
   if (!e.signups && !e.solos) return '';
   const open = e.signups ? signupsOpen(e) : false;
   const soloOpen = Boolean(e.solos) && signupsOpen({ ...e, signups: true });
-  const closes = lockTime(e);
+  const closes = signupsCloseTime(e);
   const [user, adminState] = await Promise.all([currentUser().catch(() => null), currentAdmin().catch(() => null)]);
   const adminUid = adminState?.admin ? adminState.user.uid : null;
   const me = user ? Object.values(b.playersById).find((p) => p.uid === user.uid) : null;

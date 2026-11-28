@@ -91,7 +91,7 @@ export async function reportBlock(b, f) {
   if (!player || !isApprovedTeam(team) || (team.id !== f.homeTeamId && team.id !== f.awayTeamId)) return '';
   // Worked-out fixtures (rules/autofix.js) can't take votes until they're saved at the lock.
   if (f.virtual) {
-    return '<section class="panel"><p class="muted small" style="margin:0">Result reporting opens when the fixtures lock, 10 minutes before the start.</p></section>';
+    return '<section class="panel"><p class="muted small" style="margin:0">Result reporting opens when the fixtures lock, 5 minutes before the start.</p></section>';
   }
   // Match flow (rules/flow.js): only open matches take votes.
   const st = matchState(b, f, Date.now());

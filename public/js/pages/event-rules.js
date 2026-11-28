@@ -38,7 +38,7 @@ export function eventRulesSections(e, { teams = 0 } = {}) {
       groups > 1
         ? `Teams are drawn into ${groups} groups (${e.groups?.draw === 'manual' ? 'placed by admins' : 'a random draw that keeps groups even; admins can place teams by hand'}). Everyone plays everyone in their group ${auto === 'double' ? 'twice (home and away)' : 'once'}.`
         : `Round robin: everyone plays everyone ${auto === 'double' ? 'twice (home and away)' : 'once'}.`,
-      e.signups ? 'The fixtures update by themselves as clubs sign up, then lock 10 minutes before the start. After that they don’t change.' : 'Fixtures lock when an admin locks them.',
+      e.signups ? 'The fixtures update by themselves as clubs sign up, then lock 5 minutes before the start. After that they don’t change.' : 'Fixtures lock when an admin locks them.',
     ]]);
   }
   if (ko) {

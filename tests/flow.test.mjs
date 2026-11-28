@@ -48,13 +48,13 @@ test('break after the group stage, then finals open by themselves (or wait for a
   const all = { 'r1-ab': res(T0 + 10 * MIN), 'r1-cd': res(T0 + 12 * MIN), 'r2-ac': res(T0 + 30 * MIN), 'r2-bd': res(T0 + 33 * MIN) };
   const b = bundle({ results: { ...all } });
   const final = b.fixtures.find((f) => f.id === 'finals-final');
-  const brk = eventPhase(b, T0 + 40 * MIN);
+  const brk = eventPhase(b, T0 + 36 * MIN);
   assert.equal(brk.phase, 'break');
-  assert.equal(brk.breakEndsAt, T0 + 48 * MIN); // 15 min after the last group score
-  assert.equal(matchState(b, final, T0 + 40 * MIN).state, 'break');
-  assert.equal(finalsOpenToSave(b, T0 + 40 * MIN), T0 + 48 * MIN);
-  assert.equal(eventPhase(b, T0 + 48 * MIN).phase, 'finals');
-  assert.equal(matchState(b, final, T0 + 49 * MIN).state, 'open');
+  assert.equal(brk.breakEndsAt, T0 + 38 * MIN); // 5 min after the last group score
+  assert.equal(matchState(b, final, T0 + 36 * MIN).state, 'break');
+  assert.equal(finalsOpenToSave(b, T0 + 36 * MIN), T0 + 38 * MIN);
+  assert.equal(eventPhase(b, T0 + 38 * MIN).phase, 'finals');
+  assert.equal(matchState(b, final, T0 + 39 * MIN).state, 'open');
   // Admin-only break: no timer until an admin opens them.
   const manual = bundle({ results: { ...all }, flow: { breakMinutes: null } });
   assert.equal(eventPhase(manual, T0 + 300 * MIN).phase, 'break');

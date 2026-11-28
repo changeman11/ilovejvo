@@ -89,7 +89,7 @@ On a finished event with semi-finals: **Add 3rd place match**. It's saved once b
 
 # On the night
 ## Before the start
-- Be online about 10 minutes before the start: sign-ups close, fixtures lock and save.
+- Sign-ups close 10 minutes before the start and the fixtures lock and save 5 minutes before. Any admin tab open on the site does it (it checks every minute).
 - Check every club has enough players, and the solo players are in teams.
 
 ## Discord reminders

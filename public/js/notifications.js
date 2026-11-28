@@ -16,7 +16,7 @@ import { onSnapshot, query, collection, orderBy, limit } from 'https://www.gstat
 import { db } from './firebase.js';
 import { matchesToReport } from './pages/report.js';
 import { esc, urls, fmtDay, fmtTime } from './ui.js';
-import { signupsOpen, lockTime } from './rules/autofix.js';
+import { signupsOpen, signupsCloseTime } from './rules/autofix.js';
 import { navigate } from './nav.js';
 
 const box = document.querySelector('[data-bell]');
@@ -59,7 +59,7 @@ function eventReminders(bundles, me, now) {
     const title = `<b>${esc(e.title)}</b>`;
     const inIt = team && b.plan.teamIds.includes(team.id);
     const open = signupsOpen(e, now);
-    const closes = lockTime(e);
+    const closes = signupsCloseTime(e);
 
     if (manager && open && !inIt) {
       out.push({ id: `ev-signup-${e.id}`, at: e.createdAt ?? now, icon: '📝', text: `Sign ${esc(team.name)} up for ${title}${closes ? `<br>Closes ${esc(at(closes))}` : ''}`, href });

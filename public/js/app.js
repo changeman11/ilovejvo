@@ -25,7 +25,7 @@ import { updateBell } from './notifications.js';
 import { updateReel } from './reel.js';
 import { updateFeatured } from './featured.js';
 import { updateTrophy } from './trophy.js';
-import { syncSchedules } from './admin-sync.js';
+import { syncSchedules, adminTick } from './admin-sync.js';
 import { startStatsReader, readWaitingStats } from './stats-reader.js';
 import { botReadsStats } from './config.js';
 import { stopLive, keptNow, swapKept } from './live.js';
@@ -407,6 +407,9 @@ document.addEventListener('jvo-admin-mode', () => {
 show();
 // Admin browsers read end-of-match screenshots as they come in (stats-reader.js), unless the bot does.
 if (!botReadsStats) startStatsReader();
+// An admin tab left open also does the timed jobs (lock fixtures, open finals) every minute, not
+// only when a page loads (2026-11-28). Non-admins return at once.
+setInterval(() => adminTick().catch(() => 0), 60 * 1000);
 
 // Updates: the service worker is re-checked every 10 minutes (and when the tab comes back). When a
 // new version of the site has been published, the next page change does a full load, so a tab left

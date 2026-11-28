@@ -118,7 +118,7 @@ export function inputsFromDate(date, timeTbd) {
 }
 
 // Club moves (leaving, accepting a join) pause while any event is running (owner's call,
-// 2026-10-24): from 10 minutes before its start (the fixture lock) until it's marked finished,
+// 2026-10-24): from 10 minutes before its start (sign-ups close) until it's marked finished,
 // its match flow says it's done, or 12 hours have passed (in case nobody marks it finished).
 // Only dated, published, upcoming events count. `phaseOf(event)`: optional, the match flow phase.
 // Returns the running event, or null.

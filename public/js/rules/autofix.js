@@ -24,7 +24,10 @@ import { computeStandings, ratio } from './standings.js';
 import { checkResult } from './match.js';
 import { formatFor, isPlayoff } from './season.js';
 
-export const LOCK_MINUTES = 10;
+// Sign-ups close 10 minutes before the start; the fixtures lock 5 minutes later, 5 minutes before
+// the start (changed 2026-11-28, both were 10). firestore.rules signupsOpen() also uses 10.
+export const SIGNUP_CLOSE_MINUTES = 10;
+export const LOCK_MINUTES = 5;
 export const AUTO_MODES = { off: 'Off: I’ll add fixtures myself', once: 'Round robin: everyone plays once', double: 'Round robin: home & away' };
 export const FINALS_TYPES = {
   none: 'No knockout',
@@ -36,12 +39,16 @@ export const GROUP_DRAWS = { auto: 'Automatic draw', manual: 'I’ll place teams
 export const LETTERS = 'ABCDEFGH';
 const KO_SIZE = { none: 0, final: 2, semis: 4, quarters: 8 };
 
-// When sign-ups close and the fixtures lock (ms), or null when the event has no start time yet.
+// When the fixtures lock (ms), or null when the event has no start time yet.
 export function lockTime(event) {
   return event?.date && !event.timeTbd ? event.date - LOCK_MINUTES * 60000 : null;
 }
+// When club and solo sign-ups close (ms), or null when the event has no start time yet.
+export function signupsCloseTime(event) {
+  return event?.date && !event.timeTbd ? event.date - SIGNUP_CLOSE_MINUTES * 60000 : null;
+}
 
-// Fixtures are fixed once an admin locked them, the event isn't upcoming, or it's 10 minutes to go.
+// Fixtures are fixed once an admin locked them, the event isn't upcoming, or it's 5 minutes to go.
 export function isLocked(event, now = Date.now()) {
   if (event?.fixturesLockedAt) return true;
   if ((event?.status ?? 'upcoming') !== 'upcoming') return true;
@@ -50,7 +57,8 @@ export function isLocked(event, now = Date.now()) {
 }
 
 export function signupsOpen(event, now = Date.now()) {
-  return Boolean(event?.published && event?.signups) && !isLocked(event, now);
+  const closes = signupsCloseTime(event);
+  return Boolean(event?.published && event?.signups) && !isLocked(event, now) && (closes == null || now < closes);
 }
 
 // Teams in the event: the ones an admin added, then clubs in the order they signed up.

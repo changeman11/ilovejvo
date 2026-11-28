@@ -28,7 +28,7 @@ Each event sets **players per game** (for example 3v3) and how many **subs** a t
 Open the event and read its **📜 Event rules** section. It's written from that event's own settings: team size, best of how many sets, points per set, groups, finals, check-in and how results work. If it's there, it beats anything general in this FAQ.
 
 ## How does my club get into an event?
-When sign-ups are open, the club's manager presses **Sign up** on the event page. Sign-ups close **10 minutes before the start** (or when an admin locks them). Admins can also add clubs themselves.
+When sign-ups are open, the club's manager presses **Sign up** on the event page. Sign-ups close **10 minutes before the start** (or when an admin locks them), and the fixtures are set **5 minutes before the start**. Admins can also add clubs themselves.
 
 ## I don't have a club. Can I still play an event?
 If the event allows **solo sign-ups**, press **Sign up solo** on the event page. Admins put solo players into mix teams for that event only. Your own club (if you have one) doesn't change.

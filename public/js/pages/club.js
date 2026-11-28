@@ -19,7 +19,7 @@ import { makeProfileCard } from './discord-cta.js';
 import { allFixtures, resultOf, fixtureRow } from './parts.js';
 import { matchesToReport } from './report.js';
 import { chatBlock, mountChat } from './team-chat.js';
-import { signupsOpen, lockTime } from '../rules/autofix.js';
+import { signupsOpen, signupsCloseTime } from '../rules/autofix.js';
 import { checkText } from '../rules/profanity.js';
 import { signUpTeam, withdrawTeam, handOverClub, disbandClub } from '../player-data.js';
 
@@ -393,7 +393,7 @@ export async function render() {
   const now = Date.now();
   const events = bundles
     .filter((b) => b.event.status === 'upcoming' && b.event.signups)
-    .map((b) => ({ b, open: signupsOpen(b.event, now), entered: b.plan.teamIds.includes(team.id), closes: lockTime(b.event), entry: b.entries.find((x) => x.teamId === team.id) ?? null }))
+    .map((b) => ({ b, open: signupsOpen(b.event, now), entered: b.plan.teamIds.includes(team.id), closes: signupsCloseTime(b.event), entry: b.entries.find((x) => x.teamId === team.id) ?? null }))
     .sort((x, y) => (x.b.event.date ?? Infinity) - (y.b.event.date ?? Infinity));
   const todoCount = requests + events.filter((x) => x.open && !x.entered).length + toReport.length;
 
