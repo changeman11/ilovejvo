@@ -20,6 +20,8 @@ Newest first. Each work session adds an entry: what changed, deployed or not, wh
 
 ## Log
 
+- **2026-11-28 (Claude):** Bot **event keeper** (`bot/src/event-keeper.js`, EVENT_KEEPER=0 off): every minute, for events from 20 min before the start to 12 h after, saves the worked-out fixtures at the lock (and finals once known) and the finals opening time, so no admin needs to be online. Rules: bot may create `auto-*`/`finals-*` fixtures and change only fixturesLockedAt/groups/flow on a published upcoming event. autofix.js + schedule.js now shared with the bot. TOURNAMENT 2 break set to 5 min (via the bot account, audited); 9 clubs signed up = 36 group matches.
+
 - **2026-11-28 (Claude):** Sign-ups close 10 min before the start, fixtures lock 5 min before (`SIGNUP_CLOSE_MINUTES`/`LOCK_MINUTES`, `signupsCloseTime()` in rules/autofix.js; firestore.rules still 10). Default break before finals 5 min (FLOW_DEFAULTS). Admin tabs now run the lock/finals jobs every minute while an event is near or running (`adminTick` in admin-sync.js), not only on page loads.
 
 - **2026-11-28 (Claude):** Fixed players not being able to leave/join clubs or save LFT: for well-decorated profiles the player-update rule ran the long profile checks before `changedOnly`, so club moves went over Firestore's 1000-expression limit (PERMISSION_DENIED). `changedOnly` now comes first in the owner-edit branches of players and teams. Reproduced and checked on a copy of live data in the emulator (SB9 leaving red powerade, LFT, invite + accept). Rules deployed.

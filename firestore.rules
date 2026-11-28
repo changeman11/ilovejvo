@@ -242,6 +242,11 @@ service cloud.firestore {
       allow read: if resource.data.published == true || isAdmin();
       allow create, update: if isAdmin() && stampedByMe() && validEvent();
       allow delete: if isAdmin();
+      // The bot's event keeper (bot/src/event-keeper.js, 2026-11-28): locks the fixtures and opens the
+      // finals of a published upcoming event, nothing else.
+      allow update: if isPickupBot() && stampedByMe()
+        && resource.data.published == true && resource.data.get('status', 'upcoming') == 'upcoming'
+        && changedOnly(['fixturesLockedAt', 'groups', 'flow', 'updatedBy', 'updatedAt']);
 
       match /results/{fixtureId} {
         allow read: if eventPublished(eventId) || isAdmin();
@@ -384,6 +389,10 @@ service cloud.firestore {
       match /{collection}/{docId} {
         allow read: if eventPublished(eventId) || isAdmin();
         allow create, update: if isAdmin() && stampedByMe() && collection in ['fixtures', 'rosters'];
+        // The bot's event keeper saves worked-out fixtures (round robin, finals), new ones only.
+        allow create: if isPickupBot() && stampedByMe() && collection == 'fixtures'
+          && (docId.matches('auto-.*') || docId.matches('finals-.*'))
+          && get(/databases/$(database)/documents/events/$(eventId)).data.get('status', 'upcoming') == 'upcoming';
         allow delete: if isAdmin() && collection in ['fixtures', 'rosters'];
       }
     }

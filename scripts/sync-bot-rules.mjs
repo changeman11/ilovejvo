@@ -13,7 +13,9 @@ export const SHARED_RULES = ['flow.js', 'votes.js', 'match.js', 'results.js', 'd
   // Award event (bot/src/stat-roles.js): which event holds the awards.
   'podium.js', 'award-event.js', 'eras.js', 'champions.js', 'winner-role.js',
   // The stats reader (bot/src/stats-read.js): table layout, digits, name pictures, who's who.
-  'endscreen.js', 'glyphs.js', 'namepics.js', 'whois.js'];
+  'endscreen.js', 'glyphs.js', 'namepics.js', 'whois.js',
+  // The event keeper (bot/src/event-keeper.js): locks fixtures, opens finals.
+  'autofix.js', 'schedule.js'];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const fromDir = join(root, 'public', 'js', 'rules');

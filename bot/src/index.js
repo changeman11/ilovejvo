@@ -27,6 +27,7 @@ import { StaffDesk } from './staff-desk.js';
 import { EventPings } from './event-pings.js';
 import { EventRole } from './event-role.js';
 import { Withdrawals } from './withdrawals.js';
+import { EventKeeper } from './event-keeper.js';
 
 const log = {
   info: (...a) => console.log(new Date().toISOString(), ...a),
@@ -130,6 +131,7 @@ let staffDesk = null;
 let eventPings = null;
 let eventRole = null;
 let withdrawals = null;
+let eventKeeper = null;
 
 client.once(Events.ClientReady, async () => {
   try {
@@ -195,6 +197,12 @@ client.once(Events.ClientReady, async () => {
       const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
       withdrawals = new Withdrawals({ site, rest: store.rest, config, log });
       withdrawals.start().catch((err) => log.error(`[forfeits] ${err.message}`));
+    }
+    // Locks fixtures and opens finals on the night (what an admin's open browser used to do).
+    if (config.eventKeeper && store.rest) {
+      const site = new SiteReader({ projectId: config.firebase.projectId, emulator: config.firebase.emulator });
+      eventKeeper = new EventKeeper({ site, rest: store.rest, log });
+      eventKeeper.start().catch((err) => log.error(`[event keeper] ${err.message}`));
     }
     // 🎟️ Event Player role for everyone in an upcoming or running event.
     if (config.eventRole) {
@@ -402,6 +410,7 @@ async function stop(signal) {
   eventPings?.stop();
   eventRole?.stop();
   withdrawals?.stop();
+  eventKeeper?.stop();
   await Promise.race([Promise.all([pickup?.shutdown(), ranked?.shutdown()]), new Promise((r) => setTimeout(r, 8000))]);
   await client.destroy();
   process.exit(0);
